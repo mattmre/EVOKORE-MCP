@@ -14,7 +14,7 @@ import fs from "fs/promises";
 import path from "path";
 import yaml from "yaml";
 
-const SKILLS_DIR = path.resolve(process.cwd(), "SKILLS");
+const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
 
 interface SkillMetadata {
   name: string;

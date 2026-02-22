@@ -9,7 +9,7 @@ const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const promises_1 = __importDefault(require("fs/promises"));
 const path_1 = __importDefault(require("path"));
 const yaml_1 = __importDefault(require("yaml"));
-const SKILLS_DIR = path_1.default.resolve(process.cwd(), "SKILLS");
+const SKILLS_DIR = path_1.default.resolve(__dirname, "../SKILLS");
 class EvokoreMCPServer {
     server;
     skillsCache = new Map();
