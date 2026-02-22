@@ -24,7 +24,7 @@ async function processFile(filePath) {
 
             frontmatterObj = {
                 name: name,
-                description: Specialized skill for  + name.replace(/-/g, ' ') +  workflows.
+                description: 'Specialized skill for ' + name.replace(/-/g, ' ') + ' workflows.'
             };
         } else {
             try {
@@ -76,4 +76,5 @@ async function walkDir(dir) {
 
 console.log("Starting EVOKORE-MCP Skill Cleanup Pass...");
 walkDir(SKILLS_DIR).then(() => console.log("Cleanup complete!"));
+
 
