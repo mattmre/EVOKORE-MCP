@@ -23,6 +23,9 @@ To use this server with your AI client (like Claude Desktop or Cursor), add the 
 }
 ```
 
+## 🎓 Comprehensive Training
+Dive into our extensive, deeply researched use cases and training guides for all 200+ skills: [**Training & Use Cases Documentation**](docs/TRAINING_AND_USE_CASES.md).
+
 ## 📂 Repository Structure
 
 - `src/index.ts`: The core MCP Server implementation.
