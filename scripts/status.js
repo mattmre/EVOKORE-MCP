@@ -3,15 +3,10 @@
 const fs = require('fs');
 const path = require('path');
 
-// EVOKORE-MCP Status Line Integration
-// This script reads the JSON context payload provided by AI clients (like Claude Code or Gemini CLI) via stdin
-// and formats it into a beautiful, cross-platform terminal status line.
-
 function getTerminalWidth() {
   return process.stdout.columns || 80;
 }
 
-// Colors
 const colors = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
@@ -24,14 +19,6 @@ const colors = {
   gray: '\x1b[38;5;240m'
 };
 
-function formatBytes(bytes) {
-  if (bytes === 0) return '0B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + sizes[i];
-}
-
 function formatTokens(num) {
   if (num > 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num > 1000) return (num / 1000).toFixed(1) + 'k';
@@ -39,34 +26,24 @@ function formatTokens(num) {
 }
 
 let inputData = '';
-
-process.stdin.on('data', chunk => {
-  inputData += chunk;
-});
+process.stdin.on('data', chunk => { inputData += chunk; });
 
 process.stdin.on('end', async () => {
   try {
     let payload = {};
     if (inputData.trim()) {
-        try {
-            payload = JSON.parse(inputData);
-        } catch (e) {}
+        try { payload = JSON.parse(inputData); } catch (e) {}
     }
 
     const width = getTerminalWidth();
-    
-    // Extract Client Context (Matches Claude/Gemini hook payloads)
     const modelName = payload?.model?.display_name || payload?.model || 'EVOKORE AI';
     const cwd = payload?.workspace?.current_dir || payload?.cwd || process.cwd();
     const dirName = path.basename(cwd);
     
     const inputTokens = payload?.context_window?.current_usage?.input_tokens || 0;
-    const outputTokens = payload?.context_window?.current_usage?.output_tokens || 0;
     const maxTokens = payload?.context_window?.context_window_size || 200000;
-    
     const contextPercent = Math.min(100, Math.round((inputTokens / maxTokens) * 100));
 
-    // Try to get EVOKORE-MCP local skill count
     let skillCount = '200+';
     try {
         const skillsDir = path.resolve(__dirname, '../SKILLS');
@@ -80,38 +57,29 @@ process.stdin.on('end', async () => {
             }
         }
         if (count > 0) skillCount = count;
-    } catch (e) {
-        // Ignore if run outside repo
-    }
+    } catch (e) {}
 
-    // Build Status Line
-    const prefix = \\⚡ EVOKORE\;
-    const location = \▶ \\;
-    const aiModel = \🤖 \\;
-    const skills = \⚒�  \ Skills\;
+    const prefix = `${colors.bold}${colors.purple}? EVOKORE${colors.reset}`;
+    const location = `${colors.blue}? ${dirName}${colors.reset}`;
+    const aiModel = `${colors.orange}?? ${modelName}${colors.reset}`;
+    const skills = `${colors.green}?? ${skillCount} Skills${colors.reset}`;
     
-    // Context Bar
     let contextColor = colors.green;
     if (contextPercent > 70) contextColor = colors.orange;
     if (contextPercent > 90) contextColor = colors.red;
-    const contextStr = \○ Ctx: \%\ \(\/\)\;
+    const contextStr = `${contextColor}? Ctx: ${contextPercent}%${colors.reset} ${colors.dim}(${formatTokens(inputTokens)}/${formatTokens(maxTokens)})${colors.reset}`;
 
-    // Layout Logic (Responsive)
     let output = '';
     if (width < 60) {
-        output = \ | \;
+        output = `${prefix} | ${contextStr}`;
     } else if (width < 100) {
-        output = \ | \ | \ | \;
+        output = `${prefix} | ${aiModel} | ${skills} | ${contextStr}`;
     } else {
-        output = \ \::\ \ \::\ \ \::\ \ \::\ \;
+        output = `${prefix} ${colors.dim}::${colors.reset} ${location} ${colors.dim}::${colors.reset} ${aiModel} ${colors.dim}::${colors.reset} ${skills} ${colors.dim}::${colors.reset} ${contextStr}`;
     }
 
-    // Add top border line for aesthetic
-    const border = colors.gray + '─'.repeat(Math.min(width, 120)) + colors.reset;
-    
-    process.stdout.write(\n\\n\\n);
-
+    process.stdout.write(`\n${output}\n`);
   } catch (error) {
-    process.stdout.write(\EVOKORE Status Error: \\\n);
+    process.stdout.write(`${colors.red}EVOKORE Status Error: ${error.message}${colors.reset}\n`);
   }
 });
