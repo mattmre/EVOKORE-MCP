@@ -14,7 +14,7 @@ async function processFile(filePath) {
 
         // If no frontmatter, try to infer it
         if (!match) {
-            console.log([Adding Frontmatter]  + filePath);
+            console.log('[Adding Frontmatter] ' + filePath);
             const dirName = path.basename(path.dirname(filePath));
             const fileName = path.basename(filePath, '.md');
 
@@ -31,7 +31,7 @@ async function processFile(filePath) {
                 frontmatterObj = yaml.parse(match[1]);
                 body = match[2];
             } catch (e) {
-                console.log([Fixing Malformed Frontmatter]  + filePath);
+                console.log('[Fixing Malformed Frontmatter] ' + filePath);
                 // Simple regex extraction if yaml parse fails
                 const nameMatch = match[1].match(/name:\s*(.+)/);
                 const descMatch = match[1].match(/description:\s*(.+)/);
@@ -53,10 +53,10 @@ async function processFile(filePath) {
 
         if (content !== newContent) {
             await fs.writeFile(filePath, newContent, 'utf8');
-            console.log([Updated]  + filePath);
+            console.log('[Updated] ' + filePath);
         }
     } catch (e) {
-        console.error([Error] Processing  + filePath + :  + e.message);
+        console.error('[Error] Processing ' + filePath + :  + e.message);
     }
 }
 
@@ -76,3 +76,4 @@ async function walkDir(dir) {
 
 console.log("Starting EVOKORE-MCP Skill Cleanup Pass...");
 walkDir(SKILLS_DIR).then(() => console.log("Cleanup complete!"));
+
