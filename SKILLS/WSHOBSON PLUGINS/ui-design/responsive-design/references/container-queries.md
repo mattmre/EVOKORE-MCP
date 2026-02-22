@@ -1,3 +1,8 @@
+---
+name: container-queries-deep-dive
+description: Specialized skill for container queries deep dive workflows.
+---
+
 # Container Queries Deep Dive
 
 ## Overview

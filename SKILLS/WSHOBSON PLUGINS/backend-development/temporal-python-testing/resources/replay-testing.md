@@ -1,3 +1,9 @@
+---
+name: replay-testing-for-determinism-and-compatibility
+description: Specialized skill for replay testing for determinism and
+  compatibility workflows.
+---
+
 # Replay Testing for Determinism and Compatibility
 
 Comprehensive guide for validating workflow determinism and ensuring safe code changes using replay testing.

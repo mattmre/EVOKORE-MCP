@@ -1,3 +1,8 @@
+---
+name: api-design-checklist
+description: Specialized skill for api design checklist workflows.
+---
+
 # API Design Checklist
 
 ## Pre-Implementation Review

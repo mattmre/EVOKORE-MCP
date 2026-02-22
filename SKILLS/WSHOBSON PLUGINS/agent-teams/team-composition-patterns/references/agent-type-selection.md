@@ -1,3 +1,8 @@
+---
+name: agent-type-selection-guide
+description: Specialized skill for agent type selection guide workflows.
+---
+
 # Agent Type Selection Guide
 
 Decision matrix for choosing the right `subagent_type` when spawning teammates.

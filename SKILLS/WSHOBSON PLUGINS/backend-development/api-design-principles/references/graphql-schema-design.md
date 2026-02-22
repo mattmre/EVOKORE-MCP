@@ -1,3 +1,8 @@
+---
+name: graphql-schema-design-patterns
+description: Specialized skill for graphql schema design patterns workflows.
+---
+
 # GraphQL Schema Design Patterns
 
 ## Schema Organization

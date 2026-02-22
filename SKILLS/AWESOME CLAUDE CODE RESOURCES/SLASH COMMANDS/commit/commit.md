@@ -1,3 +1,8 @@
+---
+name: claude-command-commit
+description: Specialized skill for claude command commit workflows.
+---
+
 # Claude Command: Commit
 
 This command helps you create well-formatted commits with conventional commit messages and emoji.

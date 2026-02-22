@@ -1,3 +1,8 @@
+---
+name: forest-canopy
+description: Specialized skill for forest canopy workflows.
+---
+
 # Forest Canopy
 
 A natural and grounded theme featuring earth tones inspired by dense forest environments.

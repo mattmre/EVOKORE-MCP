@@ -1,7 +1,10 @@
 ---
 name: session-wrap
-description: Wrap up the current coding session by creating PRs, updating the session log, preparing the next session md, and updating the claude md with learnings.
+description: Wrap up the current coding session by creating PRs, updating the
+  session log, preparing the next session md, and updating the claude md with
+  learnings.
 ---
+
 # Session Wrap
 
 This skill wraps up the current coding session, ensuring no context is lost and the handoff to the next session is seamless.

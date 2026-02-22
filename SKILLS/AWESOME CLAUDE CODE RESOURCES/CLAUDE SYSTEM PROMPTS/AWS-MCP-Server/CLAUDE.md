@@ -1,3 +1,8 @@
+---
+name: aws-mcp-server-development-guide
+description: Specialized skill for aws mcp server development guide workflows.
+---
+
 # AWS MCP Server Development Guide
 
 ## Build & Test Commands

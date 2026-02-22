@@ -1,3 +1,8 @@
+---
+name: git-worktree-commands
+description: Specialized skill for git worktree commands workflows.
+---
+
 # Git Worktree Commands
 
 ## Create Worktrees for All Open PRs

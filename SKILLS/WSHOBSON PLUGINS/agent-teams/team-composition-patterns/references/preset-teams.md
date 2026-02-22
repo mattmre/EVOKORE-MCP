@@ -1,3 +1,8 @@
+---
+name: preset-team-definitions
+description: Specialized skill for preset team definitions workflows.
+---
+
 # Preset Team Definitions
 
 Detailed preset team configurations with task templates for common workflows.

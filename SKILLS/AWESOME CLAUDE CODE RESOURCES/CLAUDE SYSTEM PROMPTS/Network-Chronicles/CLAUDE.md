@@ -1,3 +1,8 @@
+---
+name: network-chronicles-development-notes
+description: Specialized skill for network chronicles development notes workflows.
+---
+
 # Network Chronicles Development Notes
 
 ## Common Commands

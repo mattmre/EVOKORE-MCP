@@ -1,3 +1,8 @@
+---
+name: review-dimension-checklists
+description: Specialized skill for review dimension checklists workflows.
+---
+
 # Review Dimension Checklists
 
 Detailed checklists for each review dimension that reviewers follow during parallel code review.

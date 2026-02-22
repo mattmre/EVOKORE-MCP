@@ -1,3 +1,8 @@
+---
+name: dapper-patterns-and-best-practices
+description: Specialized skill for dapper patterns and best practices workflows.
+---
+
 # Dapper Patterns and Best Practices
 
 Advanced patterns for high-performance data access with Dapper in .NET.

@@ -1,3 +1,8 @@
+---
+name: few-shot-learning-guide
+description: Specialized skill for few shot learning guide workflows.
+---
+
 # Few-Shot Learning Guide
 
 ## Overview

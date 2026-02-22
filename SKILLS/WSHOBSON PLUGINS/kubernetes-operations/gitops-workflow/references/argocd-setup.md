@@ -1,3 +1,8 @@
+---
+name: argocd-setup-and-configuration
+description: Specialized skill for argocd setup and configuration workflows.
+---
+
 # ArgoCD Setup and Configuration
 
 ## Installation Methods

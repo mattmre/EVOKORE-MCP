@@ -1,3 +1,8 @@
+---
+name: sunset-boulevard
+description: Specialized skill for sunset boulevard workflows.
+---
+
 # Sunset Boulevard
 
 A warm and vibrant theme inspired by golden hour sunsets, perfect for energetic and creative presentations.

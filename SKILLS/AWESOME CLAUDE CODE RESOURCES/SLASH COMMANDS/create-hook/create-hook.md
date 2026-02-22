@@ -1,3 +1,8 @@
+---
+name: create-hook-command
+description: Specialized skill for create hook command workflows.
+---
+
 # Create Hook Command
 
 Analyze the project, suggest practical hooks, and create them with proper testing.

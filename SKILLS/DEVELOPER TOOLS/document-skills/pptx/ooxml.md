@@ -1,3 +1,9 @@
+---
+name: office-open-xml-technical-reference-for-powerpoint
+description: Specialized skill for office open xml technical reference for
+  powerpoint workflows.
+---
+
 # Office Open XML Technical Reference for PowerPoint
 
 **Important: Read this entire document before starting.** Critical XML schema rules and formatting requirements are covered throughout. Incorrect implementation can create invalid PPTX files that PowerPoint cannot open.

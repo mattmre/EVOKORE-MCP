@@ -1,3 +1,8 @@
+---
+name: tpl-go-developer-guide
+description: Specialized skill for tpl go developer guide workflows.
+---
+
 # TPL-GO Developer Guide
 
 ## Build Commands

@@ -1,6 +1,8 @@
 ---
 name: hive-test
-description: Iterative agent testing with session recovery. Execute, analyze, fix, resume from checkpoints. Use when testing an agent, debugging test failures, or verifying fixes without re-running from scratch.
+description: Iterative agent testing with session recovery. Execute, analyze,
+  fix, resume from checkpoints. Use when testing an agent, debugging test
+  failures, or verifying fixes without re-running from scratch.
 ---
 
 # Agent Testing

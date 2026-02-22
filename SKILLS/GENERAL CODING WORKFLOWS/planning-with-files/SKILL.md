@@ -1,7 +1,10 @@
 ---
 name: planning-with-files
-version: "2.10.0"
-description: Implements Manus-style file-based planning for complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when starting complex multi-step tasks, research projects, or any task requiring >5 tool calls. Now with automatic session recovery after /clear.
+version: 2.10.0
+description: Implements Manus-style file-based planning for complex tasks.
+  Creates task_plan.md, findings.md, and progress.md. Use when starting complex
+  multi-step tasks, research projects, or any task requiring >5 tool calls. Now
+  with automatic session recovery after /clear.
 user-invocable: true
 allowed-tools:
   - Read
@@ -14,15 +17,16 @@ allowed-tools:
   - WebSearch
 hooks:
   PreToolUse:
-    - matcher: "Write|Edit|Bash|Read|Glob|Grep"
+    - matcher: Write|Edit|Bash|Read|Glob|Grep
       hooks:
         - type: command
-          command: "cat task_plan.md 2>/dev/null | head -30 || true"
+          command: cat task_plan.md 2>/dev/null | head -30 || true
   PostToolUse:
-    - matcher: "Write|Edit"
+    - matcher: Write|Edit
       hooks:
         - type: command
-          command: "echo '[planning-with-files] File updated. If this completes a phase, update task_plan.md status.'"
+          command: echo '[planning-with-files] File updated. If this completes a phase,
+            update task_plan.md status.'
   Stop:
     - hooks:
         - type: command

@@ -1,3 +1,8 @@
+---
+name: material-design-3-theming
+description: Specialized skill for material design 3 theming workflows.
+---
+
 # Material Design 3 Theming
 
 ## Color System

@@ -1,3 +1,8 @@
+---
+name: pr-review
+description: Specialized skill for pr review workflows.
+---
+
 # PR Review
 
 **PR Link/Number**: $ARGUMENTS

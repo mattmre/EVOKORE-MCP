@@ -1,3 +1,8 @@
+---
+name: hypothesis-testing-reference
+description: Specialized skill for hypothesis testing reference workflows.
+---
+
 # Hypothesis Testing Reference
 
 Task templates, evidence formats, and arbitration decision trees for parallel debugging.

@@ -1,3 +1,8 @@
+---
+name: breakpoint-strategies
+description: Specialized skill for breakpoint strategies workflows.
+---
+
 # Breakpoint Strategies
 
 ## Overview

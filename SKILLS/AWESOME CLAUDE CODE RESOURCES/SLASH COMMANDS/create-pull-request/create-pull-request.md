@@ -1,3 +1,8 @@
+---
+name: how-to-create-a-pull-request-using-github-cli
+description: Specialized skill for how to create a pull request using github cli workflows.
+---
+
 # How to Create a Pull Request Using GitHub CLI
 
 This guide explains how to create pull requests using GitHub CLI in our project.

@@ -1,3 +1,8 @@
+---
+name: tech-innovation
+description: Specialized skill for tech innovation workflows.
+---
+
 # Tech Innovation
 
 A bold and modern theme with high-contrast colors perfect for cutting-edge technology presentations.

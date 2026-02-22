@@ -1,3 +1,8 @@
+---
+name: edsl-codebase-reference
+description: Specialized skill for edsl codebase reference workflows.
+---
+
 # EDSL Codebase Reference
 
 ## Build & Test Commands

@@ -1,3 +1,8 @@
+---
+name: prompt-template-library
+description: Specialized skill for prompt template library workflows.
+---
+
 # Prompt Template Library
 
 ## Classification Templates

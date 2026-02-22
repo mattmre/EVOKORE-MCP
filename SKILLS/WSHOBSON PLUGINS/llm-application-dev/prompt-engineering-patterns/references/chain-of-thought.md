@@ -1,3 +1,8 @@
+---
+name: chain-of-thought-prompting
+description: Specialized skill for chain of thought prompting workflows.
+---
+
 # Chain-of-Thought Prompting
 
 ## Overview

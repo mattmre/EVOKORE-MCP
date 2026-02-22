@@ -1,3 +1,8 @@
+---
+name: rest-api-best-practices
+description: Specialized skill for rest api best practices workflows.
+---
+
 # REST API Best Practices
 
 ## URL Structure

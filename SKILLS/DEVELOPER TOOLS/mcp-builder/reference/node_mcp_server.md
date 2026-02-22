@@ -1,3 +1,9 @@
+---
+name: node-typescript-mcp-server-implementation-guide
+description: Specialized skill for node typescript mcp server implementation
+  guide workflows.
+---
+
 # Node/TypeScript MCP Server Implementation Guide
 
 ## Overview

@@ -1,3 +1,8 @@
+---
+name: dependency-graph-patterns
+description: Specialized skill for dependency graph patterns workflows.
+---
+
 # Dependency Graph Patterns
 
 Visual patterns for task dependency design with trade-offs.

@@ -1,3 +1,8 @@
+---
+name: kubernetes-service-specification-reference
+description: Specialized skill for kubernetes service specification reference workflows.
+---
+
 # Kubernetes Service Specification Reference
 
 Comprehensive reference for Kubernetes Service resources, covering service types, networking, load balancing, and service discovery patterns.

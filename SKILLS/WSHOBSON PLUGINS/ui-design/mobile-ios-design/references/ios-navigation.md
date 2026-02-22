@@ -1,3 +1,8 @@
+---
+name: ios-navigation-patterns
+description: Specialized skill for ios navigation patterns workflows.
+---
+
 # iOS Navigation Patterns
 
 ## NavigationStack (iOS 16+)

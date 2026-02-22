@@ -1,3 +1,8 @@
+---
+name: design-review-workflow
+description: Specialized skill for design review workflow workflows.
+---
+
 # Design Review Workflow
 
 This directory contains templates and examples for implementing an automated design review system that provides feedback on front-end code changes with design implications. This workflow allows engineers to automatically run design reviews on pull requests or working changes, ensuring design consistency and quality throughout the development process.

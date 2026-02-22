@@ -1,3 +1,8 @@
+---
+name: modern-minimalist
+description: Specialized skill for modern minimalist workflows.
+---
+
 # Modern Minimalist
 
 A clean and contemporary theme with a sophisticated grayscale palette for maximum versatility.

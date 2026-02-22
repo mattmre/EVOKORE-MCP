@@ -1,3 +1,8 @@
+---
+name: examples-planning-with-files-in-action
+description: Specialized skill for examples planning with files in action workflows.
+---
+
 # Examples: Planning with Files in Action
 
 ## Example 1: Research Task

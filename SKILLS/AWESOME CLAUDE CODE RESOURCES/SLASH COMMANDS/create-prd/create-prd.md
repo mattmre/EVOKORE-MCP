@@ -1,3 +1,8 @@
+---
+name: create-prd
+description: Specialized skill for create prd workflows.
+---
+
 You are an experienced Product Manager. Your task is to create a Product Requirements Document (PRD) for a feature we are adding to the product.
 
 IMPORTANT:

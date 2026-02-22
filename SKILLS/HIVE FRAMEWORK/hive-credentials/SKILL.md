@@ -1,6 +1,8 @@
 ---
 name: hive-credentials
-description: Set up and install credentials for an agent. Detects missing credentials from agent config, collects them from the user, and stores them securely in the local encrypted store at ~/.hive/credentials.
+description: Set up and install credentials for an agent. Detects missing
+  credentials from agent config, collects them from the user, and stores them
+  securely in the local encrypted store at ~/.hive/credentials.
 license: Apache-2.0
 metadata:
   author: hive

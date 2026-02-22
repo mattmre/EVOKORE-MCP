@@ -1,3 +1,8 @@
+---
+name: lamoom-python-project-guide
+description: Specialized skill for lamoom python project guide workflows.
+---
+
 # Lamoom Python Project Guide
 
 ## Build/Test/Lint Commands

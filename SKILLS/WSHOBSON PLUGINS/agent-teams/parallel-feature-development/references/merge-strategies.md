@@ -1,3 +1,8 @@
+---
+name: integration-and-merge-strategies
+description: Specialized skill for integration and merge strategies workflows.
+---
+
 # Integration and Merge Strategies
 
 Patterns for integrating parallel work streams and resolving conflicts.

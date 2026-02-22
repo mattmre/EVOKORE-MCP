@@ -1,3 +1,9 @@
+---
+name: mcp-server-development-best-practices-and-guidelines
+description: Specialized skill for mcp server development best practices and
+  guidelines workflows.
+---
+
 # MCP Server Development Best Practices and Guidelines
 
 ## Overview

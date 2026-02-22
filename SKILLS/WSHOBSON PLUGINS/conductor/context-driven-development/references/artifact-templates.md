@@ -1,3 +1,8 @@
+---
+name: artifact-templates
+description: Specialized skill for artifact templates workflows.
+---
+
 # Artifact Templates
 
 Starter templates for each Conductor context artifact. Copy and fill in for new projects.

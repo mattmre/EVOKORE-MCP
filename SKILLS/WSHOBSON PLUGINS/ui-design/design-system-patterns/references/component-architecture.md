@@ -1,3 +1,8 @@
+---
+name: component-architecture-patterns
+description: Specialized skill for component architecture patterns workflows.
+---
+
 # Component Architecture Patterns
 
 ## Overview

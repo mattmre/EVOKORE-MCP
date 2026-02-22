@@ -1,3 +1,8 @@
+---
+name: view_commands
+description: Specialized skill for view_commands workflows.
+---
+
 Here are all the available project commands, organized by category:
 
 ## Post Management

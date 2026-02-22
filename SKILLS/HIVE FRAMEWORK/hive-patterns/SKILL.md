@@ -1,6 +1,8 @@
 ---
 name: hive-patterns
-description: Best practices, patterns, and examples for building goal-driven agents. Includes client-facing interaction, feedback edges, judge patterns, fan-out/fan-in, context management, and anti-patterns.
+description: Best practices, patterns, and examples for building goal-driven
+  agents. Includes client-facing interaction, feedback edges, judge patterns,
+  fan-out/fan-in, context management, and anti-patterns.
 license: Apache-2.0
 metadata:
   author: hive

@@ -1,3 +1,8 @@
+---
+name: gitops-sync-policies
+description: Specialized skill for gitops sync policies workflows.
+---
+
 # GitOps Sync Policies
 
 ## ArgoCD Sync Policies

@@ -1,3 +1,8 @@
+---
+name: task-decomposition-examples
+description: Specialized skill for task decomposition examples workflows.
+---
+
 # Task Decomposition Examples
 
 Practical examples of decomposing features into parallelizable tasks with clear ownership.

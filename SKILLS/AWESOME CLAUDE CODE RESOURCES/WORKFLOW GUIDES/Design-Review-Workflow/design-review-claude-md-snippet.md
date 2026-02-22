@@ -1,3 +1,8 @@
+---
+name: design-review-claude-md-snippet
+description: Specialized skill for design review claude md snippet workflows.
+---
+
 ## Visual Development
 
 ### Design Principles

@@ -1,3 +1,8 @@
+---
+name: perplexity-mcp-server-guide
+description: Specialized skill for perplexity mcp server guide workflows.
+---
+
 # Perplexity MCP Server Guide
 
 ## Quick Start

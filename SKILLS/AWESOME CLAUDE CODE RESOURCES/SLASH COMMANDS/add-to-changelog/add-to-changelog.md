@@ -1,3 +1,8 @@
+---
+name: update-changelog
+description: Specialized skill for update changelog workflows.
+---
+
 # Update Changelog
 
 This command adds a new entry to the project's CHANGELOG.md file.

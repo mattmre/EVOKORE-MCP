@@ -1,3 +1,8 @@
+---
+name: ocean-depths
+description: Specialized skill for ocean depths workflows.
+---
+
 # Ocean Depths
 
 A professional and calming maritime theme that evokes the serenity of deep ocean waters.

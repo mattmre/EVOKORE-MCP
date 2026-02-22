@@ -1,3 +1,8 @@
+---
+name: node-reference
+description: Specialized skill for node reference workflows.
+---
+
 # Node Reference
 
 ## Node Types

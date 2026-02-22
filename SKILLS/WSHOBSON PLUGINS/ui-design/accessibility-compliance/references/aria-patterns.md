@@ -1,3 +1,8 @@
+---
+name: aria-patterns-and-best-practices
+description: Specialized skill for aria patterns and best practices workflows.
+---
+
 # ARIA Patterns and Best Practices
 
 ## Overview

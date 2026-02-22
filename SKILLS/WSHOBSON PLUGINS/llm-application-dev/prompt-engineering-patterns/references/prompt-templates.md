@@ -1,3 +1,8 @@
+---
+name: prompt-template-systems
+description: Specialized skill for prompt template systems workflows.
+---
+
 # Prompt Template Systems
 
 ## Template Architecture

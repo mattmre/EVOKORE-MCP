@@ -1,6 +1,9 @@
 ---
 name: design-system-patterns
-description: Build scalable design systems with design tokens, theming infrastructure, and component architecture patterns. Use when creating design tokens, implementing theme switching, building component libraries, or establishing design system foundations.
+description: Build scalable design systems with design tokens, theming
+  infrastructure, and component architecture patterns. Use when creating design
+  tokens, implementing theme switching, building component libraries, or
+  establishing design system foundations.
 ---
 
 # Design System Patterns

@@ -1,3 +1,8 @@
+---
+name: unit-testing-temporal-workflows-and-activities
+description: Specialized skill for unit testing temporal workflows and activities workflows.
+---
+
 # Unit Testing Temporal Workflows and Activities
 
 Focused guide for testing individual workflows and activities in isolation using WorkflowEnvironment and ActivityEnvironment.

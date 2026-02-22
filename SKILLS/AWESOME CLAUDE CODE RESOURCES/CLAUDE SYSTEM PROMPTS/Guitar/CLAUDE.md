@@ -1,3 +1,8 @@
+---
+name: guitar-development-guide
+description: Specialized skill for guitar development guide workflows.
+---
+
 # Guitar Development Guide
 
 ## Build Commands

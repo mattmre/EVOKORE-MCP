@@ -1,3 +1,8 @@
+---
+name: microinteraction-patterns-reference
+description: Specialized skill for microinteraction patterns reference workflows.
+---
+
 # Microinteraction Patterns Reference
 
 ## Button States

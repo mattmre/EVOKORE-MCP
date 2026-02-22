@@ -1,3 +1,8 @@
+---
+name: update-branch-name
+description: Specialized skill for update branch name workflows.
+---
+
 # Update Branch Name
 
 Follow these steps to update the current branch name:

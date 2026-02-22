@@ -1,3 +1,8 @@
+---
+name: comm-project-development-guide
+description: Specialized skill for comm project development guide workflows.
+---
+
 # Comm Project Development Guide
 
 ## Build & Test Commands

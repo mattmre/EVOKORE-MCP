@@ -1,3 +1,8 @@
+---
+name: scroll-animations-reference
+description: Specialized skill for scroll animations reference workflows.
+---
+
 # Scroll Animations Reference
 
 ## Intersection Observer Hook

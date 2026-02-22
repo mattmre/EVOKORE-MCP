@@ -1,3 +1,9 @@
+---
+name: documentation-update-command-update-implementation-documentation
+description: Specialized skill for documentation update command update
+  implementation documentation workflows.
+---
+
 # Documentation Update Command: Update Implementation Documentation
 
 ## Documentation Analysis

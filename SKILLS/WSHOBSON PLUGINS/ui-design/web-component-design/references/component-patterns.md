@@ -1,3 +1,8 @@
+---
+name: component-patterns-reference
+description: Specialized skill for component patterns reference workflows.
+---
+
 # Component Patterns Reference
 
 ## Compound Components Deep Dive

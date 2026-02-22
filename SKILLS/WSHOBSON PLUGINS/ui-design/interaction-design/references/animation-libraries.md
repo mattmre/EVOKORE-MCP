@@ -1,3 +1,8 @@
+---
+name: animation-libraries-reference
+description: Specialized skill for animation libraries reference workflows.
+---
+
 # Animation Libraries Reference
 
 ## Framer Motion

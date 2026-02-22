@@ -1,7 +1,8 @@
 ---
 name: hive-debugger
 type: utility
-description: Interactive debugging companion for Hive agents - identifies runtime issues and proposes solutions
+description: Interactive debugging companion for Hive agents - identifies
+  runtime issues and proposes solutions
 version: 1.0.0
 requires:
   - hive-concepts

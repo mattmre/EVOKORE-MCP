@@ -1,3 +1,8 @@
+---
+name: workflow-reference
+description: Specialized skill for workflow reference workflows.
+---
+
 # Workflow Reference
 
 ## Workflow Commands

@@ -1,3 +1,8 @@
+---
+name: global-coding-standards
+description: Specialized skill for global coding standards workflows.
+---
+
 # GLOBAL CODING STANDARDS
 
 > Reference guide for all project development. For detailed task planning, see [TASK_PLAN_GUIDE.md](./docs/memory_bank/guides/TASK_PLAN_GUIDE.md)

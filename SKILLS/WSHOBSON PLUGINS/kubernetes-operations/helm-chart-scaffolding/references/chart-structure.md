@@ -1,3 +1,8 @@
+---
+name: helm-chart-structure-reference
+description: Specialized skill for helm chart structure reference workflows.
+---
+
 # Helm Chart Structure Reference
 
 Complete guide to Helm chart organization, file conventions, and best practices.

@@ -1,6 +1,8 @@
 ---
 name: langchain-architecture
-description: Design LLM applications using LangChain 1.x and LangGraph for agents, memory, and tool integration. Use when building LangChain applications, implementing AI agents, or creating complex LLM workflows.
+description: Design LLM applications using LangChain 1.x and LangGraph for
+  agents, memory, and tool integration. Use when building LangChain
+  applications, implementing AI agents, or creating complex LLM workflows.
 ---
 
 # LangChain & LangGraph Architecture

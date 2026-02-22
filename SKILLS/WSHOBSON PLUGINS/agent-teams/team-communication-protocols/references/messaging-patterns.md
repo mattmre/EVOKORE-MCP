@@ -1,3 +1,8 @@
+---
+name: messaging-pattern-templates
+description: Specialized skill for messaging pattern templates workflows.
+---
+
 # Messaging Pattern Templates
 
 Ready-to-use message templates for common team communication scenarios.

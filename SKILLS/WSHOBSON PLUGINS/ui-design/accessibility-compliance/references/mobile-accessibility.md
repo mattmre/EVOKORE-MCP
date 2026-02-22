@@ -1,3 +1,8 @@
+---
+name: mobile-accessibility
+description: Specialized skill for mobile accessibility workflows.
+---
+
 # Mobile Accessibility
 
 ## Overview

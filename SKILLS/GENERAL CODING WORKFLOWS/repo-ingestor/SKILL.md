@@ -1,7 +1,9 @@
 ---
 name: repo-ingestor
-description: Ingest external repositories, research papers, and benchmarks using 40-agent swarms to analyze, adapt features, and improve current workflows.
+description: Ingest external repositories, research papers, and benchmarks using
+  40-agent swarms to analyze, adapt features, and improve current workflows.
 ---
+
 # Repo Ingestor
 
 This skill orchestrates the ingestion of external repositories, frameworks, and benchmarks to iteratively evolve and improve our own workflows and feature sets.

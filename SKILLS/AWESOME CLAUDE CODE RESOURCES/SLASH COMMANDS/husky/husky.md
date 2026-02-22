@@ -1,3 +1,8 @@
+---
+name: husky
+description: Specialized skill for husky workflows.
+---
+
 ## Summary
 
 The goal of this command is to verify the repo is in a working state and fix issues if they exist.

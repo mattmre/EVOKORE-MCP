@@ -1,3 +1,8 @@
+---
+name: fluid-layouts-and-typography
+description: Specialized skill for fluid layouts and typography workflows.
+---
+
 # Fluid Layouts and Typography
 
 ## Overview

@@ -1,3 +1,8 @@
+---
+name: entity-framework-core-best-practices
+description: Specialized skill for entity framework core best practices workflows.
+---
+
 # Entity Framework Core Best Practices
 
 Performance optimization and best practices for EF Core in production applications.

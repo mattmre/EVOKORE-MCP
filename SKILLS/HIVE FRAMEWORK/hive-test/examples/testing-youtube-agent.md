@@ -1,3 +1,8 @@
+---
+name: example-iterative-testing-of-a-research-agent
+description: Specialized skill for example iterative testing of a research agent workflows.
+---
+
 # Example: Iterative Testing of a Research Agent
 
 This example walks through the full iterative test loop for a research agent that searches the web, reviews findings, and produces a cited report.

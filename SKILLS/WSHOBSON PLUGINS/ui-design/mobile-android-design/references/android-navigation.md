@@ -1,3 +1,8 @@
+---
+name: android-navigation-patterns
+description: Specialized skill for android navigation patterns workflows.
+---
+
 # Android Navigation Patterns
 
 ## Navigation Compose Basics
