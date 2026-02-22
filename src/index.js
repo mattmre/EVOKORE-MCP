@@ -70,8 +70,7 @@ class EvokoreMCPServer {
         }
     }
     parseSkillMarkdown(content, category, filePath, fallbackName) {
-        const match = content.match(/^---([s, S] *  ?  : ), -- -
-            ([s, S] * ), $ / );
+        const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
         if (!match)
             return null;
         try {
@@ -135,9 +134,7 @@ class EvokoreMCPServer {
                         role: "user",
                         content: {
                             type: "text",
-                            text: `<activated_skill name="${skill.name}">
-${skill.content}
-</activated_skill>`
+                            text: `<activated_skill name="${skill.name}">\n${skill.content}\n</activated_skill>`
                         }
                     }
                 ]
@@ -169,8 +166,8 @@ ${skill.content}
                     content: [{
                             type: "text",
                             text: results.length > 0
-                                ? results.map(r => `- **${r.name}** [${r.category}]: ${r.description}`).join(", ") , "No skills found.")
-                                :
+                                ? results.map(r => `- **${r.name}** [${r.category}]: ${r.description}`).join("\n")
+                                : "No skills found."
                         }]
                 };
             }
