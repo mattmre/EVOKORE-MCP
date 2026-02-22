@@ -83,3 +83,4 @@ process.stdin.on('end', async () => {
     process.stdout.write(`${colors.red}EVOKORE Status Error: ${error.message}${colors.reset}\n`);
   }
 });
+
