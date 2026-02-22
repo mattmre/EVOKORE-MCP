@@ -1,0 +1,18 @@
+# EVOKORE-MCP Permissions Configuration
+# Use this file to restrict specific proxied tools from executing autonomously.
+# 
+# Access Levels:
+#   "allow": The AI can execute this tool without confirmation.
+#   "require_approval": The AI must pause and ask the user for explicit permission before running this tool.
+#   "deny": The AI is completely blocked from running this tool.
+
+rules:
+  # Example: Let the AI read files freely, but prevent it from writing/modifying without approval.
+  fs_read_file: "allow"
+  fs_write_file: "require_approval"
+  
+  # Example: Let the AI search GitHub freely, but prevent it from creating issues or pushing code without approval.
+  github_search_repositories: "allow"
+  github_create_issue: "require_approval"
+  github_create_pull_request: "require_approval"
+  github_push_files: "require_approval"
