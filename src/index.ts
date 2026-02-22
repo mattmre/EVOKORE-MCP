@@ -32,7 +32,7 @@ class EvokoreMCPServer {
     this.server = new Server(
       {
         name: "evokore-mcp",
-        version: "1.0.0",
+        version: "1.1.0",
       },
       {
         capabilities: {
@@ -114,7 +114,7 @@ class EvokoreMCPServer {
       await this.loadSkills();
       return {
         resources: Array.from(this.skillsCache.values()).map(skill => ({
-          uri: `skill://${skill.category}/${skill.name}`,
+          uri: `skill://${skill.category.replace(/[^a-zA-Z0-9-]/g, '-')}/${skill.name.replace(/[^a-zA-Z0-9-]/g, '-')}`,
           name: `Skill: ${skill.name}`,
           mimeType: "text/markdown",
           description: skill.description
@@ -125,7 +125,9 @@ class EvokoreMCPServer {
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const url = new URL(request.params.uri);
       const skillName = url.pathname.replace(/^\//, '').toLowerCase();
-      const skill = this.skillsCache.get(skillName);
+      
+      // Fuzzy match name
+      const skill = Array.from(this.skillsCache.values()).find(s => s.name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase() === skillName || s.name.toLowerCase() === skillName);
 
       if (!skill) throw new McpError(ErrorCode.InvalidParams, `Skill not found: ${skillName}`);
 
@@ -172,13 +174,24 @@ class EvokoreMCPServer {
         tools: [
           {
             name: "search_skills",
-            description: "Search the EVOKORE-MCP library for available agent skills.",
+            description: "Search the EVOKORE-MCP library for available agent skills by keyword (e.g. 'react', 'pr-manager').",
             inputSchema: {
               type: "object",
               properties: {
                 query: { type: "string" }
               },
               required: ["query"]
+            }
+          },
+          {
+            name: "get_skill_help",
+            description: "Retrieve comprehensive documentation, instructions, and intended use-cases for a specific skill. Use this to help users understand what a skill does.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                skill_name: { type: "string", description: "The exact name of the skill to inspect." }
+              },
+              required: ["skill_name"]
             }
           }
         ]
@@ -190,7 +203,7 @@ class EvokoreMCPServer {
         await this.loadSkills();
         const query = (request.params.arguments?.query as string || "").toLowerCase();
         const results = Array.from(this.skillsCache.values()).filter(s => 
-          s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query)
+          s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query) || s.category.toLowerCase().includes(query)
         );
 
         return {
@@ -198,11 +211,41 @@ class EvokoreMCPServer {
             type: "text", 
             text: results.length > 0 
                 ? results.map(r => `- **${r.name}** [${r.category}]: ${r.description}`).join("\n") 
-                : "No skills found."
+                : "No skills found matching that query."
           }]
         };
       }
-      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool`);
+
+      if (request.params.name === "get_skill_help") {
+        await this.loadSkills();
+        const skillName = (request.params.arguments?.skill_name as string || "").toLowerCase();
+        const skill = this.skillsCache.get(skillName) || Array.from(this.skillsCache.values()).find(s => s.name.toLowerCase().includes(skillName));
+
+        if (!skill) {
+           return {
+             content: [{ type: "text", text: `Could not find a skill named '${skillName}'. Please use the search_skills tool to find the exact name.` }]
+           };
+        }
+
+        const helpText = `
+### Skill Overview: ${skill.name}
+**Category:** ${skill.category}
+**Description:** ${skill.description}
+
+---
+
+### Internal Instructions (How this skill works):
+The following are the exact instructions the agent executes when this skill is invoked. You can use this to explain to the user what the skill is capable of and provide concrete examples of when they should invoke it:
+
+${skill.content}
+        `.trim();
+
+        return {
+          content: [{ type: "text", text: helpText }]
+        };
+      }
+
+      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
     });
   }
 
