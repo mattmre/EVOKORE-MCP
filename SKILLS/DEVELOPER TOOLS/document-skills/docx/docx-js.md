@@ -1,3 +1,8 @@
+---
+name: docx-library-tutorial
+description: Specialized skill for docx library tutorial workflows.
+---
+
 # DOCX Library Tutorial
 
 Generate .docx files with JavaScript/TypeScript.

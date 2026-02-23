@@ -1,3 +1,8 @@
+---
+name: development-philosophy
+description: Specialized skill for development philosophy workflows.
+---
+
 # Development Philosophy
 
 ## Core Principle: **Less is more**

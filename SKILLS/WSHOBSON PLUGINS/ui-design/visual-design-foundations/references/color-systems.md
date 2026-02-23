@@ -1,3 +1,8 @@
+---
+name: color-systems-reference
+description: Specialized skill for color systems reference workflows.
+---
+
 # Color Systems Reference
 
 ## Color Palette Generation

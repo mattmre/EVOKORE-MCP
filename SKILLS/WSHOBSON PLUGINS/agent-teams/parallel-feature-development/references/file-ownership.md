@@ -1,3 +1,8 @@
+---
+name: file-ownership-decision-framework
+description: Specialized skill for file ownership decision framework workflows.
+---
+
 # File Ownership Decision Framework
 
 How to assign file ownership when decomposing features for parallel development.

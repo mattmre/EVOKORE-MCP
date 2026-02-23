@@ -1,3 +1,8 @@
+---
+name: testing_plan_integration
+description: Specialized skill for testing_plan_integration workflows.
+---
+
 I need you to create an integration testing plan for $ARGUMENTS
 
 These are integration tests and I want them to be inline in rust fashion.

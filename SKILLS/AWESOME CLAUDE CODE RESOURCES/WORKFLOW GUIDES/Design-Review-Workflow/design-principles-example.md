@@ -1,3 +1,9 @@
+---
+name: s-tier-saas-dashboard-design-checklist-inspired-by-stripe-airbnb-linear-
+description: Specialized skill for s tier saas dashboard design checklist
+  inspired by stripe airbnb linear  workflows.
+---
+
 # S-Tier SaaS Dashboard Design Checklist (Inspired by Stripe, Airbnb, Linear)
 
 ## I. Core Design Philosophy & Strategy

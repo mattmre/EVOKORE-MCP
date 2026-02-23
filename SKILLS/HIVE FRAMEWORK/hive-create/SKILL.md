@@ -1,6 +1,9 @@
 ---
 name: hive-create
-description: Step-by-step guide for building goal-driven agents. Qualifies use cases first (the good, bad, and ugly), then creates package structure, defines goals, adds nodes, connects edges, and finalizes agent class. Use when actively building an agent.
+description: Step-by-step guide for building goal-driven agents. Qualifies use
+  cases first (the good, bad, and ugly), then creates package structure, defines
+  goals, adds nodes, connects edges, and finalizes agent class. Use when
+  actively building an agent.
 license: Apache-2.0
 metadata:
   author: hive

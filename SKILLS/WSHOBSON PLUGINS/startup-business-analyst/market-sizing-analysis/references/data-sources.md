@@ -1,3 +1,8 @@
+---
+name: market-sizing-data-sources
+description: Specialized skill for market sizing data sources workflows.
+---
+
 # Market Sizing Data Sources
 
 Curated list of credible sources for market research and sizing analysis.

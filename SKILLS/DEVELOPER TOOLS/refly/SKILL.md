@@ -1,6 +1,11 @@
 ---
 name: refly
-description: "Base skill for Refly ecosystem: creates, discovers, and runs domain-specific skills bound to workflows. Routes user intent to matching domain skills via symlinks, delegates execution to Refly backend. Use when user asks to: create skills, run workflows, automate multi-step tasks, or manage pipelines. Triggers: refly, skill, workflow, run skill, create skill, automation, pipeline. Requires: @refly/cli installed and authenticated."
+description: "Base skill for Refly ecosystem: creates, discovers, and runs
+  domain-specific skills bound to workflows. Routes user intent to matching
+  domain skills via symlinks, delegates execution to Refly backend. Use when
+  user asks to: create skills, run workflows, automate multi-step tasks, or
+  manage pipelines. Triggers: refly, skill, workflow, run skill, create skill,
+  automation, pipeline. Requires: @refly/cli installed and authenticated."
 ---
 
 # Refly

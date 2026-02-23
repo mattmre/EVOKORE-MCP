@@ -1,3 +1,8 @@
+---
+name: css-styling-approaches-reference
+description: Specialized skill for css styling approaches reference workflows.
+---
+
 # CSS Styling Approaches Reference
 
 ## Comparison Matrix

@@ -1,3 +1,9 @@
+---
+name: local-development-setup-for-temporal-python-testing
+description: Specialized skill for local development setup for temporal python
+  testing workflows.
+---
+
 # Local Development Setup for Temporal Python Testing
 
 Comprehensive guide for setting up local Temporal development environment with pytest integration and coverage tracking.

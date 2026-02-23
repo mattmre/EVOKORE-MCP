@@ -1,3 +1,8 @@
+---
+name: office-open-xml-technical-reference
+description: Specialized skill for office open xml technical reference workflows.
+---
+
 # Office Open XML Technical Reference
 
 **Important: Read this entire document before starting.** This document covers:

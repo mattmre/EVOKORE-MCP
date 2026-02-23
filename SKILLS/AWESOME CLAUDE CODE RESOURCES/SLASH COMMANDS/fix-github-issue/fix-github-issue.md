@@ -1,3 +1,8 @@
+---
+name: fix-github-issue
+description: Specialized skill for fix github issue workflows.
+---
+
 Please analyze and fix the GitHub issue: $ARGUMENTS.
 
 Follow these steps:

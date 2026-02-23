@@ -1,3 +1,8 @@
+---
+name: midnight-galaxy
+description: Specialized skill for midnight galaxy workflows.
+---
+
 # Midnight Galaxy
 
 A dramatic and cosmic theme with deep purples and mystical tones for impactful presentations.

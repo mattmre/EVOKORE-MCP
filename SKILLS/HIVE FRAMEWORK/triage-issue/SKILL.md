@@ -1,3 +1,8 @@
+---
+name: triage-issue-skill
+description: Specialized skill for triage issue skill workflows.
+---
+
 # Triage Issue Skill
 
 Analyze a GitHub issue, verify claims against the codebase, and close invalid issues with a technical response.

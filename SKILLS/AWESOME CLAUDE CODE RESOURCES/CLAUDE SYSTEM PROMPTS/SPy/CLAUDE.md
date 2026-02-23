@@ -1,3 +1,8 @@
+---
+name: spy-language-dev-reference
+description: Specialized skill for spy language dev reference workflows.
+---
+
 # SPy Language - Dev Reference
 
 ## General behavior of claude code

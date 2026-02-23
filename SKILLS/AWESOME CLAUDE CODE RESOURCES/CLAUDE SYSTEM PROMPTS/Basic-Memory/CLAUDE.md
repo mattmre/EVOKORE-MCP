@@ -1,3 +1,8 @@
+---
+name: claude-md-basic-memory-project-guide
+description: Specialized skill for claude md basic memory project guide workflows.
+---
+
 # CLAUDE.md - Basic Memory Project Guide
 
 ## Project Overview

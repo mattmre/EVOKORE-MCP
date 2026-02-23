@@ -55,16 +55,16 @@ export class ProxyManager {
           const transport = new StdioClientTransport({
             command: cmd,
             args: serverConfig.args || [],
-            env: env,
-            stderr: "pipe"
+            env: env as Record<string, string>,
+            stderr: "inherit"
           });
 
           // Redirect stderr from child to parent's stderr so we can see MCP logs
-          transport.onstderr = (data) => console.error(`[CHILD: ${serverId}]`, data);
+          // stderr is piped
 
           const client = new Client(
             { name: `evokore-proxy-${serverId}`, version: "2.0.0" },
-            { capabilities: { tools: {} } }
+            { capabilities: {} }
           );
 
           await client.connect(transport);
@@ -133,3 +133,5 @@ export class ProxyManager {
     return result;
   }
 }
+
+

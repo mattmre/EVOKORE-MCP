@@ -1,3 +1,8 @@
+---
+name: findings-decisions
+description: Specialized skill for findings decisions workflows.
+---
+
 # Findings & Decisions
 <!-- 
   WHAT: Your knowledge base for the task. Stores everything you discover and decide.

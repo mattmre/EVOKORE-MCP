@@ -1,3 +1,8 @@
+---
+name: example-file-monitor-agent
+description: Specialized skill for example file monitor agent workflows.
+---
+
 # Example: File Monitor Agent
 
 This example shows the complete /hive workflow in action for building a file monitoring agent.

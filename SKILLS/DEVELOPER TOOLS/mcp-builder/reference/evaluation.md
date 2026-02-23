@@ -1,3 +1,8 @@
+---
+name: mcp-server-evaluation-guide
+description: Specialized skill for mcp server evaluation guide workflows.
+---
+
 # MCP Server Evaluation Guide
 
 ## Overview

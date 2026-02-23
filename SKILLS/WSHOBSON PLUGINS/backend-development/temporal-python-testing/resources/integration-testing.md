@@ -1,3 +1,8 @@
+---
+name: integration-testing-with-mocked-activities
+description: Specialized skill for integration testing with mocked activities workflows.
+---
+
 # Integration Testing with Mocked Activities
 
 Comprehensive patterns for testing workflows with mocked external dependencies, error injection, and complex scenarios.

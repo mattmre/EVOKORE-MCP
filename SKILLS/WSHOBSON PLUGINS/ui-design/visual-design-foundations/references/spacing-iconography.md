@@ -1,3 +1,8 @@
+---
+name: spacing-and-iconography-reference
+description: Specialized skill for spacing and iconography reference workflows.
+---
+
 # Spacing and Iconography Reference
 
 ## Spacing Systems

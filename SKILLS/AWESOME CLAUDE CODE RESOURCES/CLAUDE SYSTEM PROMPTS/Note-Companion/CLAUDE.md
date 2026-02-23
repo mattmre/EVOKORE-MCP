@@ -1,3 +1,8 @@
+---
+name: file-organizer-2000-developer-guide
+description: Specialized skill for file organizer 2000 developer guide workflows.
+---
+
 # File Organizer 2000 - Developer Guide
 
 ## Styling Guidelines

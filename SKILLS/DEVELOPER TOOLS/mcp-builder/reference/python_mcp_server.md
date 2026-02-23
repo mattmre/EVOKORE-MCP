@@ -1,3 +1,8 @@
+---
+name: python-mcp-server-implementation-guide
+description: Specialized skill for python mcp server implementation guide workflows.
+---
+
 # Python MCP Server Implementation Guide
 
 ## Overview

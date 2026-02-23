@@ -1,3 +1,8 @@
+---
+name: golden-hour
+description: Specialized skill for golden hour workflows.
+---
+
 # Golden Hour
 
 A rich and warm autumnal palette that creates an inviting and sophisticated atmosphere.

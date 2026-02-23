@@ -1,3 +1,8 @@
+---
+name: prompt-optimization-guide
+description: Specialized skill for prompt optimization guide workflows.
+---
+
 # Prompt Optimization Guide
 
 ## Systematic Refinement Process

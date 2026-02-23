@@ -1,3 +1,8 @@
+---
+name: arctic-frost
+description: Specialized skill for arctic frost workflows.
+---
+
 # Arctic Frost
 
 A cool and crisp winter-inspired theme that conveys clarity, precision, and professionalism.

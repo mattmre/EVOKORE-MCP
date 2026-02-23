@@ -1,6 +1,8 @@
 ---
 name: hive-concepts
-description: Core concepts for goal-driven agents - architecture, node types (event_loop, function), tool discovery, and workflow overview. Use when starting agent development or need to understand agent fundamentals.
+description: Core concepts for goal-driven agents - architecture, node types
+  (event_loop, function), tool discovery, and workflow overview. Use when
+  starting agent development or need to understand agent fundamentals.
 license: Apache-2.0
 metadata:
   author: hive

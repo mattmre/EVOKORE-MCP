@@ -1,3 +1,8 @@
+---
+name: theming-architecture
+description: Specialized skill for theming architecture workflows.
+---
+
 # Theming Architecture
 
 ## Overview

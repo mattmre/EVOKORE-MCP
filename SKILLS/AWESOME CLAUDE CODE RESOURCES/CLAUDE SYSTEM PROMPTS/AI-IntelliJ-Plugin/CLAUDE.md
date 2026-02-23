@@ -1,3 +1,8 @@
+---
+name: ai-integration-plugin-development-guide
+description: Specialized skill for ai integration plugin development guide workflows.
+---
+
 # AI Integration Plugin Development Guide
 
 ## Build Commands

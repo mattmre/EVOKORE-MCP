@@ -1,3 +1,8 @@
+---
+name: create-pull-request-command
+description: Specialized skill for create pull request command workflows.
+---
+
 # Create Pull Request Command
 
 Create a new branch, commit changes, and submit a pull request.

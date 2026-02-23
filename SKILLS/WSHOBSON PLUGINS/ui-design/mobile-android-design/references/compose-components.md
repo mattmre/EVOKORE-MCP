@@ -1,3 +1,8 @@
+---
+name: jetpack-compose-component-library
+description: Specialized skill for jetpack compose component library workflows.
+---
+
 # Jetpack Compose Component Library
 
 ## Lists and Collections

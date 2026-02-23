@@ -1,3 +1,9 @@
+---
+name: saas-market-sizing-example-ai-powered-email-marketing-for-e-commerce
+description: Specialized skill for saas market sizing example ai powered email
+  marketing for e commerce workflows.
+---
+
 # SaaS Market Sizing Example: AI-Powered Email Marketing for E-Commerce
 
 Complete TAM/SAM/SOM calculation for a B2B SaaS startup using bottom-up and top-down methodologies.

@@ -1,7 +1,9 @@
 ---
 name: pr-manager
-description: Review, test, lint, and prepare smart merges for all open and closed PRs, verifying features and documenting technical debt.
+description: Review, test, lint, and prepare smart merges for all open and
+  closed PRs, verifying features and documenting technical debt.
 ---
+
 # PR Manager
 
 This skill manages outstanding PRs, ensuring code quality, feature completeness, and smart merging without losing context or code.

@@ -1,3 +1,8 @@
+---
+name: desert-rose
+description: Specialized skill for desert rose workflows.
+---
+
 # Desert Rose
 
 A soft and sophisticated theme with dusty, muted tones perfect for elegant presentations.

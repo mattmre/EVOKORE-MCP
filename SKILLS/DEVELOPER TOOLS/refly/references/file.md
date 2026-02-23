@@ -1,3 +1,8 @@
+---
+name: file-reference
+description: Specialized skill for file reference workflows.
+---
+
 # File Reference
 
 ## File Commands

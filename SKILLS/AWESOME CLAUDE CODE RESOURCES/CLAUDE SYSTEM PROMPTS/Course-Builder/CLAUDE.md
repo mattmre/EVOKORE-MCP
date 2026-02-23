@@ -1,3 +1,8 @@
+---
+name: course-builder-development-guide
+description: Specialized skill for course builder development guide workflows.
+---
+
 # Course Builder Development Guide
 
 ## Project Overview

@@ -1,3 +1,8 @@
+---
+name: design-tokens-deep-dive
+description: Specialized skill for design tokens deep dive workflows.
+---
+
 # Design Tokens Deep Dive
 
 ## Overview

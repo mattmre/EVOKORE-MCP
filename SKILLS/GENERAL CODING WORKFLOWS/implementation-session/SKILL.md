@@ -1,7 +1,9 @@
 ---
 name: implementation-session
-description: Start an implementation cycle: review priorities, check stale branches, orchestrate agents for coding tasks, and wrap up the session.
+description: "Start an implementation cycle: review priorities, check stale
+  branches, orchestrate agents for coding tasks, and wrap up the session."
 ---
+
 # Implementation Session
 
 This skill executes a complete implementation cycle from planning through orchestration and final session wrap-up.

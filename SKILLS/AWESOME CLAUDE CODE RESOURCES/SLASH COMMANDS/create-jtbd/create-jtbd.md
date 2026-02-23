@@ -1,3 +1,8 @@
+---
+name: create-jtbd
+description: Specialized skill for create jtbd workflows.
+---
+
 You are an experienced Product Manager. Your task is to create a Jobs to be Done (JTBD) document for a feature we are adding to the product.
 
 IMPORTANT:

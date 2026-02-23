@@ -1,3 +1,8 @@
+---
+name: html-to-powerpoint-guide
+description: Specialized skill for html to powerpoint guide workflows.
+---
+
 # HTML to PowerPoint Guide
 
 Convert HTML slides to PowerPoint presentations with accurate positioning using the `html2pptx.js` library.

@@ -1,3 +1,8 @@
+---
+name: claude-md
+description: Specialized skill for claude md workflows.
+---
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.

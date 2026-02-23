@@ -1,3 +1,8 @@
+---
+name: progress-log
+description: Specialized skill for progress log workflows.
+---
+
 # Progress Log
 <!-- 
   WHAT: Your session log - a chronological record of what you did, when, and what happened.

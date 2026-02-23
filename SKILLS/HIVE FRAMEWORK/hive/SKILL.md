@@ -1,6 +1,8 @@
 ---
 name: hive
-description: Complete workflow for building, implementing, and testing goal-driven agents. Orchestrates hive-* skills. Use when starting a new agent project, unsure which skill to use, or need end-to-end guidance.
+description: Complete workflow for building, implementing, and testing
+  goal-driven agents. Orchestrates hive-* skills. Use when starting a new agent
+  project, unsure which skill to use, or need end-to-end guidance.
 license: Apache-2.0
 metadata:
   author: hive

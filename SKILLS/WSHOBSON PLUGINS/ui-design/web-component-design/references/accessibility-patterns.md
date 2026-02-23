@@ -1,3 +1,8 @@
+---
+name: accessibility-patterns-reference
+description: Specialized skill for accessibility patterns reference workflows.
+---
+
 # Accessibility Patterns Reference
 
 ## ARIA Patterns for Common Components

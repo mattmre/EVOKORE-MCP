@@ -1,6 +1,9 @@
 ---
 name: python-resilience
-description: Python resilience patterns including automatic retries, exponential backoff, timeouts, and fault-tolerant decorators. Use when adding retry logic, implementing timeouts, building fault-tolerant services, or handling transient failures.
+description: Python resilience patterns including automatic retries, exponential
+  backoff, timeouts, and fault-tolerant decorators. Use when adding retry logic,
+  implementing timeouts, building fault-tolerant services, or handling transient
+  failures.
 ---
 
 # Python Resilience Patterns

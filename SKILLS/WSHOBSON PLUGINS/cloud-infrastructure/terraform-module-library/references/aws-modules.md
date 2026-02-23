@@ -1,3 +1,8 @@
+---
+name: aws-terraform-module-patterns
+description: Specialized skill for aws terraform module patterns workflows.
+---
+
 # AWS Terraform Module Patterns
 
 ## VPC Module

@@ -1,3 +1,8 @@
+---
+name: react-navigation-patterns
+description: Specialized skill for react navigation patterns workflows.
+---
+
 # React Navigation Patterns
 
 ## Setup and Configuration

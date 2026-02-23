@@ -1,3 +1,8 @@
+---
+name: create-prp
+description: Specialized skill for create prp workflows.
+---
+
 YOU MUST READ THESE FILES AND FOLLOW THE INSTRUCTIONS IN THEM.
 Start by reading the concept_library/cc_PRP_flow/README.md to understand what a PRP
 Then read concept_library/cc_PRP_flow/PRPs/base_template_v1 to understand the structure of a PRP.

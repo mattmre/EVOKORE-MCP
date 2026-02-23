@@ -1,3 +1,8 @@
+---
+name: langgraphjs-development-guide
+description: Specialized skill for langgraphjs development guide workflows.
+---
+
 # LangGraphJS Development Guide
 
 ## Build & Test Commands

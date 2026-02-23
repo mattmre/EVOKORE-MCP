@@ -1,3 +1,8 @@
+---
+name: task-plan-brief-description-
+description: Specialized skill for task plan brief description  workflows.
+---
+
 # Task Plan: [Brief Description]
 <!-- 
   WHAT: This is your roadmap for the entire task. Think of it as your "working memory on disk."

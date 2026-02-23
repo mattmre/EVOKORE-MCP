@@ -1,3 +1,8 @@
+---
+name: rbac-patterns-and-best-practices
+description: Specialized skill for rbac patterns and best practices workflows.
+---
+
 # RBAC Patterns and Best Practices
 
 ## Common RBAC Patterns

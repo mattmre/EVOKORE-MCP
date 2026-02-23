@@ -1,3 +1,8 @@
+---
+name: botanical-garden
+description: Specialized skill for botanical garden workflows.
+---
+
 # Botanical Garden
 
 A fresh and organic theme featuring vibrant garden-inspired colors for lively presentations.

@@ -1,3 +1,8 @@
+---
+name: swiftui-component-library
+description: Specialized skill for swiftui component library workflows.
+---
+
 # SwiftUI Component Library
 
 ## Lists and Collections

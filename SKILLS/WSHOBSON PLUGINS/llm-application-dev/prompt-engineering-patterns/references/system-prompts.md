@@ -1,3 +1,8 @@
+---
+name: system-prompt-design
+description: Specialized skill for system prompt design workflows.
+---
+
 # System Prompt Design
 
 ## Core Principles

@@ -1,3 +1,8 @@
+---
+name: kubernetes-deployment-specification-reference
+description: Specialized skill for kubernetes deployment specification reference workflows.
+---
+
 # Kubernetes Deployment Specification Reference
 
 Comprehensive reference for Kubernetes Deployment resources, covering all key fields, best practices, and common patterns.

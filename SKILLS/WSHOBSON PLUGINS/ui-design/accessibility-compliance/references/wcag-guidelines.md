@@ -1,3 +1,8 @@
+---
+name: wcag-2-2-guidelines-reference
+description: Specialized skill for wcag 2 2 guidelines reference workflows.
+---
+
 # WCAG 2.2 Guidelines Reference
 
 ## Overview

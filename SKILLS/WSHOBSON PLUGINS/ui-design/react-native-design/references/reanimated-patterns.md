@@ -1,3 +1,8 @@
+---
+name: react-native-reanimated-3-patterns
+description: Specialized skill for react native reanimated 3 patterns workflows.
+---
+
 # React Native Reanimated 3 Patterns
 
 ## Core Concepts

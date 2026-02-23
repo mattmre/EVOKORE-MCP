@@ -1,3 +1,8 @@
+---
+name: skill-execution-reference
+description: Specialized skill for skill execution reference workflows.
+---
+
 # Skill Execution Reference
 
 ## Quick Reference

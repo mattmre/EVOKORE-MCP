@@ -38,3 +38,4 @@ This repository uses a strict **Pull Request (PR) only workflow**. Direct commit
 1. Fork or branch from `main`.
 2. Add or update a skill in the `SKILLS/` directory. Ensure it has valid YAML frontmatter.
 3. Submit a Pull Request.
+

@@ -1,3 +1,8 @@
+---
+name: skill-reference
+description: Specialized skill for skill reference workflows.
+---
+
 # Skill Reference
 
 ## CLI Commands

@@ -1,3 +1,8 @@
+---
+name: droidconkotlin-development-guide
+description: Specialized skill for droidconkotlin development guide workflows.
+---
+
 # DroidconKotlin Development Guide
 
 ## Build Commands

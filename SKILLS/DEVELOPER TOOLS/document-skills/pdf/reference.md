@@ -1,3 +1,8 @@
+---
+name: pdf-processing-advanced-reference
+description: Specialized skill for pdf processing advanced reference workflows.
+---
+
 # PDF Processing Advanced Reference
 
 This document contains advanced PDF processing features, detailed examples, and additional libraries not covered in the main skill instructions.
