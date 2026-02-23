@@ -2,7 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import yaml from "yaml";
 
-const PERMISSIONS_FILE = path.resolve(__dirname, "../../permissions.yml");
+const PERMISSIONS_FILE = path.resolve(__dirname, "../permissions.yml");
 
 export class SecurityManager {
   private rules: Record<string, string> = {};

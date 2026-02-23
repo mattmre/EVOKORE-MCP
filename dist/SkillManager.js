@@ -9,7 +9,7 @@ const path_1 = __importDefault(require("path"));
 const yaml_1 = __importDefault(require("yaml"));
 const fuse_js_1 = __importDefault(require("fuse.js"));
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
-const SKILLS_DIR = path_1.default.resolve(__dirname, "../../SKILLS");
+const SKILLS_DIR = path_1.default.resolve(__dirname, "../SKILLS");
 class SkillManager {
     skillsCache = new Map();
     fuseIndex = null;
@@ -63,7 +63,7 @@ class SkillManager {
         }
     }
     parseSkillMarkdown(content, category, filePath, fallbackName) {
-        const match = content.match(new RegExp("^---\\\\r?\\\\n([\\\\s\\\\S]*?)\\\\r?\\\\n---\\\\r?\\\\n([\\\\s\\\\S]*)$"));
+        const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
         if (!match)
             return null;
         try {

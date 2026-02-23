@@ -9,7 +9,7 @@ const path_1 = __importDefault(require("path"));
 const index_js_1 = require("@modelcontextprotocol/sdk/client/index.js");
 const stdio_js_1 = require("@modelcontextprotocol/sdk/client/stdio.js");
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
-const CONFIG_FILE = path_1.default.resolve(__dirname, "../../mcp.config.json");
+const CONFIG_FILE = path_1.default.resolve(__dirname, "../mcp.config.json");
 class ProxyManager {
     clients = new Map();
     transports = new Map();
@@ -43,7 +43,7 @@ class ProxyManager {
                         command: cmd,
                         args: serverConfig.args || [],
                         env: env,
-                        stderr: "pipe"
+                        stderr: "inherit"
                     });
                     // Redirect stderr from child to parent's stderr so we can see MCP logs
                     // stderr is piped

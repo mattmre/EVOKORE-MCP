@@ -4,7 +4,7 @@ import yaml from "yaml";
 import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 
-const SKILLS_DIR = path.resolve(__dirname, "../../SKILLS");
+const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
 
 export interface SkillMetadata {
   name: string;
@@ -72,7 +72,7 @@ export class SkillManager {
   }
 
   private parseSkillMarkdown(content: string, category: string, filePath: string, fallbackName: string): SkillMetadata | null {
-    const match = content.match(new RegExp("^---\\\\r?\\\\n([\\\\s\\\\S]*?)\\\\r?\\\\n---\\\\r?\\\\n([\\\\s\\\\S]*)$"));
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
     if (!match) return null;
 
     try {

@@ -6,7 +6,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { Tool, CallToolRequestSchema, McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { SecurityManager } from "./SecurityManager";
 
-const CONFIG_FILE = path.resolve(__dirname, "../../mcp.config.json");
+const CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 
 interface ServerConfig {
   command: string;

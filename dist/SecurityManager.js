@@ -7,7 +7,7 @@ exports.SecurityManager = void 0;
 const promises_1 = __importDefault(require("fs/promises"));
 const path_1 = __importDefault(require("path"));
 const yaml_1 = __importDefault(require("yaml"));
-const PERMISSIONS_FILE = path_1.default.resolve(__dirname, "../../permissions.yml");
+const PERMISSIONS_FILE = path_1.default.resolve(__dirname, "../permissions.yml");
 class SecurityManager {
     rules = {};
     async loadPermissions() {
