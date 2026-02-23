@@ -1,5 +1,5 @@
 # Next Session Priorities
 
-1. **Advanced Integrations:** Leverage the fully operational EVOKORE-MCP core (now with a working Human-in-the-Loop security interceptor) to index and create complex multi-agent workflows involving the 40+ proxied GitHub and Filesystem tools.
-2. **Skill Development:** Create new builtin skills (e.g. `skill-creator`, `docs-architect`) that can actively harness the proxied child servers instead of just returning Markdown prompts.
-3. **Review PR #4:** Review and merge the HITL validation script PR (`test/hitl-validation`).
+1. **Review Pending PRs:** Review and merge PR #5 (`feature/builtin-skills`) and PR #6 (`feature/advanced-integrations`).
+2. **Expand Test Coverage:** Implement automated integration tests for the native active orchestration capabilities within the `SkillManager`.
+3. **v2.0 Release Prep:** Finalize the EVOKORE-MCP v2.0 release documentation, verify all system architecture diagrams, and prepare the codebase for deployment.
