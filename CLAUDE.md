@@ -18,3 +18,19 @@
 - **VoiceMode Windows Bug:** The `voice-mode-install` script crashes on Windows due to a Unicode encoding error (cp1252 codec). Skip the installer and use `claude mcp add` directly.
 - **Voice Sidecar:** `VoiceSidecar.ts` is standalone (never imported by `index.ts`). It runs as a separate process on `ws://localhost:8888`. Audio playback uses temp files + platform players (no native deps). `voices.json` supports hot-reload (re-read per connection).
 - **Cross-CLI Sync:** `scripts/sync-configs.js` merges the `evokore-mcp` entry into each CLI's config. It never overwrites existing server entries. Use `--dry-run` to preview changes.
+
+## Claude Code Hooks
+
+Four hooks are wired in `.claude/settings.json`. All scripts follow fail-safe conventions (exit 0 on error, never crash Claude Code). State lives in `~/.evokore/sessions/` and logs in `~/.evokore/logs/`.
+
+- **Damage Control** (`scripts/damage-control.js`, PreToolUse): Security auditor that blocks dangerous commands and sensitive path access. Rules defined in `damage-control-rules.yaml`. Fail-open if rules file is missing.
+- **Purpose Gate** (`scripts/purpose-gate.js`, UserPromptSubmit): Asks for session intent on first prompt, then injects purpose reminders via `additionalContext` to keep sessions focused.
+- **Session Replay** (`scripts/session-replay.js`, PostToolUse): Logs all tool usage as JSONL to `~/.evokore/sessions/{session_id}-replay.jsonl`. View with `npm run replay` or `node scripts/session-replay-view.js <session_id>`.
+- **TillDone** (`scripts/tilldone.js`, Stop): Blocks session stop if incomplete tasks remain. Also a standalone CLI:
+  ```
+  node scripts/tilldone.js --add "task text" --session <ID>
+  node scripts/tilldone.js --done 1 --session <ID>
+  node scripts/tilldone.js --toggle 1 --session <ID>
+  node scripts/tilldone.js --list --session <ID>
+  node scripts/tilldone.js --clear --session <ID>
+  ```

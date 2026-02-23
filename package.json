@@ -8,7 +8,8 @@
     "voice": "node dist/VoiceSidecar.js",
     "voice:dev": "npx tsx src/VoiceSidecar.ts",
     "sync": "node scripts/sync-configs.js",
-    "sync:dry": "node scripts/sync-configs.js --dry-run"
+    "sync:dry": "node scripts/sync-configs.js --dry-run",
+    "replay": "node scripts/session-replay-view.js --latest"
   },
   "keywords": [],
   "author": "",
