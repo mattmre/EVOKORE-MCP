@@ -2,10 +2,13 @@ import fs from "fs/promises";
 import path from "path";
 import yaml from "yaml";
 
+import crypto from "crypto";
+
 const PERMISSIONS_FILE = path.resolve(__dirname, "../permissions.yml");
 
 export class SecurityManager {
   private rules: Record<string, string> = {};
+  private pendingTokens: Map<string, string> = new Map();
 
   async loadPermissions() {
     try {
@@ -36,5 +39,22 @@ export class SecurityManager {
     }
 
     return "allow";
+  }
+
+  generateToken(toolName: string): string {
+    const token = crypto.randomBytes(16).toString("hex");
+    this.pendingTokens.set(toolName, token);
+    return token;
+  }
+
+  validateToken(toolName: string, token: string): boolean {
+    const expected = this.pendingTokens.get(toolName);
+    return expected !== undefined && expected === token;
+  }
+
+  consumeToken(toolName: string, token: string) {
+    if (this.validateToken(toolName, token)) {
+      this.pendingTokens.delete(toolName);
+    }
   }
 }

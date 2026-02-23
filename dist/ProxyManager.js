@@ -56,7 +56,16 @@ class ProxyManager {
                     for (const tool of tools) {
                         const prefixedName = `${serverId}_${tool.name}`;
                         this.toolRegistry.set(prefixedName, { serverId, originalName: tool.name });
-                        this.cachedTools.push({ ...tool, name: prefixedName });
+                        // Clone tool to modify input schema safely
+                        const modifiedTool = JSON.parse(JSON.stringify(tool));
+                        modifiedTool.name = prefixedName;
+                        if (modifiedTool.inputSchema && modifiedTool.inputSchema.properties) {
+                            modifiedTool.inputSchema.properties._evokore_approval_token = {
+                                type: "string",
+                                description: "If this tool requires approval, the server will return an error with a token. Ask the user for permission, and if granted, retry the tool call with this token."
+                            };
+                        }
+                        this.cachedTools.push(modifiedTool);
                     }
                     console.error(`[EVOKORE] Proxied ${tools.length} tools from '${serverId}'`);
                 }
@@ -81,20 +90,27 @@ class ProxyManager {
             throw new types_js_1.McpError(types_js_1.ErrorCode.MethodNotFound, `Tool not found in proxy registry: ${toolName}`);
         }
         const { serverId, originalName } = registryEntry;
+        // Extract and remove the EVOKORE approval token so the child server doesn't complain about unknown args
+        const providedToken = args._evokore_approval_token;
+        delete args._evokore_approval_token;
         // 1. Security Interceptor Check
         const permission = this.security.checkPermission(toolName);
         if (permission === "deny") {
             throw new types_js_1.McpError(types_js_1.ErrorCode.InvalidRequest, `Execution of '${toolName}' is strictly denied by EVOKORE-MCP security policies.`);
         }
         if (permission === "require_approval") {
-            // Return a structured message that forces the LLM to pause and ask the user
-            return {
-                content: [{
-                        type: "text",
-                        text: `[EVOKORE-MCP SECURITY INTERCEPTOR] ACTION REQUIRES HUMAN APPROVAL.\n\nYou attempted to call '${toolName}', which modifies the system. You must stop right now and ask the user for explicit permission to execute this tool with these arguments. DO NOT proceed until they say YES.`
-                    }],
-                isError: true
-            };
+            if (!providedToken || !this.security.validateToken(toolName, providedToken)) {
+                const newToken = this.security.generateToken(toolName);
+                return {
+                    content: [{
+                            type: "text",
+                            text: `[EVOKORE-MCP SECURITY INTERCEPTOR] ACTION REQUIRES HUMAN APPROVAL.\n\nYou attempted to call '${toolName}'. You must stop right now and ask the user for explicit permission to execute this tool with these arguments. DO NOT proceed until they say YES.\n\nIf they approve, retry this exact same tool call but add the argument '_evokore_approval_token' with the value '${newToken}'.`
+                        }],
+                    isError: true
+                };
+            }
+            // Valid token provided. Consume it so it can't be reused, then proceed.
+            this.security.consumeToken(toolName, providedToken);
         }
         const client = this.clients.get(serverId);
         if (!client) {

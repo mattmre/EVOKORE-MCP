@@ -29,3 +29,8 @@ AI agents must not have unchecked access to destructive tools or raw API keys.
 2. Refactor src/index.ts to implement the child_process spawner and JSON-RPC proxy routing logic.
 3. Implement the tool-prefixing namespace logic.
 4. Add the .env loader for secure credential injection.
+
+## Phase 2 Execution Steps (Architecture Refinements)
+1. Implement stateless Human-in-the-Loop (HITL) architecture via `_evokore_approval_token`.
+2. Modify proxy tool schemas on-the-fly to allow the AI to inject user-approved tokens.
+3. Establish `SecurityManager` state to generate, validate, and consume ephemeral tokens for restricted tools.

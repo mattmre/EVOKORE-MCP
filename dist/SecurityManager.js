@@ -7,9 +7,11 @@ exports.SecurityManager = void 0;
 const promises_1 = __importDefault(require("fs/promises"));
 const path_1 = __importDefault(require("path"));
 const yaml_1 = __importDefault(require("yaml"));
+const crypto_1 = __importDefault(require("crypto"));
 const PERMISSIONS_FILE = path_1.default.resolve(__dirname, "../permissions.yml");
 class SecurityManager {
     rules = {};
+    pendingTokens = new Map();
     async loadPermissions() {
         try {
             const content = await promises_1.default.readFile(PERMISSIONS_FILE, "utf-8");
@@ -38,6 +40,20 @@ class SecurityManager {
             return rule;
         }
         return "allow";
+    }
+    generateToken(toolName) {
+        const token = crypto_1.default.randomBytes(16).toString("hex");
+        this.pendingTokens.set(toolName, token);
+        return token;
+    }
+    validateToken(toolName, token) {
+        const expected = this.pendingTokens.get(toolName);
+        return expected !== undefined && expected === token;
+    }
+    consumeToken(toolName, token) {
+        if (this.validateToken(toolName, token)) {
+            this.pendingTokens.delete(toolName);
+        }
     }
 }
 exports.SecurityManager = SecurityManager;
