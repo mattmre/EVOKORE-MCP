@@ -35,10 +35,18 @@ class ProxyManager {
                     console.error(`[EVOKORE] Booting child server: ${serverId}`);
                     let cmd = serverConfig.command;
                     // Apply Windows executable fallback
+                    // npx needs .cmd extension on Windows; uvx/uv install as .exe and resolve via PATH
                     if (isWindows && cmd === "npx") {
                         cmd = "npx.cmd";
                     }
-                    const env = { ...process.env, ...serverConfig.env };
+                    // Resolve ${VAR} references in env values from process.env
+                    const resolvedEnv = {};
+                    if (serverConfig.env) {
+                        for (const [key, value] of Object.entries(serverConfig.env)) {
+                            resolvedEnv[key] = value.replace(/\$\{(\w+)\}/g, (_, varName) => process.env[varName] || "");
+                        }
+                    }
+                    const env = { ...process.env, ...resolvedEnv };
                     const transport = new stdio_js_1.StdioClientTransport({
                         command: cmd,
                         args: serverConfig.args || [],

@@ -7,6 +7,14 @@
     "fs": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"]
+    },
+    "elevenlabs": {
+      "command": "uvx",
+      "args": ["elevenlabs-mcp"],
+      "env": {
+        "ELEVENLABS_API_KEY": "${ELEVENLABS_API_KEY}",
+        "ELEVENLABS_MCP_OUTPUT_MODE": "both"
+      }
     }
   }
 }
