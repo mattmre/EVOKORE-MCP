@@ -82,7 +82,8 @@ class EvokoreMCPServer {
       const args = request.params.arguments || {};
 
       // Handle Native Skill Tools
-      if (["resolve_workflow", "search_skills", "get_skill_help"].includes(toolName)) {
+      const nativeToolNames = this.skillManager.getTools().map(t => t.name);
+      if (nativeToolNames.includes(toolName)) {
         return await this.skillManager.handleToolCall(toolName, args);
       }
 

@@ -34,3 +34,7 @@ AI agents must not have unchecked access to destructive tools or raw API keys.
 1. Implement stateless Human-in-the-Loop (HITL) architecture via `_evokore_approval_token`.
 2. Modify proxy tool schemas on-the-fly to allow the AI to inject user-approved tokens.
 3. Establish `SecurityManager` state to generate, validate, and consume ephemeral tokens for restricted tools.
+
+---
+
+**Status: COMPLETE** (v2.0 Enterprise Router Deployed). See [V2 Multi-Agent Workflows: Advanced Integrations](V2_MULTI_AGENT_WORKFLOWS.md) for more details.
