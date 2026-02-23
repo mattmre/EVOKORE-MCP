@@ -31,7 +31,8 @@ Gemini CLI features a robust native hook engine. You can configure it to execute
     ]
   }
 }
-```\nZ**Step 3:** Restart your Gemini CLI!
+```
+**Step 3:** Restart your Gemini CLI!
 
 ---
 
@@ -48,7 +49,8 @@ Claude Code features an undocumented internal hook architecture that natively su
     "command": "node /absolute/path/to/EVOKORE-MCP/scripts/status.js"
   }
 }
-```\n**Step 3:** Restart Claude Code.
+```
+**Step 3:** Restart Claude Code.
 
 ---
 

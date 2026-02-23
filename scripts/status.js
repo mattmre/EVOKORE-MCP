@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -70,7 +72,7 @@ function getBucketColor(pos, max) {
     g = Math.floor(146 + (68 - 146) * t / 34);
     b = Math.floor(60 + (68 - 60) * t / 34);
   }
-  return \x1b[38;2;\;\;\m;
+  return `\x1b[38;2;${r};${g};${b}m`;
 }
 
 function renderContextBar(width, pct) {
@@ -80,9 +82,9 @@ function renderContextBar(width, pct) {
   
   for (let i = 1; i <= width; i++) {
     if (i <= filled) {
-      output += getBucketColor(i, width) + '¦' + RESET;
+      output += getBucketColor(i, width) + 'â–ˆ' + RESET;
     } else {
-      output += C.CTX_BUCKET_EMPTY + '¦' + RESET;
+      output += C.CTX_BUCKET_EMPTY + 'â–ˆ' + RESET;
     }
     if (useSpacing) output += ' ';
   }
@@ -135,7 +137,7 @@ async function getWeather(lat, lon) {
       const stats = fs.statSync(WEATHER_CACHE);
       if (Date.now() - stats.mtimeMs < 900000) return fs.readFileSync(WEATHER_CACHE, 'utf8');
     }
-    const data = await fetchJson(https://api.open-meteo.com/v1/forecast?latitude=\&longitude=\&current=temperature_2m,weather_code&temperature_unit=celsius);
+    const data = await fetchJson(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=celsius`);
     if (data && data.current) {
       const temp = Math.round(data.current.temperature_2m);
       const code = data.current.weather_code;
@@ -147,7 +149,7 @@ async function getWeather(lat, lon) {
       else if ([71,73,75,77,85,86].includes(code)) cond = 'Snow';
       else if ([95,96,99].includes(code)) cond = 'Storm';
       
-      const str = \°C \;
+      const str = `${temp}Â°C ${cond}`;
       fs.writeFileSync(WEATHER_CACHE, str);
       return str;
     }
@@ -214,19 +216,19 @@ process.stdin.on('end', async () => {
     } catch (e) {}
 
     // PRINTING
-    const sep = \------------------------------------------------------------------------\;
+    const sep = `------------------------------------------------------------------------`;
     
     // Line 0: Header
     let l0 = '';
-    const brand = \--\ \E\V\O\ \STATUSLINE\ \—;
+    const brand = `-- ${C.PAI_A}E${C.PAI_I}V${C.PAI_P}O${C.PAI_LABEL} STATUSLINE ${RESET}`;
     if (mode === 'normal') {
-      l0 += \ --------------------------------------------------\\n;
-      l0 += \LOC:\ \\\\,\ \\\ \·\ \\\ \·\ \\\\n;
-      l0 += \ENV:\ \CC:\ \\\ \·\ \MDL:\\\ \·\ \SK:\ \\\ \·\ \CAT:\ \\\\n;
+      l0 += ` --------------------------------------------------\n`;
+      l0 += `LOC: ${C.PAI_CITY}${loc.city}${RESET}, ${C.PAI_STATE}${loc.regionName}${RESET} | ${C.PAI_TIME}${time}${RESET} | ${C.PAI_WEATHER}${weather}${RESET}\n`;
+      l0 += `ENV: CC: ${C.EMERALD}${ccVersion}${RESET} | MDL: ${C.ORANGE}${modelName}${RESET} | SK: ${C.EMERALD}${skillsCount}${RESET} | CAT: ${C.EMERALD}${catCount}${RESET}\n`;
     } else {
-      l0 += \ --------\\n;
-      l0 += \LOC:\ \\\ \·\ \\\\n;
-      l0 += \ENV:\ \CC:\ \\\ \·\ \MDL:\\\\n;
+      l0 += ` --------\n`;
+      l0 += `LOC: ${C.PAI_CITY}${loc.city}${RESET} | ${C.PAI_WEATHER}${weather}${RESET}\n`;
+      l0 += `ENV: CC: ${C.EMERALD}${ccVersion}${RESET} | MDL: ${C.ORANGE}${modelName}${RESET}\n`;
     }
     
     console.log();
@@ -246,9 +248,9 @@ process.stdin.on('end', async () => {
     const bar = renderContextBar(barWidth, contextPct);
     let l1 = '';
     if (mode === 'normal' || mode === 'mini') {
-      l1 = \?\ \CONTEXT:\ \ \\%\;
+      l1 = `â–º CONTEXT: [${bar}] ${pctColor}${contextPct}%${RESET}`;
     } else {
-      l1 = \?\ \ \\%\;
+      l1 = `â–º [${bar}] ${pctColor}${contextPct}%${RESET}`;
     }
     console.log(l1);
     console.log(sep);
@@ -256,29 +258,29 @@ process.stdin.on('end', async () => {
     // Line 2: Git Status
     if (git.isGit) {
       let l2 = '';
-      const gitIcon = (git.totalChanged > 0 || git.untracked > 0) ? '*' : '?';
+      const gitIcon = (git.totalChanged > 0 || git.untracked > 0) ? '*' : 'âœ“';
       if (mode === 'normal') {
-        l2 += \?\ \PWD:\ \\\ \·\ \Branch:\ \\\;
-        if (git.stashCount > 0) l2 +=  \·\ \Stash:\ \\\;
+        l2 += `â–º PWD: ${C.GIT_DIR}${dirName}${RESET} | Branch: ${C.GIT_PRIMARY}${git.branch}${RESET}`;
+        if (git.stashCount > 0) l2 += ` | Stash: ${C.GIT_STASH}${git.stashCount}${RESET}`;
         if (git.totalChanged > 0 || git.untracked > 0) {
-          l2 +=  \·\ ;
-          if (git.totalChanged > 0) l2 += \Mod:\ \\\;
-          if (git.untracked > 0) l2 +=  \New:\ \\\;
+          l2 += ` | `;
+          if (git.totalChanged > 0) l2 += `Mod: ${C.GIT_MODIFIED}${git.totalChanged}${RESET} `;
+          if (git.untracked > 0) l2 += ` New: ${C.GIT_ADDED}${git.untracked}${RESET}`;
         } else {
-          l2 +=  \·\ \? clean\;
+          l2 += ` | ${C.GIT_CLEAN}âœ“ clean${RESET}`;
         }
       } else {
-        l2 += \?\ \\\ \·\ \\\ ;
-        if (gitIcon === '?') l2 += \\\;
-        else l2 += \\\\;
+        l2 += `â–º ${C.GIT_DIR}${dirName}${RESET} | ${C.GIT_PRIMARY}${git.branch}${RESET} `;
+        if (gitIcon === 'âœ“') l2 += `${C.GIT_CLEAN}âœ“${RESET}`;
+        else l2 += `${C.GIT_MODIFIED}*${RESET}`;
       }
       console.log(l2);
       console.log(sep);
     } else {
-      console.log(\?\ \PWD:\ \\\);
+      console.log(`â–º PWD: ${C.GIT_DIR}${dirName}${RESET}`);
       console.log(sep);
     }
   } catch (error) {
-    console.log(\Status Line Error: \\);
+    console.log(`Status Line Error: ${error.message}`);
   }
 });

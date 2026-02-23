@@ -56,7 +56,7 @@ export class ProxyManager {
             command: cmd,
             args: serverConfig.args || [],
             env: env as Record<string, string>,
-            stderr: "pipe"
+            stderr: "inherit"
           });
 
           // Redirect stderr from child to parent's stderr so we can see MCP logs
