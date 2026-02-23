@@ -29,9 +29,9 @@ class EvokoreMCPServer {
                 tools: {},
             },
         });
-        this.skillManager = new SkillManager_1.SkillManager();
         this.securityManager = new SecurityManager_1.SecurityManager();
         this.proxyManager = new ProxyManager_1.ProxyManager(this.securityManager);
+        this.skillManager = new SkillManager_1.SkillManager(this.proxyManager);
         this.setupHandlers();
         this.server.onerror = (error) => console.error("[MCP Error]", error);
     }

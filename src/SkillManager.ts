@@ -3,6 +3,7 @@ import path from "path";
 import yaml from "yaml";
 import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
+import { ProxyManager } from "./ProxyManager";
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
 
@@ -17,6 +18,11 @@ export interface SkillMetadata {
 export class SkillManager {
   private skillsCache: Map<string, SkillMetadata> = new Map();
   private fuseIndex: Fuse<SkillMetadata> | null = null;
+  private proxyManager: ProxyManager;
+
+  constructor(proxyManager: ProxyManager) {
+    this.proxyManager = proxyManager;
+  }
 
   async loadSkills() {
     this.skillsCache.clear();
@@ -92,6 +98,30 @@ export class SkillManager {
   getTools(): Tool[] {
     return [
       {
+        name: "docs_architect",
+        description: "Execute a Gold Standard documentation overhaul by actively reading the project files and returning a comprehensive generation prompt.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            target_dir: { type: "string", description: "The root directory of the project to document" }
+          },
+          required: ["target_dir"]
+        }
+      },
+      {
+        name: "skill_creator",
+        description: "Guide for creating effective skills. Actively generates the skill scaffolding, directories, and basic SKILL.md template.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            skill_name: { type: "string", description: "The name of the new skill" },
+            target_dir: { type: "string", description: "The target directory to create the skill in" },
+            description: { type: "string", description: "A brief description of what the skill does" }
+          },
+          required: ["skill_name", "target_dir", "description"]
+        }
+      },
+      {
         name: "resolve_workflow",
         description: "Describe the task or objective you are trying to accomplish. EVOKORE-MCP will dynamically run a semantic search and instantly inject the 1-3 most relevant Agent Skills, prompts, and architectural guidelines directly into this tool's response so you can read and adopt them.",
         inputSchema: {
@@ -128,6 +158,71 @@ export class SkillManager {
   }
 
   async handleToolCall(name: string, args: any): Promise<any> {
+    if (name === "docs_architect") {
+        const targetDir = args.target_dir as string;
+        let projectContext = "";
+        try {
+            // Actively harness the proxied child server to fetch data first
+            const pkgPath = path.join(targetDir, "package.json");
+            const result = await this.proxyManager.callProxiedTool("fs_read_file", { path: pkgPath });
+            projectContext = (result as any).content[0].text;
+        } catch (e) {
+            projectContext = "No package.json found or could not be read.";
+        }
+        
+        return {
+            content: [{
+                type: "text",
+                text: `You are the Documentation Architect. I have harnessed the filesystem tool to read the project context.
+Project context (package.json):
+${projectContext}
+
+Please use this to generate a Gold Standard README.md and /docs directory for ${targetDir}.`
+            }]
+        };
+    }
+
+    if (name === "skill_creator") {
+        const skillName = args.skill_name as string;
+        const targetDir = args.target_dir as string;
+        const description = args.description as string;
+        
+        const skillPath = path.join(targetDir, skillName);
+        const skillMdPath = path.join(skillPath, "SKILL.md");
+        
+        const skillTemplate = `---
+name: ${skillName}
+description: ${description}
+---
+
+# ${skillName}
+
+This skill provides guidance for ${description}.
+
+## Usage
+
+(Add instructions here)
+`;
+        
+        try {
+            // Actively harness the proxied child server to write files
+            // For directories, we might not have a proxy tool, so we rely on write_file creating parents or just instruct the AI
+            await this.proxyManager.callProxiedTool("fs_write_file", { path: skillMdPath, content: skillTemplate });
+            
+            return {
+                content: [{
+                    type: "text",
+                    text: `Successfully actively harnessed child servers to initialize skill scaffolding at ${skillMdPath}. Please review and update it further.`
+                }]
+            };
+        } catch (error: any) {
+            return {
+                content: [{ type: "text", text: `Failed to harness child server to create skill: ${error.message}` }],
+                isError: true
+            };
+        }
+    }
+
     if (name === "resolve_workflow") {
         if (!this.fuseIndex) await this.loadSkills();
         const objective = (args.objective as string || "");
