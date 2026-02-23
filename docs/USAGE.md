@@ -93,10 +93,93 @@ export OPENAI_API_KEY="sk-your-key-here"
 
 **Local/offline mode:** Install Whisper.cpp (STT) and Kokoro (TTS) for fully local voice with no cloud dependencies. VoiceMode auto-detects local services.
 
-### Speed and Prosody Notes
+### Voice Sidecar (Auto-Speak Responses)
 
-- ElevenLabs agent platform supports 0.7x-1.2x speed range
-- ElevenLabs raw TTS API allows broader speed via the `speed` parameter
-- For 2-3x playback, use the TTS API directly or post-process with `ffmpeg -filter:a "atempo=2.0"`
-- ElevenLabs Turbo v2.5 model (`eleven_turbo_v2_5`) generates 3x faster with good quality
-- For natural-sounding fast speech, prosody-aware generation (ElevenLabs Expressive Mode) is preferred over naive speed multiplication
+The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses through ElevenLabs TTS. It runs independently from the MCP router.
+
+**Setup:**
+
+1. Ensure `ELEVENLABS_API_KEY` is set in your `.env` file
+2. Compile: `npx tsc`
+3. Start the sidecar: `npm run voice` (or `npm run voice:dev` for development)
+4. Register the voice hook in `~/.claude/settings.json`:
+   ```json
+   {
+     "hooks": {
+       "stop": [
+         { "command": "node /path/to/EVOKORE-MCP/scripts/voice-hook.js" }
+       ]
+     }
+   }
+   ```
+
+The sidecar listens on `ws://localhost:8888` (override with `VOICE_SIDECAR_PORT` env var). When Claude Code finishes a response, the hook forwards the text to the sidecar, which streams it to ElevenLabs and plays the audio.
+
+**Protocol (for custom integrations):**
+
+```json
+{"text": "Hello world.", "persona": "orchestrator", "flush": true}
+```
+
+Or stream in chunks:
+```json
+{"text": "First part. ", "persona": "orchestrator"}
+{"text": "Second part. "}
+{"text": "", "flush": true}
+```
+
+### Persona Configuration
+
+Edit `voices.json` in the project root to map agent roles to ElevenLabs voices. Each persona overrides fields from the `default` config:
+
+```json
+{
+  "default": { "voiceId": "...", "model": "eleven_turbo_v2_5", "speed": 1.0, ... },
+  "personas": {
+    "orchestrator": { "voiceId": "...", "stability": 0.6 },
+    "researcher": { "voiceId": "...", "speed": 1.1 }
+  }
+}
+```
+
+The sidecar re-reads `voices.json` on each new connection (hot-reload). Available default personas: `orchestrator`, `researcher`, `architect`, `implementer`, `tester`, `reviewer`.
+
+### Speed and Prosody Tuning
+
+Three layers of speed control, each stacking on the others:
+
+| Layer | Method | Range | Notes |
+|-------|--------|-------|-------|
+| 1. API speed | `speed` in `voices.json` | 0.5 - 2.0 | Prosody-aware, best quality |
+| 2. Model selection | `model` in `voices.json` | N/A | `eleven_turbo_v2_5` generates 3x faster |
+| 3. Post-processing | `postProcessTempo` in `voices.json` | 1.0 - 4.0 | Requires `ffmpeg` on PATH; chains `atempo` filters |
+
+Example for fast playback:
+```json
+{
+  "speed": 1.2,
+  "model": "eleven_turbo_v2_5",
+  "postProcessTempo": 1.5
+}
+```
+
+For natural-sounding fast speech, prefer Layer 1 (API speed) over Layer 3 (ffmpeg). Only use `postProcessTempo` for speeds beyond what the API supports.
+
+### Cross-CLI Config Sync
+
+Sync your EVOKORE-MCP registration across all supported AI CLIs:
+
+```bash
+# Preview what would change (recommended first)
+npm run sync:dry
+
+# Apply changes
+npm run sync
+```
+
+**Supported CLIs:** Claude Code, Claude Desktop (Win/Mac/Linux), Cursor, Gemini CLI (prints manual command).
+
+The sync script:
+- Auto-detects installed CLIs
+- Only adds/updates the `evokore-mcp` server entry (never overwrites other servers)
+- Target specific CLIs: `node scripts/sync-configs.js claude-code cursor`

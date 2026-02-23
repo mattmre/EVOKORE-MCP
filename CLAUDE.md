@@ -16,3 +16,5 @@
 - **Env Variable Interpolation:** `mcp.config.json` supports `${VAR}` syntax in `env` blocks. The ProxyManager resolves these from `process.env` (loaded via dotenv from `.env`) before passing to child server processes.
 - **Voice Integration:** ElevenLabs MCP is proxied as a child server (24 tools with `elevenlabs_*` prefix). VoiceMode is user-scoped in Claude Code (needs direct mic/speaker access). See `docs/VOICE_CLI_RESEARCH.md` for full architecture research and `docs/USAGE.md` Section 4 for setup.
 - **VoiceMode Windows Bug:** The `voice-mode-install` script crashes on Windows due to a Unicode encoding error (cp1252 codec). Skip the installer and use `claude mcp add` directly.
+- **Voice Sidecar:** `VoiceSidecar.ts` is standalone (never imported by `index.ts`). It runs as a separate process on `ws://localhost:8888`. Audio playback uses temp files + platform players (no native deps). `voices.json` supports hot-reload (re-read per connection).
+- **Cross-CLI Sync:** `scripts/sync-configs.js` merges the `evokore-mcp` entry into each CLI's config. It never overwrites existing server entries. Use `--dry-run` to preview changes.

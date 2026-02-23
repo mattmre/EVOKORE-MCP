@@ -1,0 +1,50 @@
+{
+  "default": {
+    "voiceId": "21m00Tcm4TlvDq8ikWAM",
+    "voiceName": "Rachel",
+    "model": "eleven_turbo_v2_5",
+    "stability": 0.5,
+    "similarityBoost": 0.75,
+    "speed": 1.0,
+    "outputFormat": "mp3_44100_128"
+  },
+  "personas": {
+    "orchestrator": {
+      "voiceId": "21m00Tcm4TlvDq8ikWAM",
+      "voiceName": "Rachel",
+      "stability": 0.6,
+      "similarityBoost": 0.8
+    },
+    "researcher": {
+      "voiceId": "AZnzlk1XvdvUeBnXmlld",
+      "voiceName": "Domi",
+      "stability": 0.4,
+      "speed": 1.1
+    },
+    "architect": {
+      "voiceId": "EXAVITQu4vr4xnSDxMaL",
+      "voiceName": "Bella",
+      "stability": 0.55,
+      "similarityBoost": 0.7
+    },
+    "implementer": {
+      "voiceId": "ErXwobaYiN019PkySvjV",
+      "voiceName": "Antoni",
+      "stability": 0.5,
+      "speed": 1.05
+    },
+    "tester": {
+      "voiceId": "MF3mGyEYCl7XYWbV9V6O",
+      "voiceName": "Elli",
+      "stability": 0.45,
+      "speed": 1.1
+    },
+    "reviewer": {
+      "voiceId": "TxGEqnHWrfWFTfGW9XjX",
+      "voiceName": "Josh",
+      "stability": 0.6,
+      "similarityBoost": 0.8,
+      "speed": 0.95
+    }
+  }
+}
