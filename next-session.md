@@ -1,5 +1,5 @@
 # Next Session Priorities
 
-1. **Finalize v2.0 Release**: Review the `release/v2.0` branch and merge it into `main`. Tag the release.
-2. **Publish**: Deploy EVOKORE-MCP v2.0 to the appropriate registries (NPM/GitHub Packages).
-3. **Docs Architect**: Use the newly operational `docs_architect` skill to perform a deep analysis on the expanded codebase and optimize user-facing documentation for advanced integrations.
+1. **Review Pending PRs:** Review and merge the `feature/docs-architect-v2` PR into `main`.
+2. **CI/CD Automation:** Set up GitHub Actions CI pipelines to automate running `npm test` on all PRs to catch HITL security interceptor regressions.
+3. **Publishing:** Perform the actual `npm publish` of `evokore-mcp` v2.0.0 to public registries.
