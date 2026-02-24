@@ -9,6 +9,10 @@ Use this file as the canonical entrypoint for repository documentation.
 - [Release Flow](./RELEASE_FLOW.md)
 - [CLI Integration Notes](./CLI_INTEGRATION.md)
 - [Submodule Workflow](./SUBMODULE_WORKFLOW.md)
+- [Orchestration Tracker](./ORCHESTRATION_TRACKER.md)
+- [Research Decisions Log](./RESEARCH_DECISIONS_LOG.md)
+- [Priority Status Matrix](./PRIORITY_STATUS_MATRIX.md)
+- [PR Merge Runbook](./PR_MERGE_RUNBOOK.md)
 
 ## Validation Anchors
 

@@ -7,6 +7,7 @@ Thank you for your interest in contributing to EVOKORE-MCP! We welcome additions
 - Canonical docs map: [docs/README.md](docs/README.md)
 - Submodule workflow: [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md)
 - Release flow: [docs/RELEASE_FLOW.md](docs/RELEASE_FLOW.md)
+- PR merge runbook: [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md)
 
 ## The Pull Request Workflow
 
