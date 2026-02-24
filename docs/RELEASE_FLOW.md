@@ -5,7 +5,12 @@ This repository publishes to npm through a guarded GitHub Actions workflow: `.gi
 ## Triggers
 
 - **Git tag push**: `v*.*.*` (for normal releases)
-- **Manual run**: `workflow_dispatch` (for supervised reruns)
+- **Manual run**: `workflow_dispatch` (for supervised reruns only after dependency chain completion)
+
+## Dependency Chain Requirement
+
+Before any release (including manual reruns), confirm the full dependency chain is complete.
+Manual workflow dispatches are blocked unless the `chain_complete` input is explicitly set to `true`.
 
 ## Safe Publish Sequence
 
@@ -28,4 +33,5 @@ If `NPM_TOKEN` is not set in repository secrets, publish is skipped and the work
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-4. Verify the Release workflow completed and published successfully.
+4. For manual `workflow_dispatch` runs, set `chain_complete=true` only after verifying dependency chain completion.
+5. Verify the Release workflow completed and published successfully.
