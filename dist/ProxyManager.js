@@ -98,17 +98,18 @@ class ProxyManager {
             throw new types_js_1.McpError(types_js_1.ErrorCode.MethodNotFound, `Tool not found in proxy registry: ${toolName}`);
         }
         const { serverId, originalName } = registryEntry;
+        const toolArgs = { ...(args || {}) };
         // Extract and remove the EVOKORE approval token so the child server doesn't complain about unknown args
-        const providedToken = args._evokore_approval_token;
-        delete args._evokore_approval_token;
+        const providedToken = toolArgs._evokore_approval_token;
+        delete toolArgs._evokore_approval_token;
         // 1. Security Interceptor Check
         const permission = this.security.checkPermission(toolName);
         if (permission === "deny") {
             throw new types_js_1.McpError(types_js_1.ErrorCode.InvalidRequest, `Execution of '${toolName}' is strictly denied by EVOKORE-MCP security policies.`);
         }
         if (permission === "require_approval") {
-            if (!providedToken || !this.security.validateToken(toolName, providedToken)) {
-                const newToken = this.security.generateToken(toolName);
+            if (!providedToken || !this.security.validateToken(toolName, providedToken, toolArgs)) {
+                const newToken = this.security.generateToken(toolName, toolArgs);
                 return {
                     content: [{
                             type: "text",
@@ -118,13 +119,13 @@ class ProxyManager {
                 };
             }
             // Valid token provided. Consume it so it can't be reused, then proceed.
-            this.security.consumeToken(toolName, providedToken);
+            this.security.consumeToken(providedToken);
         }
         const client = this.clients.get(serverId);
         if (!client) {
             throw new types_js_1.McpError(types_js_1.ErrorCode.InternalError, `Client for server '${serverId}' is not connected.`);
         }
-        const result = await client.callTool({ name: originalName, arguments: args });
+        const result = await client.callTool({ name: originalName, arguments: toolArgs });
         return result;
     }
 }

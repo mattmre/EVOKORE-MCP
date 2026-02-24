@@ -21,6 +21,19 @@ function sanitizeId(id) {
   return String(id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
+function resolveAutoSessionId() {
+  const candidates = [
+    process.env.EVOKORE_SESSION_ID,
+    process.env.CLAUDE_SESSION_ID,
+    process.env.CLAUDE_CODE_SESSION_ID,
+    process.env.SESSION_ID
+  ];
+  for (const candidate of candidates) {
+    if (candidate && String(candidate).trim()) return String(candidate).trim();
+  }
+  return null;
+}
+
 function ensureDir() {
   if (!fs.existsSync(SESSIONS_DIR)) {
     fs.mkdirSync(SESSIONS_DIR, { recursive: true });
@@ -76,9 +89,13 @@ if (process.argv.length > 2) {
     return args.includes(flag);
   }
 
-  const sessionId = getArg('--session');
+  let sessionId = getArg('--session');
+  if (sessionId === 'auto') {
+    sessionId = resolveAutoSessionId();
+  }
+
   if (!sessionId) {
-    console.error(`${C.ROSE}Error: --session ID is required${RESET}`);
+    console.error(`${C.ROSE}Error: --session ID is required (or use --session auto with EVOKORE_SESSION_ID/CLAUDE_SESSION_ID env)${RESET}`);
     process.exit(1);
   }
 
@@ -120,7 +137,7 @@ if (process.argv.length > 2) {
     saveTasks(sessionId, []);
     console.log(`${C.ORANGE}Tasks cleared for session ${sessionId}${RESET}`);
   } else {
-    console.error(`${C.ROSE}Usage: tilldone.js --add "text" | --toggle N | --done N | --list | --clear  --session ID${RESET}`);
+    console.error(`${C.ROSE}Usage: tilldone.js --add "text" | --toggle N | --done N | --list | --clear  --session ID|auto${RESET}`);
     process.exit(1);
   }
 

@@ -6,10 +6,10 @@ If your MCP Server is failing to connect or crashing, consult these common issue
 **Symptoms:** You add the server via `gemini mcp add`, but when you check `/mcp ls`, the server displays a red dot with `Disconnected`.
 **Cause:** The TypeScript compiler (`tsc`) outputs the compiled file to a location that your configuration is not expecting, or the Node script crashed on startup (e.g., trying to read a directory that doesn't exist).
 **Solution:**
-Ensure you are pointing the command to `src/index.js`, not `dist/index.js` (unless you specifically configured `outDir` in `tsconfig.json`).
+Ensure you are pointing the command to `dist/index.js` (the compiled runtime entrypoint).
 ```bash
 # Correct
-gemini mcp add evokore-mcp node /path/to/EVOKORE-MCP/src/index.js
+gemini mcp add evokore-mcp node /path/to/EVOKORE-MCP/dist/index.js
 ```
 
 ## 2. "ENOENT: no such file or directory, scandir '.../SKILLS'"
@@ -32,3 +32,21 @@ This script traverses the `SKILLS/` directory and auto-repairs any broken Markdo
 If the server still won't connect, launch your AI assistant in debug mode to see the `stderr` output.
 - **Gemini CLI:** Launch the CLI with `gemini --debug`, or press `F12` during an interactive session to open the debug console.
 - **Claude Desktop:** Check the `mcp.log` file (Location varies by OS; on Windows it is usually `%APPDATA%\Claude\logs\mcp.log`).
+
+## 5. Voice Sidecar Not Speaking
+**Symptoms:** Claude hook runs, but no audio is played.
+**Checks:**
+- Ensure the sidecar is running: `npm run voice`
+- Verify your `ELEVENLABS_API_KEY` is set
+- Validate hook and payload behavior with:
+  - `node test-voice-e2e-validation.js`
+  - `node test-voice-refinement-validation.js`
+
+## 6. Release Workflow Did Not Publish
+**Symptoms:** Release workflow runs but package is not published.
+**Cause:** `NPM_TOKEN` secret is missing or invalid.
+**Solution:**
+- Add/update `NPM_TOKEN` in repository secrets.
+- Re-run via `workflow_dispatch`.
+- Confirm workflow checks with `node test-npm-release-flow-validation.js`.
+- Reference the full process in [RELEASE_FLOW.md](./RELEASE_FLOW.md).

@@ -126,9 +126,11 @@ export class ProxyManager {
 
     const { serverId, originalName } = registryEntry;
     
+    const toolArgs = { ...(args || {}) };
+    
     // Extract and remove the EVOKORE approval token so the child server doesn't complain about unknown args
-    const providedToken = args._evokore_approval_token;
-    delete args._evokore_approval_token;
+    const providedToken = toolArgs._evokore_approval_token;
+    delete toolArgs._evokore_approval_token;
     
     // 1. Security Interceptor Check
     const permission = this.security.checkPermission(toolName);
@@ -138,8 +140,8 @@ export class ProxyManager {
     }
 
     if (permission === "require_approval") {
-      if (!providedToken || !this.security.validateToken(toolName, providedToken)) {
-        const newToken = this.security.generateToken(toolName);
+      if (!providedToken || !this.security.validateToken(toolName, providedToken, toolArgs)) {
+        const newToken = this.security.generateToken(toolName, toolArgs);
         return {
           content: [{
             type: "text",
@@ -149,7 +151,7 @@ export class ProxyManager {
         };
       }
       // Valid token provided. Consume it so it can't be reused, then proceed.
-      this.security.consumeToken(toolName, providedToken);
+      this.security.consumeToken(providedToken);
     }
 
     const client = this.clients.get(serverId);
@@ -157,7 +159,7 @@ export class ProxyManager {
       throw new McpError(ErrorCode.InternalError, `Client for server '${serverId}' is not connected.`);
     }
 
-    const result = await client.callTool({ name: originalName, arguments: args });
+    const result = await client.callTool({ name: originalName, arguments: toolArgs });
     return result;
   }
 }

@@ -25,3 +25,20 @@ jobs:
       
     - name: Build MCP Server
       run: npx tsc
+
+  test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+
+    - run: npm ci
+
+    - name: Run tests
+      run: npm test
