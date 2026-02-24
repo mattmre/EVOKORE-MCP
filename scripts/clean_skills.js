@@ -7,7 +7,7 @@ const SKILLS_DIR = path.resolve(__dirname, '../SKILLS');
 async function processFile(filePath) {
     try {
         const content = await fs.readFile(filePath, 'utf8');
-        const match = content.match(new RegExp('^---\r?\n([\\s\\S]*?)\r?\n---\r?\n([\\s\\S]*)$'));
+        const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
         
         let frontmatterObj = {};
         let body = content;

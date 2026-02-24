@@ -9,7 +9,7 @@ EVOKORE-MCP uses the standard Model Context Protocol via `stdio`. You must point
 ### For Gemini CLI
 To register this server globally so it's available in any project:
 ```bash
-gemini mcp add evokore-mcp node /absolute/path/to/EVOKORE-MCP/src/index.js --scope user
+gemini mcp add evokore-mcp node /absolute/path/to/EVOKORE-MCP/dist/index.js --scope user
 ```
 After running this, type `/mcp` in your interactive session to confirm it is `CONNECTED`.
 
@@ -20,7 +20,7 @@ Add the following to your `claude_desktop_config.json`:
   "mcpServers": {
     "evokore-mcp": {
       "command": "node",
-      "args": ["/absolute/path/to/EVOKORE-MCP/src/index.js"]
+      "args": ["/absolute/path/to/EVOKORE-MCP/dist/index.js"]
     }
   }
 }
@@ -30,7 +30,7 @@ Add the following to your `claude_desktop_config.json`:
 1. Open Cursor Settings.
 2. Go to **Features > MCP Servers**.
 3. Add a new server. Name it `evokore-mcp`.
-4. Command: `node /absolute/path/to/EVOKORE-MCP/src/index.js`.
+4. Command: `node /absolute/path/to/EVOKORE-MCP/dist/index.js`.
 
 ## 2. Using the Built-In Tools
 
@@ -43,8 +43,8 @@ When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructi
 
 ## 3. Adopting a Workflow
 
-Because EVOKORE-MCP exposes its library as **MCP Prompts**, you can instruct the AI to adopt a workflow completely.
-*"Adopt the `session-wrap` workflow."* -> The AI will fetch the prompt from EVOKORE-MCP and immediately execute the PR generation, logging, and next-session handoff protocols defined in that skill.
+EVOKORE-MCP exposes skills through tools like `search_skills`, `get_skill_help`, and `resolve_workflow`.
+*"Adopt the `session-wrap` workflow."* -> The AI can discover the skill and load its canonical instructions through these tools before executing the workflow.
 
 ## 4. Voice Integration
 
@@ -105,11 +105,11 @@ The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses
 4. Register the voice hook in `~/.claude/settings.json`:
    ```json
    {
-     "hooks": {
-       "stop": [
-         { "command": "node /path/to/EVOKORE-MCP/scripts/voice-hook.js" }
-       ]
-     }
+      "hooks": {
+        "Stop": [
+          { "command": "node /path/to/EVOKORE-MCP/scripts/voice-hook.js" }
+        ]
+      }
    }
    ```
 
@@ -164,6 +164,21 @@ Example for fast playback:
 ```
 
 For natural-sounding fast speech, prefer Layer 1 (API speed) over Layer 3 (ffmpeg). Only use `postProcessTempo` for speeds beyond what the API supports.
+
+Validation checks for this path:
+- `node test-voice-e2e-validation.js`
+- `node test-voice-refinement-validation.js`
+
+### Release Workflow
+
+Safe npm publish is handled in GitHub Actions via `.github/workflows/release.yml`.
+
+- Triggers: `v*.*.*` tags and `workflow_dispatch`
+- Gates: `npm ci`, `npm test`, `npm run build`
+- Publish guard: requires `NPM_TOKEN` secret
+- Validation: `node test-npm-release-flow-validation.js`
+
+See [docs/RELEASE_FLOW.md](./RELEASE_FLOW.md) for the operator checklist.
 
 ### Cross-CLI Config Sync
 

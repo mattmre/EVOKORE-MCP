@@ -29,6 +29,16 @@ To use this server with your AI client (like Claude Desktop or Cursor), add the 
 ## 🎓 Comprehensive Training
 Dive into our extensive, deeply researched use cases and training guides for all 200+ skills: [**Training & Use Cases Documentation**](docs/TRAINING_AND_USE_CASES.md).
 
+## 📖 Documentation Index
+- Canonical docs map: [docs/README.md](docs/README.md)
+- Submodule workflow: [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md)
+- Release flow: [docs/RELEASE_FLOW.md](docs/RELEASE_FLOW.md)
+
+## ✅ Validation Coverage
+- Voice hook e2e validation: `node test-voice-e2e-validation.js`
+- Voice refinement validation: `node test-voice-refinement-validation.js`
+- Release flow validation: `node test-npm-release-flow-validation.js`
+
 ## 📂 Repository Structure
 
 - `src/index.ts`: The core MCP Server implementation.

@@ -73,7 +73,7 @@ async function generateDocumentation() {
 
             try {
                 const content = await fs.readFile(skillPath, "utf-8");
-                const match = content.match(/^---\\r?\\n([\\s\\S]*?)\\r?\\n---\\r?\\n([\\s\\S]*)$/);
+                const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
                 
                 if (match) {
                     const frontmatter = yaml.parse(match[1]);
