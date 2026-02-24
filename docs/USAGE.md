@@ -85,6 +85,18 @@ claude mcp add --scope user voicemode -- uvx --refresh voice-mode
 export OPENAI_API_KEY="sk-your-key-here"
 ```
 
+**Windows setup notes (PowerShell):**
+
+```powershell
+# Persist for future terminals
+setx OPENAI_API_KEY "sk-your-key-here"
+
+# Also set for the current session before launching Claude Code
+$env:OPENAI_API_KEY = "sk-your-key-here"
+```
+
+If `uvx` is not on PATH in Windows shells, retry the registration command from a shell where `uvx --version` succeeds.
+
 **Usage:** Type `converse` in Claude Code to start a voice conversation.
 
 **Configuration (environment variables):**

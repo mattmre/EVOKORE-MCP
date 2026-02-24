@@ -18,6 +18,8 @@ Use this file as the canonical entrypoint for repository documentation.
 
 - Voice hook transport: `test-voice-e2e-validation.js`
 - Voice persona/speed refinement: `test-voice-refinement-validation.js`
+- Voice sidecar runtime smoke: `test-voice-sidecar-smoke-validation.js`
+- VoiceMode Windows docs guardrail: `test-voice-windows-docs-validation.js`
 - Release workflow guardrails: `test-npm-release-flow-validation.js`
 
 ## Architecture & Reference

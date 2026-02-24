@@ -50,3 +50,24 @@ If the server still won't connect, launch your AI assistant in debug mode to see
 - Re-run via `workflow_dispatch`.
 - Confirm workflow checks with `node test-npm-release-flow-validation.js`.
 - Reference the full process in [RELEASE_FLOW.md](./RELEASE_FLOW.md).
+
+## 7. VoiceMode Fails to Start on Windows
+**Symptoms:** `converse` fails immediately, or VoiceMode does not detect your API key.
+**Common causes:**
+- `OPENAI_API_KEY` was set in one shell, but Claude Code was started from another shell/session.
+- `uvx` is not available in the shell PATH used to register/run VoiceMode.
+
+**Solution (PowerShell):**
+```powershell
+# Persist for future terminals
+setx OPENAI_API_KEY "sk-your-key-here"
+
+# Set for current shell before starting Claude Code
+$env:OPENAI_API_KEY = "sk-your-key-here"
+
+# Confirm uvx is available
+uvx --version
+```
+
+Then restart Claude Code and retry `converse`.
+
