@@ -76,3 +76,41 @@ Then restart Claude Code and retry `converse`.
 **Cause:** Two registrations produced the same prefixed name (`${serverId}_${tool.name}`).
 **Solution:** EVOKORE keeps the first tool registration and skips duplicates by design. Rename one upstream tool or adjust server IDs if you need both tools exposed.
 
+## 9. Child Server Fails with Unresolved Env Placeholder
+**Symptoms:** Startup logs include an error like `Unresolved env placeholder(s) for child server 'elevenlabs' key 'ELEVENLABS_API_KEY': ${ELEVENLABS_API_KEY}` followed by `Failed to boot child server ...`.
+**Cause:** A `${VAR_NAME}` placeholder in `mcp.config.json` referenced an environment variable that is not set in the process launching EVOKORE.
+**Solution:**
+- Set the missing environment variable(s) before starting EVOKORE (for example, `ELEVENLABS_API_KEY`).
+- Confirm values are available in the same shell/session used to start your MCP host.
+- Restart EVOKORE after updating env vars.
+
+## 10. HITL Token Retry Keeps Failing (`_evokore_approval_token`)
+**Symptoms:** You retry a `require_approval` tool call and still get the security interceptor error.
+
+**Checks:**
+- Use the token only once (replay attempts fail by design).
+- Retry with the exact same arguments as the intercepted call.
+- Retry promptly; tokens are short-lived (around 5 minutes) and can expire.
+
+**Retry workflow:**
+1. Run tool call without token and capture the returned `_evokore_approval_token`.
+2. Ask for explicit user approval.
+3. Retry the same tool call with unchanged arguments plus `_evokore_approval_token`.
+4. If that retry fails, run the original call again to get a fresh token and repeat.
+
+## 11. Inspecting Hook Observability Logs
+**Symptoms:** You need to confirm whether hooks are allowing/blocking as expected without changing existing hook output behavior.
+
+**Location:** `~/.evokore/logs/hooks.jsonl`
+
+**PowerShell checks:**
+```powershell
+# Last 50 events
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" -Tail 50
+
+# Parse and inspect only tilldone hook events
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
+  ForEach-Object { $_ | ConvertFrom-Json } |
+  Where-Object { $_.hook -eq "tilldone" }
+```
+

@@ -4,6 +4,12 @@ on:
   push:
     tags: [ 'v*.*.*' ]
   workflow_dispatch:
+    inputs:
+      chain_complete:
+        description: Confirm dependency chain completion before release
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -18,6 +24,12 @@ jobs:
     - uses: actions/checkout@v3
       with:
         fetch-depth: 0
+
+    - name: Require completed dependency chain for manual release
+      if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.chain_complete != 'true' }}
+      run: |
+        echo "Manual release blocked: set chain_complete=true only after dependency chain completion."
+        exit 1
 
     - name: Verify release commit is on origin/main
       run: |

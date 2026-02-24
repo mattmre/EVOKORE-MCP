@@ -10,6 +10,7 @@ const index_js_1 = require("@modelcontextprotocol/sdk/client/index.js");
 const stdio_js_1 = require("@modelcontextprotocol/sdk/client/stdio.js");
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const CONFIG_FILE = path_1.default.resolve(__dirname, "../mcp.config.json");
+const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 class ProxyManager {
     clients = new Map();
     transports = new Map();
@@ -18,6 +19,28 @@ class ProxyManager {
     security;
     constructor(security) {
         this.security = security;
+    }
+    resolveServerEnv(serverId, serverEnv) {
+        const resolvedEnv = {};
+        if (!serverEnv)
+            return resolvedEnv;
+        for (const [key, value] of Object.entries(serverEnv)) {
+            const missingVars = new Set();
+            const resolvedValue = value.replace(ENV_PLACEHOLDER_REGEX, (_match, varName) => {
+                const envValue = process.env[varName];
+                if (envValue === undefined) {
+                    missingVars.add(varName);
+                    return "";
+                }
+                return envValue;
+            });
+            if (missingVars.size > 0) {
+                const missingList = Array.from(missingVars).map((varName) => `\${${varName}}`).join(", ");
+                throw new Error(`Unresolved env placeholder(s) for child server '${serverId}' key '${key}': ${missingList}`);
+            }
+            resolvedEnv[key] = resolvedValue;
+        }
+        return resolvedEnv;
     }
     async loadServers() {
         this.clients.clear();
@@ -40,12 +63,7 @@ class ProxyManager {
                         cmd = "npx.cmd";
                     }
                     // Resolve ${VAR} references in env values from process.env
-                    const resolvedEnv = {};
-                    if (serverConfig.env) {
-                        for (const [key, value] of Object.entries(serverConfig.env)) {
-                            resolvedEnv[key] = value.replace(/\$\{(\w+)\}/g, (_, varName) => process.env[varName] || "");
-                        }
-                    }
+                    const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
                     const env = { ...process.env, ...resolvedEnv };
                     const transport = new stdio_js_1.StdioClientTransport({
                         command: cmd,
@@ -85,6 +103,13 @@ class ProxyManager {
                     }
                     const duplicateSuffix = skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicate(s) skipped)` : "";
                     console.error(`[EVOKORE] Proxied ${registeredCount} tools from '${serverId}'${duplicateSuffix}`);
+                    if (skippedDuplicates > 0) {
+                        console.error(`[EVOKORE] Duplicate collision summary: ${JSON.stringify({
+                            serverId,
+                            skippedDuplicates,
+                            policy: "first_registration_wins"
+                        })}`);
+                    }
                 }
                 catch (e) {
                     console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
