@@ -7,8 +7,16 @@ const { execSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const ENTRY_POINT = path.join(PROJECT_ROOT, 'dist', 'index.js');
-const DRY_RUN = process.argv.includes('--dry-run');
-const TARGETS = process.argv.slice(2).filter(a => !a.startsWith('--'));
+const HAS_DRY_RUN_FLAG = process.argv.includes('--dry-run');
+const HAS_APPLY_FLAG = process.argv.includes('--apply');
+const TARGETS = process.argv.slice(2).filter(a => a !== '--dry-run' && a !== '--apply');
+
+if (HAS_DRY_RUN_FLAG && HAS_APPLY_FLAG) {
+  console.error('ERROR: --dry-run and --apply cannot be used together. Choose one mode.');
+  process.exit(1);
+}
+
+const DRY_RUN = !HAS_APPLY_FLAG;
 
 // --- CLI Definitions ---
 
@@ -113,7 +121,16 @@ function main() {
   console.log('EVOKORE-MCP Config Sync');
   console.log(`Entry point: ${ENTRY_POINT}`);
   if (DRY_RUN) console.log('Mode: DRY RUN (no files will be written)\n');
-  else console.log('');
+  else console.log('Mode: APPLY (changes will be written)\n');
+
+  const supportedTargets = Object.keys(CLI_DEFS);
+  const invalidTargets = TARGETS.filter(target => !CLI_DEFS[target]);
+  if (invalidTargets.length > 0) {
+    console.error(
+      `ERROR: Unknown target(s): ${invalidTargets.join(', ')}. Supported targets: ${supportedTargets.join(', ')}`
+    );
+    process.exit(1);
+  }
 
   if (!fs.existsSync(ENTRY_POINT)) {
     console.error(`ERROR: ${ENTRY_POINT} not found. Run 'npx tsc' first.`);
@@ -121,8 +138,8 @@ function main() {
   }
 
   const targetKeys = TARGETS.length > 0
-    ? TARGETS.filter(t => CLI_DEFS[t])
-    : Object.keys(CLI_DEFS);
+    ? TARGETS
+    : supportedTargets;
 
   let synced = 0;
 

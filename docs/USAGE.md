@@ -46,6 +46,8 @@ When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructi
 EVOKORE-MCP exposes skills through tools like `search_skills`, `get_skill_help`, and `resolve_workflow`.
 *"Adopt the `session-wrap` workflow."* -> The AI can discover the skill and load its canonical instructions through these tools before executing the workflow.
 
+When EVOKORE proxies child MCP servers, tool names use the prefixed tool name format `${serverId}_${tool.name}`. If the same prefixed name appears more than once, EVOKORE keeps the first registration, skips later duplicates, and logs a warning.
+
 ## 4. Voice Integration
 
 EVOKORE-MCP supports voice input/output through two complementary systems:
@@ -84,6 +86,18 @@ claude mcp add --scope user voicemode -- uvx --refresh voice-mode
 # Set your OpenAI API key for Whisper STT + TTS
 export OPENAI_API_KEY="sk-your-key-here"
 ```
+
+**Windows setup notes (PowerShell):**
+
+```powershell
+# Persist for future terminals
+setx OPENAI_API_KEY "sk-your-key-here"
+
+# Also set for the current session before launching Claude Code
+$env:OPENAI_API_KEY = "sk-your-key-here"
+```
+
+If `uvx` is not on PATH in Windows shells, retry the registration command from a shell where `uvx --version` succeeds.
 
 **Usage:** Type `converse` in Claude Code to start a voice conversation.
 
@@ -188,8 +202,14 @@ Sync your EVOKORE-MCP registration across all supported AI CLIs:
 # Preview what would change (recommended first)
 npm run sync:dry
 
-# Apply changes
+# Apply changes (writes files)
 npm run sync
+
+# Direct script usage defaults to DRY RUN
+node scripts/sync-configs.js
+
+# Explicitly write changes when running script directly
+node scripts/sync-configs.js --apply
 ```
 
 **Supported CLIs:** Claude Code, Claude Desktop (Win/Mac/Linux), Cursor, Gemini CLI (prints manual command).
@@ -197,4 +217,4 @@ npm run sync
 The sync script:
 - Auto-detects installed CLIs
 - Only adds/updates the `evokore-mcp` server entry (never overwrites other servers)
-- Target specific CLIs: `node scripts/sync-configs.js claude-code cursor`
+- Target specific CLIs: `node scripts/sync-configs.js claude-code cursor` (dry run) or `node scripts/sync-configs.js --apply claude-code cursor` (write)

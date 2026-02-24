@@ -61,8 +61,15 @@ class ProxyManager {
                     this.transports.set(serverId, transport);
                     // Fetch tools from child and register them
                     const { tools } = await client.listTools();
+                    let registeredCount = 0;
+                    let skippedDuplicates = 0;
                     for (const tool of tools) {
                         const prefixedName = `${serverId}_${tool.name}`;
+                        if (this.toolRegistry.has(prefixedName)) {
+                            console.error(`[EVOKORE] Skipping duplicate proxied tool '${prefixedName}' from server '${serverId}' (already registered).`);
+                            skippedDuplicates++;
+                            continue;
+                        }
                         this.toolRegistry.set(prefixedName, { serverId, originalName: tool.name });
                         // Clone tool to modify input schema safely
                         const modifiedTool = JSON.parse(JSON.stringify(tool));
@@ -74,8 +81,10 @@ class ProxyManager {
                             };
                         }
                         this.cachedTools.push(modifiedTool);
+                        registeredCount++;
                     }
-                    console.error(`[EVOKORE] Proxied ${tools.length} tools from '${serverId}'`);
+                    const duplicateSuffix = skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicate(s) skipped)` : "";
+                    console.error(`[EVOKORE] Proxied ${registeredCount} tools from '${serverId}'${duplicateSuffix}`);
                 }
                 catch (e) {
                     console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
