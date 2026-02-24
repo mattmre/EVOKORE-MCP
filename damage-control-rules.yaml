@@ -1,0 +1,77 @@
+# EVOKORE-MCP Damage Control Rules
+# Used by scripts/damage-control.js (PreToolUse hook)
+
+dangerous_commands:
+  - pattern: "rm\\s+(-[a-zA-Z]*f[a-zA-Z]*\\s+|--force\\s+).*(/|\\\\)"
+    reason: "Recursive forced deletion detected"
+    ask: false
+  - pattern: "rm\\s+-[a-zA-Z]*r[a-zA-Z]*\\s+(~|/|\\$HOME|C:\\\\)"
+    reason: "Recursive deletion of home/root directory"
+    ask: false
+  - pattern: "git\\s+push\\s+.*--force"
+    reason: "Force push can overwrite remote history"
+    ask: true
+  - pattern: "git\\s+reset\\s+--hard"
+    reason: "Hard reset discards uncommitted changes"
+    ask: true
+  - pattern: "git\\s+clean\\s+-[a-zA-Z]*f"
+    reason: "git clean -f permanently deletes untracked files"
+    ask: true
+  - pattern: "DROP\\s+(TABLE|DATABASE|SCHEMA)"
+    reason: "SQL DROP is destructive and irreversible"
+    ask: false
+  - pattern: "TRUNCATE\\s+TABLE"
+    reason: "TRUNCATE removes all data from table"
+    ask: true
+  - pattern: ":(\\){0}){2,}|fork\\s*bomb"
+    reason: "Fork bomb detected"
+    ask: false
+  - pattern: "npm\\s+publish"
+    reason: "Publishing to npm registry"
+    ask: true
+  - pattern: "curl\\s+.*\\|\\s*(bash|sh|zsh)"
+    reason: "Piping remote script to shell"
+    ask: false
+  - pattern: "chmod\\s+777"
+    reason: "Setting world-writable permissions"
+    ask: true
+  - pattern: "mkfs|format\\s+[A-Z]:"
+    reason: "Filesystem format command detected"
+    ask: false
+  - pattern: ">(\\s*/dev/sd|\\\\\\\\\\.\\\\.PhysicalDrive)"
+    reason: "Direct write to disk device"
+    ask: false
+  - pattern: "shutdown|reboot|init\\s+[06]"
+    reason: "System shutdown/reboot command"
+    ask: true
+
+zero_access_paths:
+  - ".env"
+  - ".env.local"
+  - ".env.production"
+  - ".ssh/"
+  - "credentials.json"
+  - "id_rsa"
+  - "id_ed25519"
+  - ".gnupg/"
+  - ".aws/credentials"
+  - "secrets.yaml"
+  - "secrets.json"
+
+read_only_paths:
+  - "node_modules/"
+  - "dist/"
+  - ".git/"
+  - "package-lock.json"
+  - "yarn.lock"
+  - "pnpm-lock.yaml"
+  - "bun.lockb"
+
+no_delete_paths:
+  - "permissions.yml"
+  - "mcp.config.json"
+  - "CLAUDE.md"
+  - "package.json"
+  - "tsconfig.json"
+  - "damage-control-rules.yaml"
+  - ".claude/settings.json"

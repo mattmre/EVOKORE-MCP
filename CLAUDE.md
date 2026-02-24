@@ -11,3 +11,26 @@
 - **Hook Scripts:** Native CLI UI hooks like `scripts/status.js` are available to integrate with Gemini CLI and Claude Code to provide live context, location, and skill count info.
 - **Path Resolution:** Remember that compiled TypeScript files run out of the `dist/` directory! Relative paths from managers resolving to root files (e.g., `mcp.config.json`, `.env`, `SKILLS/`) must resolve to `../`, not `../../`.
 - **Regex Parsing:** When using JavaScript's native RegExp for matching markdown frontmatter, avoid using string `new RegExp` constructor with multiple escapes (`\\\\r`), which evaluates to literal slashes. Prefer RegExp literals like `/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/`.
+- **Documentation Overhauls:** When orchestrating documentation updates using `docs_architect` or multiple workflows concurrently, ensure that legacy or theoretical endpoint references (e.g., `/docs/architecture.md`) are explicitly mapped to their physical canonical equivalents (e.g., `docs/V2_MULTI_AGENT_WORKFLOWS.md`) in `docs/README.md` to prevent context rot.
+- **Windows Executable Resolution:** `npx` requires `.cmd` suffix on Windows for `child_process.spawn`; `uvx`/`uv` install as native `.exe` and resolve via PATH through `cross-spawn` without needing `.cmd`. Don't blindly add `.cmd` to all commands.
+- **Env Variable Interpolation:** `mcp.config.json` supports `${VAR}` syntax in `env` blocks. The ProxyManager resolves these from `process.env` (loaded via dotenv from `.env`) before passing to child server processes.
+- **Voice Integration:** ElevenLabs MCP is proxied as a child server (24 tools with `elevenlabs_*` prefix). VoiceMode is user-scoped in Claude Code (needs direct mic/speaker access). See `docs/VOICE_CLI_RESEARCH.md` for full architecture research and `docs/USAGE.md` Section 4 for setup.
+- **VoiceMode Windows Bug:** The `voice-mode-install` script crashes on Windows due to a Unicode encoding error (cp1252 codec). Skip the installer and use `claude mcp add` directly.
+- **Voice Sidecar:** `VoiceSidecar.ts` is standalone (never imported by `index.ts`). It runs as a separate process on `ws://localhost:8888`. Audio playback uses temp files + platform players (no native deps). `voices.json` supports hot-reload (re-read per connection).
+- **Cross-CLI Sync:** `scripts/sync-configs.js` merges the `evokore-mcp` entry into each CLI's config. It never overwrites existing server entries. Use `--dry-run` to preview changes.
+
+## Claude Code Hooks
+
+Four hooks are wired in `.claude/settings.json`. All scripts follow fail-safe conventions (exit 0 on error, never crash Claude Code). State lives in `~/.evokore/sessions/` and logs in `~/.evokore/logs/`.
+
+- **Damage Control** (`scripts/damage-control.js`, PreToolUse): Security auditor that blocks dangerous commands and sensitive path access. Rules defined in `damage-control-rules.yaml`. Fail-open if rules file is missing.
+- **Purpose Gate** (`scripts/purpose-gate.js`, UserPromptSubmit): Asks for session intent on first prompt, then injects purpose reminders via `additionalContext` to keep sessions focused.
+- **Session Replay** (`scripts/session-replay.js`, PostToolUse): Logs all tool usage as JSONL to `~/.evokore/sessions/{session_id}-replay.jsonl`. View with `npm run replay` or `node scripts/session-replay-view.js <session_id>`.
+- **TillDone** (`scripts/tilldone.js`, Stop): Blocks session stop if incomplete tasks remain. Also a standalone CLI:
+  ```
+  node scripts/tilldone.js --add "task text" --session <ID>
+  node scripts/tilldone.js --done 1 --session <ID>
+  node scripts/tilldone.js --toggle 1 --session <ID>
+  node scripts/tilldone.js --list --session <ID>
+  node scripts/tilldone.js --clear --session <ID>
+  ```
