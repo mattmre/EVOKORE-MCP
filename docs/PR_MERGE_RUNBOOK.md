@@ -10,6 +10,27 @@ Operator runbook for reliable merges and context-rot prevention.
 - [ ] Release-impacting changes called out
 - [ ] Follow-up issues captured (if any)
 
+## Required Checks by Change Type
+
+Use this as the minimum check set before approval and merge:
+
+| Change type | Required checks |
+| --- | --- |
+| Docs-only changes | `node test-docs-canonical-links.js` |
+| Ops/docs process changes (`docs/PR_MERGE_RUNBOOK.md`, `next-session.md`, orchestration docs) | `node test-ops-docs-validation.js` and `node test-docs-canonical-links.js` |
+| Source/tooling/config changes (`src/`, `scripts/`, workflow/config files) | Relevant targeted tests for touched area plus CI-required suite |
+| Release-flow changes | `node test-npm-release-flow-validation.js` plus docs/link checks |
+
+If a PR spans multiple change types, run the union of required checks.
+
+## Reviewer Responsibilities
+
+- Confirm PR scope and dependency assumptions are explicit in description.
+- Verify required checks for each change type are attached in PR evidence.
+- Block approval if dependency base PR is not merged or branch is stale.
+- Confirm all review conversations are resolved before final approval.
+- Ensure merge strategy and rollback notes are documented for risky changes.
+
 ## Merge Steps
 
 1. Rebase or update branch with latest target branch.
@@ -17,6 +38,14 @@ Operator runbook for reliable merges and context-rot prevention.
 3. Confirm reviewer approvals and resolved conversations.
 4. Merge via approved strategy.
 5. Record merge commit/PR number in tracker.
+
+## Merge-order Controls (Dependency Chain)
+
+1. Define merge order explicitly in PR descriptions (`base -> dependent`).
+2. Merge only the current chain head; hold dependents until parent merge is complete.
+3. After each merge, rebase dependent PRs on latest `main` and re-run required checks.
+4. If a parent PR changes behavior materially, request re-review on dependents.
+5. Do not batch-merge dependent PRs without per-PR validation to prevent queue drift.
 
 ## Post-merge Verification
 

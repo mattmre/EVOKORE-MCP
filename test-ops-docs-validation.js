@@ -38,6 +38,9 @@ function run() {
   assert.match(matrix, /Priority item\/phase/);
 
   assert.match(runbook, /Pre-merge Checklist/);
+  assert.match(runbook, /Required Checks by Change Type/);
+  assert.match(runbook, /Reviewer Responsibilities/);
+  assert.match(runbook, /Merge-order Controls \(Dependency Chain\)/);
   assert.match(runbook, /Post-merge Verification/);
   assert.match(runbook, /Rollback Plan/);
   assert.match(runbook, /Initial Entry \(This Execution\)/);
