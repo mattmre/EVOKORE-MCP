@@ -7,6 +7,7 @@ Thank you for your interest in contributing to EVOKORE-MCP! We welcome additions
 - Canonical docs map: [docs/README.md](docs/README.md)
 - Submodule workflow: [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md)
 - Release flow: [docs/RELEASE_FLOW.md](docs/RELEASE_FLOW.md)
+- PR merge runbook: [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md)
 
 ## The Pull Request Workflow
 
@@ -22,9 +23,11 @@ To contribute a new skill or workflow:
    - **Crucial**: Ensure your SKILL.md begins with valid YAML frontmatter containing a name and description.
 4. **Test Locally**: Run `node scripts/clean_skills.js` to ensure your YAML frontmatter parses correctly.
    - For voice/release updates, also run:
-     - `node test-voice-e2e-validation.js`
-     - `node test-voice-refinement-validation.js`
-     - `node test-npm-release-flow-validation.js`
+      - `node test-voice-e2e-validation.js`
+      - `node test-voice-refinement-validation.js`
+      - `node test-voice-sidecar-smoke-validation.js`
+      - `node test-voice-windows-docs-validation.js`
+      - `node test-npm-release-flow-validation.js`
 5. **Submit a Pull Request**: Open a PR against the main branch of this repository.
 
 If your change touches submodule-managed content, follow [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md): commit inside the submodule first, then commit the updated pointer in this parent repo.
