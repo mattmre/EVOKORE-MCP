@@ -23,15 +23,14 @@ function run() {
   const initializedPaths = [];
 
   for (const line of lines) {
-    const marker = line[0];
-    const rest = line.slice(1).trim();
-    const parts = rest.split(/\s+/);
-    const submodulePath = parts[1];
-
-    if (!submodulePath) {
+    const match = line.match(/^([ +\-U])([0-9a-f]+)\s+(.+?)(?:\s+\(.*\))?$/);
+    if (!match) {
       issues.push(`Unable to parse submodule status line: ${line}`);
       continue;
     }
+
+    const marker = match[1];
+    const submodulePath = match[3];
 
     if (marker === '-') {
       issues.push(`Uninitialized submodule: ${submodulePath}`);
