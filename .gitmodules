@@ -1,0 +1,9 @@
+[submodule "SKILLS/ANTHROPIC COOKBOOK"]
+path = SKILLS/ANTHROPIC COOKBOOK
+url = https://github.com/anthropics/anthropic-cookbook
+[submodule "SKILLS/MCP WRAPPERS/claude-skills-mcp"]
+path = SKILLS/MCP WRAPPERS/claude-skills-mcp
+url = https://github.com/K-Dense-AI/claude-skills-mcp
+[submodule "SKILLS/OFFICIAL MCP SERVERS"]
+path = SKILLS/OFFICIAL MCP SERVERS
+url = https://github.com/modelcontextprotocol/servers
