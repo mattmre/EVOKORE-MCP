@@ -185,14 +185,26 @@ See [docs/RELEASE_FLOW.md](./RELEASE_FLOW.md) for the operator checklist.
 Sync your EVOKORE-MCP registration across all supported AI CLIs:
 
 ```bash
-# Preview what would change (recommended first)
+# Safe default mode (dry-run): preview what would change
 npm run sync:dry
 
-# Apply changes
+# Also dry-run (default when no mode flag is provided)
+node scripts/sync-configs.js
+
+# Apply changes explicitly
 npm run sync
+
+# Or directly:
+node scripts/sync-configs.js --apply
 ```
 
 **Supported CLIs:** Claude Code, Claude Desktop (Win/Mac/Linux), Cursor, Gemini CLI (prints manual command).
+
+**Mode behavior:**
+- `--dry-run`: never writes config files; prints what would be changed.
+- `--apply`: writes detected config files.
+- If no mode flag is provided, sync runs in **dry-run** mode for safety.
+- Invalid combination `--dry-run --apply` exits non-zero with a clear error.
 
 The sync script:
 - Auto-detects installed CLIs

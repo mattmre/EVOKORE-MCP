@@ -7,8 +7,25 @@ const { execSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const ENTRY_POINT = path.join(PROJECT_ROOT, 'dist', 'index.js');
-const DRY_RUN = process.argv.includes('--dry-run');
-const TARGETS = process.argv.slice(2).filter(a => !a.startsWith('--'));
+const RAW_ARGS = process.argv.slice(2);
+const HAS_DRY_RUN_FLAG = RAW_ARGS.includes('--dry-run');
+const HAS_APPLY_FLAG = RAW_ARGS.includes('--apply');
+const ALLOWED_FLAGS = new Set(['--dry-run', '--apply']);
+const UNKNOWN_FLAGS = RAW_ARGS.filter(a => a.startsWith('--') && !ALLOWED_FLAGS.has(a));
+const TARGETS = RAW_ARGS.filter(a => !a.startsWith('--'));
+
+if (UNKNOWN_FLAGS.length > 0) {
+  console.error(`ERROR: Unknown flag(s): ${UNKNOWN_FLAGS.join(', ')}`);
+  console.error('Valid flags: --dry-run, --apply');
+  process.exit(1);
+}
+
+if (HAS_DRY_RUN_FLAG && HAS_APPLY_FLAG) {
+  console.error('ERROR: Invalid mode flags. Use either --dry-run or --apply, not both.');
+  process.exit(1);
+}
+
+const DRY_RUN = HAS_APPLY_FLAG ? false : true;
 
 // --- CLI Definitions ---
 
@@ -112,17 +129,22 @@ function writeJsonSafe(filePath, data) {
 function main() {
   console.log('EVOKORE-MCP Config Sync');
   console.log(`Entry point: ${ENTRY_POINT}`);
-  if (DRY_RUN) console.log('Mode: DRY RUN (no files will be written)\n');
-  else console.log('');
+  console.log(`Mode: ${DRY_RUN ? 'DRY RUN (safe default, no files will be written)' : 'APPLY (files will be written)'}`);
+  console.log('');
 
   if (!fs.existsSync(ENTRY_POINT)) {
     console.error(`ERROR: ${ENTRY_POINT} not found. Run 'npx tsc' first.`);
     process.exit(1);
   }
 
-  const targetKeys = TARGETS.length > 0
-    ? TARGETS.filter(t => CLI_DEFS[t])
-    : Object.keys(CLI_DEFS);
+  const invalidTargets = TARGETS.filter(t => !CLI_DEFS[t]);
+  if (invalidTargets.length > 0) {
+    console.error(`ERROR: Unknown target(s): ${invalidTargets.join(', ')}`);
+    console.error(`Valid targets: ${Object.keys(CLI_DEFS).join(', ')}`);
+    process.exit(1);
+  }
+
+  const targetKeys = TARGETS.length > 0 ? TARGETS : Object.keys(CLI_DEFS);
 
   let synced = 0;
 
