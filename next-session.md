@@ -8,5 +8,7 @@
 ## Next Actions (Prioritized)
 
 1. **Review and approve open PRs (Immediate)**: Confirm final review on current queue (including voice/docs/collision updates) and lock merge order.
+   - https://github.com/mattmre/EVOKORE-MCP/pull/14
+   - https://github.com/mattmre/EVOKORE-MCP/pull/15
 2. **Merge approved PRs (Ops/Manual)**: Execute merges to `main` using `docs/PR_MERGE_RUNBOOK.md`; verify CI on merge commits.
 3. **Run release flow (Ops/Manual)**: After merge queue clears, execute `docs/RELEASE_FLOW.md`.
