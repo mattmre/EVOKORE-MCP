@@ -250,3 +250,23 @@ The sync script:
 - Rejects conflicting flag pairs (`--dry-run` + `--apply`, `--force` + `--preserve-existing`)
 - Only adds/updates the `evokore-mcp` server entry (never overwrites other servers)
 - Target specific CLIs: `node scripts/sync-configs.js claude-code cursor` (dry run) or `node scripts/sync-configs.js --apply claude-code cursor` (write)
+
+## 5. Hook Observability
+
+EVOKORE hook scripts emit structured JSONL events to:
+
+- `~/.evokore/logs/hooks.jsonl`
+
+Use this when validating hook behavior (damage-control, purpose-gate, session-replay, tilldone) without changing normal hook UX.
+
+PowerShell quick checks:
+
+```powershell
+# Tail recent hook events
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" -Tail 30
+
+# Filter a specific hook with parsed JSON
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
+  ForEach-Object { $_ | ConvertFrom-Json } |
+  Where-Object { $_.hook -eq "damage-control" }
+```

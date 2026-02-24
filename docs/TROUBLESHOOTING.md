@@ -98,3 +98,19 @@ Then restart Claude Code and retry `converse`.
 3. Retry the same tool call with unchanged arguments plus `_evokore_approval_token`.
 4. If that retry fails, run the original call again to get a fresh token and repeat.
 
+## 11. Inspecting Hook Observability Logs
+**Symptoms:** You need to confirm whether hooks are allowing/blocking as expected without changing existing hook output behavior.
+
+**Location:** `~/.evokore/logs/hooks.jsonl`
+
+**PowerShell checks:**
+```powershell
+# Last 50 events
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" -Tail 50
+
+# Parse and inspect only tilldone hook events
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
+  ForEach-Object { $_ | ConvertFrom-Json } |
+  Where-Object { $_.hook -eq "tilldone" }
+```
+

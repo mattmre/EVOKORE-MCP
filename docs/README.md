@@ -13,12 +13,15 @@ Use this file as the canonical entrypoint for repository documentation.
 - [Research Decisions Log](./RESEARCH_DECISIONS_LOG.md)
 - [Priority Status Matrix](./PRIORITY_STATUS_MATRIX.md)
 - [PR Merge Runbook](./PR_MERGE_RUNBOOK.md)
+- [Session Logs](./session-logs/)
+- [Latest Orchestration Implementation Log (2026-02-24)](./session-logs/session-2026-02-24-agentic-orchestration-implementation.md)
 
 ## Validation Anchors
 
 - Voice hook transport: `test-voice-e2e-validation.js`
 - Voice persona/speed refinement: `test-voice-refinement-validation.js`
 - Voice sidecar runtime smoke: `test-voice-sidecar-smoke-validation.js`
+- Voice sidecar hot-reload: `test-voice-sidecar-hotreload-validation.js`
 - VoiceMode Windows docs guardrail: `test-voice-windows-docs-validation.js`
 - Release workflow guardrails: `test-npm-release-flow-validation.js`
 - Tool prefix collision guard: `test-tool-prefix-collision-validation.js`

@@ -131,3 +131,21 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Run `scripts/validate-submodule-cleanliness.js` in CI jobs with recursive submodule checkout.
 - Trade-offs: CI fails earlier on repo hygiene issues, but prevents ambiguous submodule state from landing.
 - Follow-up: Keep workflow/script assertions in `test-submodule-commit-order-guard-validation.js`.
+
+### Decision: Manual release dispatch requires explicit dependency-chain confirmation
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Manual `workflow_dispatch` releases can bypass normal merge sequencing unless operator intent is explicitly gated.
+- Options considered: allow manual dispatch without guard vs require a dedicated completion input.
+- Decision: Add `chain_complete` boolean gate and block manual release unless `chain_complete=true`.
+- Trade-offs: One extra manual confirmation step, but significantly lower risk of releasing before dependent PR chain completion.
+- Follow-up: Preserve assertions in `.github/workflows/release.yml` and `test-npm-release-flow-validation.js`.
+
+### Decision: Standardize hook observability via JSONL telemetry stream
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Hook behavior needed durable, append-only operational telemetry for triage without coupling to hook execution success paths.
+- Options considered: console-only logs vs file-based structured telemetry.
+- Decision: Write sanitized hook events to `~/.evokore/logs/hooks.jsonl` through `scripts/hook-observability.js`.
+- Trade-offs: Additional local log footprint, but strong post-run diagnostics and replayability across hook phases.
+- Follow-up: Maintain coverage in `hook-test-suite.js` and `hook-e2e-validation.js` for event creation and stability.
