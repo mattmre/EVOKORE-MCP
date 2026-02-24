@@ -8,6 +8,9 @@ const { runNodeScript, makeSessionId } = require('./tests/helpers/hook-test-help
 
 function run() {
   console.log('Starting hook E2E validation...');
+  const logsDir = path.join(os.homedir(), '.evokore', 'logs');
+  const hooksLogPath = path.join(logsDir, 'hooks.jsonl');
+  if (fs.existsSync(hooksLogPath)) fs.rmSync(hooksLogPath, { force: true });
 
   const settingsPath = path.resolve(__dirname, '.claude', 'settings.json');
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
@@ -33,12 +36,22 @@ function run() {
 
   const purposeSession = makeSessionId('hook-e2e-purpose');
   const purposeStateFile = path.join(sessionsDir, `${purposeSession}.json`);
-  const purposeResult = runNodeScript('scripts/purpose-gate.js', {
+  const purposeInitResult = runNodeScript('scripts/purpose-gate.js', {
     session_id: purposeSession,
     user_message: 'Test hook flow'
   });
-  assert.strictEqual(purposeResult.status, 0);
-  assert.match(purposeResult.cleanStdout, /EVOKORE Purpose Gate/i);
+  assert.strictEqual(purposeInitResult.status, 0);
+  assert.match(purposeInitResult.cleanStdout, /EVOKORE Purpose Gate/i);
+  const purposeRecordedResult = runNodeScript('scripts/purpose-gate.js', {
+    session_id: purposeSession,
+    user_message: 'Validate E2E hook flow'
+  });
+  assert.strictEqual(purposeRecordedResult.status, 0);
+  const purposeReminderResult = runNodeScript('scripts/purpose-gate.js', {
+    session_id: purposeSession,
+    user_message: 'Proceed'
+  });
+  assert.strictEqual(purposeReminderResult.status, 0);
   if (fs.existsSync(purposeStateFile)) fs.rmSync(purposeStateFile, { force: true });
 
   const replaySession = makeSessionId('hook-e2e-replay');
@@ -56,6 +69,31 @@ function run() {
   if (fs.existsSync(tilldoneTaskPath)) fs.rmSync(tilldoneTaskPath, { force: true });
   const tilldoneResult = runNodeScript('scripts/tilldone.js', { session_id: tilldoneSession });
   assert.strictEqual(tilldoneResult.status, 0);
+
+  const tilldoneCliResult = runNodeScript(
+    'scripts/tilldone.js',
+    null,
+    { args: ['--list', '--session', tilldoneSession] }
+  );
+  assert.strictEqual(tilldoneCliResult.status, 0);
+
+  assert.ok(fs.existsSync(hooksLogPath), 'hook observability should create hooks.jsonl');
+  const hookEvents = fs.readFileSync(hooksLogPath, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+
+  function hasEvent(hook, event) {
+    return hookEvents.some((entry) => entry.hook === hook && entry.event === event);
+  }
+
+  assert.ok(hasEvent('damage-control', 'allow'), 'E2E should log damage-control allow event');
+  assert.ok(hasEvent('purpose-gate', 'state_initialized'), 'E2E should log purpose initialization');
+  assert.ok(hasEvent('purpose-gate', 'purpose_recorded'), 'E2E should log purpose recorded event');
+  assert.ok(hasEvent('purpose-gate', 'purpose_reminder'), 'E2E should log purpose reminder event');
+  assert.ok(hasEvent('session-replay', 'replay_entry_written'), 'E2E should log replay entry write');
+  assert.ok(hasEvent('tilldone', 'hook_mode_allow'), 'E2E should log tilldone hook-mode allow');
+  assert.ok(hasEvent('tilldone', 'cli_action'), 'E2E should log tilldone CLI action');
 
   console.log('Hook E2E validation passed.');
 }

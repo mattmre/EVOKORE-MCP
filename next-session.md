@@ -7,8 +7,7 @@
 
 ## Next Actions (Prioritized)
 
-1. **Review and approve open PRs (Immediate)**: Confirm final review on current queue (including voice/docs/collision updates) and lock merge order.
-   - https://github.com/mattmre/EVOKORE-MCP/pull/14
-   - https://github.com/mattmre/EVOKORE-MCP/pull/15
-2. **Merge approved PRs (Ops/Manual)**: Execute merges to `main` using `docs/PR_MERGE_RUNBOOK.md`; verify CI on merge commits.
-3. **Run release flow (Ops/Manual)**: After merge queue clears, execute `docs/RELEASE_FLOW.md`.
+1. **Rebuild dependency chain before review**: Classify open PRs as `base -> dependent` and record merge order in each PR description.
+2. **Approve only chain head PRs**: Hold dependent PR approvals until base PRs are merged and branches are rebased on latest `main`.
+3. **Merge sequentially with revalidation**: Merge one chain step at a time using `docs/PR_MERGE_RUNBOOK.md`; re-run required checks after each rebase to prevent queue drift/context rot.
+4. **Run release flow after chain completion**: When dependency chain is fully merged and green, execute `docs/RELEASE_FLOW.md`.

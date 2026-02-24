@@ -41,12 +41,23 @@ Once connected, your AI assistant will automatically have access to the followin
 
 When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructions to the LLM, enabling the LLM to understand exactly what the skill is capable of and explain it to you in plain English.
 
+### 2.1 HITL approval token (`_evokore_approval_token`)
+
+For tools configured as `require_approval`, EVOKORE returns a security-intercept error first, then includes a `_evokore_approval_token` for the retry.
+
+- Tokens are **one-time use**. A replayed token is rejected.
+- Tokens are bound to the **exact same tool arguments**. If any argument changes, the token is rejected.
+- Tokens are **short-lived** (current implementation target: about 5 minutes). If you wait too long, expect expiry and request a fresh token.
+- Retry workflow: ask for explicit approval -> rerun the same tool call -> include `_evokore_approval_token` exactly as returned.
+
 ## 3. Adopting a Workflow
 
 EVOKORE-MCP exposes skills through tools like `search_skills`, `get_skill_help`, and `resolve_workflow`.
 *"Adopt the `session-wrap` workflow."* -> The AI can discover the skill and load its canonical instructions through these tools before executing the workflow.
 
 When EVOKORE proxies child MCP servers, tool names use the prefixed tool name format `${serverId}_${tool.name}`. If the same prefixed name appears more than once, EVOKORE keeps the first registration, skips later duplicates, and logs a warning.
+
+Child server env values in `mcp.config.json` can reference placeholders like `${ELEVENLABS_API_KEY}`. If any placeholder is unresolved at startup, EVOKORE fails fast for that child server and logs an explicit error instead of silently substituting an empty value. Other child servers continue booting.
 
 ## 4. Voice Integration
 
@@ -109,7 +120,7 @@ If `uvx` is not on PATH in Windows shells, retry the registration command from a
 
 ### Voice Sidecar (Auto-Speak Responses)
 
-The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses through ElevenLabs TTS. It runs independently from the MCP router.
+The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses through ElevenLabs TTS. It runs independently from the MCP router, so custom clients can publish speech payloads directly to the sidecar without routing through MCP tools.
 
 **Setup:**
 
@@ -127,9 +138,15 @@ The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses
    }
    ```
 
-The sidecar listens on `ws://localhost:8888` (override with `VOICE_SIDECAR_PORT` env var). When Claude Code finishes a response, the hook forwards the text to the sidecar, which streams it to ElevenLabs and plays the audio.
+The sidecar listens on `ws://localhost:8888` (override with `VOICE_SIDECAR_PORT` env var). This `ws://localhost:<VOICE_SIDECAR_PORT>` endpoint is the standalone sidecar protocol endpoint for any custom producer. When Claude Code finishes a response, the hook forwards the text to that endpoint, which streams it to ElevenLabs and plays the audio.
 
-**Protocol (for custom integrations):**
+**Protocol contract (for custom integrations):**
+
+Each WebSocket message is a JSON object with these fields:
+
+- `text` (`string`): Text chunk to append to the current utterance buffer. Use `""` when sending a flush-only frame.
+- `persona` (`string`, optional): Persona key from `voices.json` (`personas.<name>`). If omitted, the `default` voice config is used.
+- `flush` (`boolean`, optional): When `true`, finalize buffered chunks and trigger synthesis/playback for the current utterance.
 
 ```json
 {"text": "Hello world.", "persona": "orchestrator", "flush": true}
@@ -141,6 +158,12 @@ Or stream in chunks:
 {"text": "Second part. "}
 {"text": "", "flush": true}
 ```
+
+Contract notes:
+
+- `flush: true` can be sent with or without additional `text` in the same frame.
+- `persona` may be sent on the first chunk, or repeated on each chunk for explicitness.
+- Unknown personas fall back to `default` voice settings.
 
 ### Persona Configuration
 
@@ -156,7 +179,7 @@ Edit `voices.json` in the project root to map agent roles to ElevenLabs voices. 
 }
 ```
 
-The sidecar re-reads `voices.json` on each new connection (hot-reload). Available default personas: `orchestrator`, `researcher`, `architect`, `implementer`, `tester`, `reviewer`.
+The sidecar re-reads `voices.json` on each new WebSocket connection (hot-reload), so persona/voice changes apply without restarting the sidecar process. Available default personas: `orchestrator`, `researcher`, `architect`, `implementer`, `tester`, `reviewer`.
 
 ### Speed and Prosody Tuning
 
@@ -210,11 +233,40 @@ node scripts/sync-configs.js
 
 # Explicitly write changes when running script directly
 node scripts/sync-configs.js --apply
+
+# Preserve existing evokore-mcp entries explicitly (default behavior)
+node scripts/sync-configs.js --apply --preserve-existing
+
+# Force overwrite existing evokore-mcp entries
+node scripts/sync-configs.js --apply --force
 ```
 
 **Supported CLIs:** Claude Code, Claude Desktop (Win/Mac/Linux), Cursor, Gemini CLI (prints manual command).
 
 The sync script:
 - Auto-detects installed CLIs
+- Uses DRY RUN by default (or `--apply` to write changes)
+- Preserves existing `evokore-mcp` entries by default (or `--force` to overwrite)
+- Rejects conflicting flag pairs (`--dry-run` + `--apply`, `--force` + `--preserve-existing`)
 - Only adds/updates the `evokore-mcp` server entry (never overwrites other servers)
 - Target specific CLIs: `node scripts/sync-configs.js claude-code cursor` (dry run) or `node scripts/sync-configs.js --apply claude-code cursor` (write)
+
+## 5. Hook Observability
+
+EVOKORE hook scripts emit structured JSONL events to:
+
+- `~/.evokore/logs/hooks.jsonl`
+
+Use this when validating hook behavior (damage-control, purpose-gate, session-replay, tilldone) without changing normal hook UX.
+
+PowerShell quick checks:
+
+```powershell
+# Tail recent hook events
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" -Tail 30
+
+# Filter a specific hook with parsed JSON
+Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
+  ForEach-Object { $_ | ConvertFrom-Json } |
+  Where-Object { $_.hook -eq "damage-control" }
+```

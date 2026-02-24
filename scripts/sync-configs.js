@@ -9,14 +9,27 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const ENTRY_POINT = path.join(PROJECT_ROOT, 'dist', 'index.js');
 const HAS_DRY_RUN_FLAG = process.argv.includes('--dry-run');
 const HAS_APPLY_FLAG = process.argv.includes('--apply');
-const TARGETS = process.argv.slice(2).filter(a => a !== '--dry-run' && a !== '--apply');
+const HAS_FORCE_FLAG = process.argv.includes('--force');
+const HAS_PRESERVE_EXISTING_FLAG = process.argv.includes('--preserve-existing');
+const TARGETS = process.argv.slice(2).filter(a =>
+  a !== '--dry-run'
+  && a !== '--apply'
+  && a !== '--force'
+  && a !== '--preserve-existing'
+);
 
 if (HAS_DRY_RUN_FLAG && HAS_APPLY_FLAG) {
   console.error('ERROR: --dry-run and --apply cannot be used together. Choose one mode.');
   process.exit(1);
 }
 
+if (HAS_FORCE_FLAG && HAS_PRESERVE_EXISTING_FLAG) {
+  console.error('ERROR: --force and --preserve-existing cannot be used together. Choose one entry mode.');
+  process.exit(1);
+}
+
 const DRY_RUN = !HAS_APPLY_FLAG;
+const PRESERVE_EXISTING = !HAS_FORCE_FLAG;
 
 // --- CLI Definitions ---
 
@@ -122,6 +135,7 @@ function main() {
   console.log(`Entry point: ${ENTRY_POINT}`);
   if (DRY_RUN) console.log('Mode: DRY RUN (no files will be written)\n');
   else console.log('Mode: APPLY (changes will be written)\n');
+  console.log(`Entry mode: ${PRESERVE_EXISTING ? 'PRESERVE EXISTING' : 'FORCE OVERWRITE'}\n`);
 
   const supportedTargets = Object.keys(CLI_DEFS);
   const invalidTargets = TARGETS.filter(target => !CLI_DEFS[target]);
@@ -169,15 +183,37 @@ function main() {
     }
 
     const existing = fs.existsSync(configPath) ? readJsonSafe(configPath) : {};
-    const updated = def.merge(JSON.parse(JSON.stringify(existing)));
+    const existingEntry = existing?.mcpServers?.['evokore-mcp'];
+    const hasExistingEntry = !!existingEntry;
+    const shouldPreserve = PRESERVE_EXISTING && hasExistingEntry;
+    const updated = shouldPreserve
+      ? existing
+      : def.merge(JSON.parse(JSON.stringify(existing)));
+    const resultingEntry = updated?.mcpServers?.['evokore-mcp'];
+    const actionLabel = shouldPreserve
+      ? 'Preserve existing entry (no overwrite)'
+      : hasExistingEntry
+        ? 'Overwrite existing entry (--force)'
+        : 'Add new entry';
 
     if (DRY_RUN) {
       console.log(`  → Would write to: ${configPath}`);
-      console.log(`  → evokore-mcp entry:`);
-      console.log(`    ${JSON.stringify(updated.mcpServers['evokore-mcp'], null, 2).replace(/\n/g, '\n    ')}`);
+      console.log('  → Existing evokore-mcp entry:');
+      if (hasExistingEntry) {
+        console.log(`    ${JSON.stringify(existingEntry, null, 2).replace(/\n/g, '\n    ')}`);
+      } else {
+        console.log('    (none)');
+      }
+      console.log(`  → Action: ${actionLabel}`);
+      console.log('  → Resulting evokore-mcp entry:');
+      console.log(`    ${JSON.stringify(resultingEntry, null, 2).replace(/\n/g, '\n    ')}`);
     } else {
-      writeJsonSafe(configPath, updated);
-      console.log(`  → Updated: ${configPath}`);
+      if (shouldPreserve) {
+        console.log(`  → Preserved existing entry in: ${configPath} (no changes written)`);
+      } else {
+        writeJsonSafe(configPath, updated);
+        console.log(`  → Updated: ${configPath}`);
+      }
     }
     synced++;
   }

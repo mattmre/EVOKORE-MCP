@@ -19,6 +19,8 @@ function run() {
   assert.match(proxySource, /if \(this\.toolRegistry\.has\(prefixedName\)\)/);
   assert.match(proxySource, /Skipping duplicate proxied tool/);
   assert.match(proxySource, /duplicate\(s\) skipped/);
+  assert.match(proxySource, /Duplicate collision summary/);
+  assert.match(proxySource, /first_registration_wins/);
   assert.match(proxySource, /continue;/);
 
   assert.match(usage, /prefixed tool name format `\$\{serverId\}_\$\{tool\.name\}`/i);
