@@ -45,6 +45,11 @@ All 15 tracked priorities were completed:
 - `npx tsc && npm test`
 - `gh pr merge 5 --repo mattmre/EVOKORE-MCP --squash --delete-branch`
 
+## Pull Requests
+
+- Merged: https://github.com/mattmre/EVOKORE-MCP/pull/5
+- Rollout PR: https://github.com/mattmre/EVOKORE-MCP/pull/6
+
 ## Context-Rot Controls Added
 
 - Canonical docs index: `docs/README.md`
