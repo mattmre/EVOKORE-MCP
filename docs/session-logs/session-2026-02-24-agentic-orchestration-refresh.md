@@ -61,3 +61,12 @@ Refresh session-tracking docs to prevent context rot after the latest orchestrat
 - `node test-unresolved-env-placeholder-validation.js` - **Result:** passed (included in `npm test`)
 - `node test-sync-configs-preserve-force-validation.js` - **Result:** passed (included in `npm test`)
 - `node test-submodule-commit-order-guard-validation.js` - **Result:** passed (included in `npm test`)
+
+### Created PR stack (for review)
+
+1. https://github.com/mattmre/EVOKORE-MCP/pull/19 (`p01-p02` runbook + merge-order controls)
+2. https://github.com/mattmre/EVOKORE-MCP/pull/20 (`p03-p04-p07` CI/release/submodule guardrails)
+3. https://github.com/mattmre/EVOKORE-MCP/pull/21 (`p05-p06-p08-p09-p10-p11-p12-p13-p14` runtime/operator hardening)
+4. https://github.com/mattmre/EVOKORE-MCP/pull/22 (`p15` orchestration tracking + npm test-chain wiring)
+
+Merge order: `#19 -> #20 -> #21 -> #22`.

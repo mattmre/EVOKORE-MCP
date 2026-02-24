@@ -124,4 +124,7 @@ Use this template at session start:
    - **Output:** Updated `docs/PRIORITY_STATUS_MATRIX.md` with `p01..p15` IDs and current status state.
 3. **Continuation logging phase**
    - Appended continuation summaries to session + orchestration trackers and added decision entries for key hardening changes.
-   - **Output:** Refreshed context-rot controls with explicit validation anchors and pending `p15` PR-slicing note.
+   - **Output:** Refreshed context-rot controls with explicit validation anchors.
+4. **PR slicing + creation phase**
+   - Published stacked review PRs with deterministic merge order.
+   - **Output:** `#19 -> #20 -> #21 -> #22` covering p01..p15 implementation slices.
