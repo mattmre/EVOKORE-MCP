@@ -11,10 +11,11 @@ This repository publishes to npm through a guarded GitHub Actions workflow: `.gi
 
 The release job runs the same quality gates used in development:
 
-1. `npm ci`
-2. `npm test`
-3. `npm run build`
-4. `npm publish` (only when `NPM_TOKEN` is configured)
+1. Verify the release commit (`GITHUB_SHA`) is an ancestor of `origin/main`.
+2. `npm ci`
+3. `npm test`
+4. `npm run build`
+5. `npm publish` (only when `NPM_TOKEN` is configured)
 
 If `NPM_TOKEN` is not set in repository secrets, publish is skipped and the workflow still reports the guard condition.
 

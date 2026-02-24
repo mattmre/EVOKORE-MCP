@@ -16,6 +16,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Verify release commit is on origin/main
+      run: |
+        git fetch --no-tags origin main:refs/remotes/origin/main
+        git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
     - name: Use Node.js
       uses: actions/setup-node@v3

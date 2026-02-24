@@ -17,6 +17,10 @@ function run() {
   assert.match(workflow, /npm test/);
   assert.match(workflow, /npm run build/);
   assert.match(workflow, /npm publish/);
+  assert.match(workflow, /fetch-depth:\s*0/);
+  assert.match(workflow, /Verify release commit is on origin\/main/);
+  assert.match(workflow, /git fetch --no-tags origin main:refs\/remotes\/origin\/main/);
+  assert.match(workflow, /git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
   assert.match(workflow, /NPM_TOKEN/);
   assert.match(workflow, /env\.NPM_TOKEN/);
 
@@ -27,6 +31,7 @@ function run() {
   assert.match(docs, /npm test/i);
   assert.match(docs, /npm run build/i);
   assert.match(docs, /npm publish/i);
+  assert.match(docs, /ancestor of `origin\/main`/i);
 
   console.log('NPM release flow validation passed.');
 }
