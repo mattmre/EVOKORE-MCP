@@ -17,7 +17,8 @@ function run() {
   assert.match(workflow, /npm test/);
   assert.match(workflow, /npm run build/);
   assert.match(workflow, /npm publish/);
-  assert.match(workflow, /secrets\.NPM_TOKEN/);
+  assert.match(workflow, /NPM_TOKEN/);
+  assert.match(workflow, /env\.NPM_TOKEN/);
 
   assert.match(docs, /Git tag/i);
   assert.match(docs, /workflow_dispatch/i);
