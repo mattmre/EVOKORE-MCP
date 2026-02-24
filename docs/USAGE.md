@@ -188,8 +188,14 @@ Sync your EVOKORE-MCP registration across all supported AI CLIs:
 # Preview what would change (recommended first)
 npm run sync:dry
 
-# Apply changes
+# Apply changes (writes files)
 npm run sync
+
+# Direct script usage defaults to DRY RUN
+node scripts/sync-configs.js
+
+# Explicitly write changes when running script directly
+node scripts/sync-configs.js --apply
 ```
 
 **Supported CLIs:** Claude Code, Claude Desktop (Win/Mac/Linux), Cursor, Gemini CLI (prints manual command).
@@ -197,4 +203,4 @@ npm run sync
 The sync script:
 - Auto-detects installed CLIs
 - Only adds/updates the `evokore-mcp` server entry (never overwrites other servers)
-- Target specific CLIs: `node scripts/sync-configs.js claude-code cursor`
+- Target specific CLIs: `node scripts/sync-configs.js claude-code cursor` (dry run) or `node scripts/sync-configs.js --apply claude-code cursor` (write)
