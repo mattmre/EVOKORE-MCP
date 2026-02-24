@@ -4,12 +4,9 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { writeHookEvent, sanitizeId } = require('./hook-observability');
 
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
-
-function sanitizeId(id) {
-  return String(id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
-}
 
 function ensureDir() {
   if (!fs.existsSync(SESSIONS_DIR)) {
@@ -36,6 +33,11 @@ process.stdin.on('end', () => {
     if (!state) {
       // First prompt — ask for purpose
       fs.writeFileSync(stateFile, JSON.stringify({ purpose: null, created: new Date().toISOString() }));
+      writeHookEvent({
+        hook: 'purpose-gate',
+        event: 'state_initialized',
+        session_id: sessionId
+      });
       const result = {
         additionalContext: [
           '[EVOKORE Purpose Gate] This is a new session.',
@@ -51,6 +53,11 @@ process.stdin.on('end', () => {
       state.purpose = purpose;
       state.set_at = new Date().toISOString();
       fs.writeFileSync(stateFile, JSON.stringify(state));
+      writeHookEvent({
+        hook: 'purpose-gate',
+        event: 'purpose_recorded',
+        session_id: sessionId
+      });
       const result = {
         additionalContext: [
           `[EVOKORE Purpose Gate] Session purpose recorded: "${purpose}".`,
@@ -60,13 +67,22 @@ process.stdin.on('end', () => {
       console.log(JSON.stringify(result));
     } else {
       // Subsequent prompts — remind of purpose
+      writeHookEvent({
+        hook: 'purpose-gate',
+        event: 'purpose_reminder',
+        session_id: sessionId
+      });
       const result = {
         additionalContext: `[EVOKORE Purpose Gate] Session purpose: "${state.purpose}". Stay focused on this goal.`
       };
       console.log(JSON.stringify(result));
     }
-  } catch {
-    // Never fail
+  } catch (error) {
+    writeHookEvent({
+      hook: 'purpose-gate',
+      event: 'fail_safe_error',
+      error: String(error && error.message ? error.message : error)
+    });
   }
   process.exit(0);
 });
