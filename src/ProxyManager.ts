@@ -7,6 +7,7 @@ import { Tool, CallToolRequestSchema, McpError, ErrorCode } from "@modelcontextp
 import { SecurityManager } from "./SecurityManager";
 
 const CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
+const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 
 interface ServerConfig {
   command: string;
@@ -23,6 +24,32 @@ export class ProxyManager {
 
   constructor(security: SecurityManager) {
     this.security = security;
+  }
+
+  private resolveServerEnv(serverId: string, serverEnv?: Record<string, string>): Record<string, string> {
+    const resolvedEnv: Record<string, string> = {};
+    if (!serverEnv) return resolvedEnv;
+
+    for (const [key, value] of Object.entries(serverEnv)) {
+      const missingVars = new Set<string>();
+      const resolvedValue = value.replace(ENV_PLACEHOLDER_REGEX, (_match, varName: string) => {
+        const envValue = process.env[varName];
+        if (envValue === undefined) {
+          missingVars.add(varName);
+          return "";
+        }
+        return envValue;
+      });
+
+      if (missingVars.size > 0) {
+        const missingList = Array.from(missingVars).map((varName) => `\${${varName}}`).join(", ");
+        throw new Error(`Unresolved env placeholder(s) for child server '${serverId}' key '${key}': ${missingList}`);
+      }
+
+      resolvedEnv[key] = resolvedValue;
+    }
+
+    return resolvedEnv;
   }
 
   async loadServers() {
@@ -52,12 +79,7 @@ export class ProxyManager {
           }
           
           // Resolve ${VAR} references in env values from process.env
-          const resolvedEnv: Record<string, string> = {};
-          if (serverConfig.env) {
-            for (const [key, value] of Object.entries(serverConfig.env)) {
-              resolvedEnv[key] = value.replace(/\$\{(\w+)\}/g, (_, varName) => process.env[varName] || "");
-            }
-          }
+          const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
           const env = { ...process.env, ...resolvedEnv };
 
           const transport = new StdioClientTransport({
@@ -111,6 +133,15 @@ export class ProxyManager {
 
           const duplicateSuffix = skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicate(s) skipped)` : "";
           console.error(`[EVOKORE] Proxied ${registeredCount} tools from '${serverId}'${duplicateSuffix}`);
+          if (skippedDuplicates > 0) {
+            console.error(
+              `[EVOKORE] Duplicate collision summary: ${JSON.stringify({
+                serverId,
+                skippedDuplicates,
+                policy: "first_registration_wins"
+              })}`
+            );
+          }
         } catch (e: any) {
           console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
         }
