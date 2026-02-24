@@ -86,3 +86,66 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Validate sidecar runtime startup, socket connect, basic send/flush, and clean shutdown with no external ElevenLabs network dependency.
 - Trade-offs: Does not validate live provider synthesis behavior, but improves reliability/speed and keeps CI deterministic.
 - Follow-up: Keep smoke coverage anchored in `test-voice-sidecar-smoke-validation.js` and reserve live-provider checks for explicit manual verification.
+
+### Decision: Run CI tests on `push` to `main` in addition to PRs
+- Date: 2026-02-24
+- Owner: implementer
+- Context: PR-only CI left a post-merge verification gap for direct `main` updates.
+- Options considered: PR-only trigger vs PR + push-to-main trigger.
+- Decision: Keep CI active for both `pull_request` and `push` on `main`.
+- Trade-offs: Extra CI runs, but immediate visibility on post-merge regressions.
+- Follow-up: Keep trigger contract validated via `test-ci-workflow-validation.js`.
+
+### Decision: Gate releases by `origin/main` ancestry
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Tag-driven release runs can originate from non-main history unless ancestry is checked explicitly.
+- Options considered: trust tag source vs enforce ancestry gate in workflow.
+- Decision: Add `git merge-base --is-ancestor "$GITHUB_SHA" origin/main` gate in release workflow.
+- Trade-offs: Stricter release precondition, but blocks accidental off-branch publication attempts.
+- Follow-up: Keep release workflow/docs assertions in `test-npm-release-flow-validation.js`.
+
+### Decision: Fail fast on unresolved env placeholders for child servers
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Silent passthrough of unresolved `${VAR}` values made child-server boot failures harder to diagnose.
+- Options considered: best-effort substitution vs explicit fail-fast on missing env keys.
+- Decision: Detect unresolved placeholders and throw with server/key-specific diagnostics.
+- Trade-offs: Startup fails earlier, but error handling is deterministic and actionable.
+- Follow-up: Preserve validation in `test-unresolved-env-placeholder-validation.js` and troubleshooting docs.
+
+### Decision: Support preserve/force entry policy in sync apply mode
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Operators needed explicit control over whether existing MCP config entries are retained or overwritten.
+- Options considered: always overwrite vs preserve default with explicit force override.
+- Decision: Preserve existing entries by default, allow overwrite via `--force`, and reject conflicting entry flags.
+- Trade-offs: More explicit flags, but safer default behavior and clearer operator intent.
+- Follow-up: Keep regression coverage in `test-sync-configs-preserve-force-validation.js`.
+
+### Decision: Enforce submodule cleanliness as a CI guardrail
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Submodule pointer drift/dirty states can break reproducibility after merges.
+- Options considered: manual checks only vs CI-enforced cleanliness check in both build/test jobs.
+- Decision: Run `scripts/validate-submodule-cleanliness.js` in CI jobs with recursive submodule checkout.
+- Trade-offs: CI fails earlier on repo hygiene issues, but prevents ambiguous submodule state from landing.
+- Follow-up: Keep workflow/script assertions in `test-submodule-commit-order-guard-validation.js`.
+
+### Decision: Manual release dispatch requires explicit dependency-chain confirmation
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Manual `workflow_dispatch` releases can bypass normal merge sequencing unless operator intent is explicitly gated.
+- Options considered: allow manual dispatch without guard vs require a dedicated completion input.
+- Decision: Add `chain_complete` boolean gate and block manual release unless `chain_complete=true`.
+- Trade-offs: One extra manual confirmation step, but significantly lower risk of releasing before dependent PR chain completion.
+- Follow-up: Preserve assertions in `.github/workflows/release.yml` and `test-npm-release-flow-validation.js`.
+
+### Decision: Standardize hook observability via JSONL telemetry stream
+- Date: 2026-02-24
+- Owner: implementer
+- Context: Hook behavior needed durable, append-only operational telemetry for triage without coupling to hook execution success paths.
+- Options considered: console-only logs vs file-based structured telemetry.
+- Decision: Write sanitized hook events to `~/.evokore/logs/hooks.jsonl` through `scripts/hook-observability.js`.
+- Trade-offs: Additional local log footprint, but strong post-run diagnostics and replayability across hook phases.
+- Follow-up: Maintain coverage in `hook-test-suite.js` and `hook-e2e-validation.js` for event creation and stability.

@@ -12,7 +12,12 @@ function run() {
   const docs = fs.readFileSync(docsPath, 'utf8');
 
   assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /chain_complete:/);
+  assert.match(workflow, /type:\s*boolean/);
+  assert.match(workflow, /required:\s*true/);
   assert.match(workflow, /tags:\s*\[\s*'v\*\.\*\.\*'\s*\]/);
+  assert.match(workflow, /Require completed dependency chain for manual release/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch' && github\.event\.inputs\.chain_complete != 'true'/);
   assert.match(workflow, /npm ci/);
   assert.match(workflow, /npm test/);
   assert.match(workflow, /npm run build/);
@@ -26,6 +31,8 @@ function run() {
 
   assert.match(docs, /Git tag/i);
   assert.match(docs, /workflow_dispatch/i);
+  assert.match(docs, /dependency chain/i);
+  assert.match(docs, /chain_complete=true/i);
   assert.match(docs, /NPM_TOKEN/);
   assert.match(docs, /npm ci/i);
   assert.match(docs, /npm test/i);

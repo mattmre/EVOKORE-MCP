@@ -7,6 +7,8 @@ const path = require('path');
 const { runNodeScript, makeSessionId } = require('./tests/helpers/hook-test-helper');
 
 const sessionsDir = path.join(os.homedir(), '.evokore', 'sessions');
+const logsDir = path.join(os.homedir(), '.evokore', 'logs');
+const hooksLogPath = path.join(logsDir, 'hooks.jsonl');
 
 function cleanupFile(filePath) {
   if (fs.existsSync(filePath)) {
@@ -16,6 +18,7 @@ function cleanupFile(filePath) {
 
 function run() {
   console.log('Running hook test suite...');
+  cleanupFile(hooksLogPath);
 
   const damageResult = runNodeScript('scripts/damage-control.js', {
     tool_name: 'Bash',
@@ -23,6 +26,19 @@ function run() {
   });
   assert.strictEqual(damageResult.status, 2, 'damage-control should block dangerous command');
   assert.match(damageResult.cleanStderr, /DAMAGE CONTROL BLOCKED/i);
+
+  const damageAskResult = runNodeScript('scripts/damage-control.js', {
+    tool_name: 'Bash',
+    tool_input: { command: 'git push origin main --force' }
+  });
+  assert.strictEqual(damageAskResult.status, 0, 'damage-control ask should return status 0');
+  assert.match(damageAskResult.cleanStdout, /"decision":"ask"/i);
+
+  const damageAllowResult = runNodeScript('scripts/damage-control.js', {
+    tool_name: 'Bash',
+    tool_input: { command: 'echo safe' }
+  });
+  assert.strictEqual(damageAllowResult.status, 0, 'damage-control should allow safe command');
 
   const purposeSession = makeSessionId('hook-purpose');
   const purposeStateFile = path.join(sessionsDir, `${purposeSession}.json`);
@@ -41,6 +57,13 @@ function run() {
   });
   assert.strictEqual(purposeSecond.status, 0);
   assert.match(purposeSecond.cleanStdout, /Session purpose recorded/i);
+
+  const purposeThird = runNodeScript('scripts/purpose-gate.js', {
+    session_id: purposeSession,
+    user_message: 'Continue this session'
+  });
+  assert.strictEqual(purposeThird.status, 0);
+  assert.match(purposeThird.cleanStdout, /Session purpose:/i);
   cleanupFile(purposeStateFile);
 
   const replaySession = makeSessionId('hook-replay');
@@ -79,6 +102,26 @@ function run() {
     }
   );
   assert.strictEqual(tilldoneAutoResult.status, 0, '--session auto should resolve from env');
+
+  assert.ok(fs.existsSync(hooksLogPath), 'hook observability should create hooks.jsonl');
+  const hookEvents = fs.readFileSync(hooksLogPath, 'utf8')
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+
+  function hasEvent(hook, event) {
+    return hookEvents.some((entry) => entry.hook === hook && entry.event === event);
+  }
+
+  assert.ok(hasEvent('damage-control', 'block'), 'should log damage-control block');
+  assert.ok(hasEvent('damage-control', 'ask'), 'should log damage-control ask');
+  assert.ok(hasEvent('damage-control', 'allow'), 'should log damage-control allow');
+  assert.ok(hasEvent('purpose-gate', 'state_initialized'), 'should log purpose state initialization');
+  assert.ok(hasEvent('purpose-gate', 'purpose_recorded'), 'should log purpose recording');
+  assert.ok(hasEvent('purpose-gate', 'purpose_reminder'), 'should log purpose reminder');
+  assert.ok(hasEvent('session-replay', 'replay_entry_written'), 'should log replay entry write');
+  assert.ok(hasEvent('tilldone', 'hook_mode_block'), 'should log tilldone hook block');
+  assert.ok(hasEvent('tilldone', 'cli_action'), 'should log tilldone cli action');
 
   console.log('Hook test suite passed.');
 }

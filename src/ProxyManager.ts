@@ -52,6 +52,14 @@ export class ProxyManager {
     return resolvedEnv;
   }
 
+  private resolveCommandForPlatform(command: string): string {
+    if (process.platform === "win32" && command === "npx") {
+      return "npx.cmd";
+    }
+
+    return command;
+  }
+
   async loadServers() {
     this.clients.clear();
     this.transports.clear();
@@ -64,19 +72,10 @@ export class ProxyManager {
       
       if (!config.servers) return;
 
-      const isWindows = process.platform === "win32";
-
       for (const [serverId, serverConfig] of Object.entries(config.servers as Record<string, ServerConfig>)) {
         try {
           console.error(`[EVOKORE] Booting child server: ${serverId}`);
-          
-          let cmd = serverConfig.command;
-          
-          // Apply Windows executable fallback
-          // npx needs .cmd extension on Windows; uvx/uv install as .exe and resolve via PATH
-          if (isWindows && cmd === "npx") {
-             cmd = "npx.cmd";
-          }
+          const cmd = this.resolveCommandForPlatform(serverConfig.command);
           
           // Resolve ${VAR} references in env values from process.env
           const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);

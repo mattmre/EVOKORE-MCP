@@ -4,12 +4,9 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { writeHookEvent, sanitizeId } = require('./hook-observability');
 
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
-
-function sanitizeId(id) {
-  return String(id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
-}
 
 function summarize(toolName, toolInput) {
   if (!toolInput) return '';
@@ -56,8 +53,19 @@ process.stdin.on('end', () => {
 
     const logPath = path.join(SESSIONS_DIR, `${sessionId}-replay.jsonl`);
     fs.appendFileSync(logPath, JSON.stringify(entry) + '\n');
-  } catch {
+    writeHookEvent({
+      hook: 'session-replay',
+      event: 'replay_entry_written',
+      session_id: sessionId,
+      tool: toolName
+    });
+  } catch (error) {
     // Never fail — always exit 0
+    writeHookEvent({
+      hook: 'session-replay',
+      event: 'fail_safe_error',
+      error: String(error && error.message ? error.message : error)
+    });
   }
   process.exit(0);
 });

@@ -5,6 +5,7 @@ Operator runbook for reliable merges and context-rot prevention.
 ## Pre-merge Checklist
 
 - [ ] PR scope matches approved plan
+- [ ] PR description is filled using `.github/pull_request_template.md`
 - [ ] Required tests pass locally/CI
 - [ ] Docs updated for user-facing behavior changes
 - [ ] Release-impacting changes called out
@@ -26,8 +27,10 @@ If a PR spans multiple change types, run the union of required checks.
 ## Reviewer Responsibilities
 
 - Confirm PR scope and dependency assumptions are explicit in description.
+- Confirm PR metadata fields from `.github/pull_request_template.md` are complete.
 - Verify required checks for each change type are attached in PR evidence.
 - Block approval if dependency base PR is not merged or branch is stale.
+- Approve only the current chain head; do not pre-approve non-head dependent PRs.
 - Confirm all review conversations are resolved before final approval.
 - Ensure merge strategy and rollback notes are documented for risky changes.
 
@@ -38,6 +41,15 @@ If a PR spans multiple change types, run the union of required checks.
 3. Confirm reviewer approvals and resolved conversations.
 4. Merge via approved strategy.
 5. Record merge commit/PR number in tracker.
+
+## Merge-boundary Checkpoints
+
+At every dependency merge boundary (`base -> dependent`):
+
+1. Rebase dependent PR branch on latest `main` immediately after parent merge.
+2. Re-run required checks and attach updated evidence in PR metadata.
+3. Revalidate approvals for the new head state (stale approvals must be refreshed).
+4. Confirm merge-boundary revalidation notes are updated before merge.
 
 ## Merge-order Controls (Dependency Chain)
 
