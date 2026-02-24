@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { writeHookEvent, sanitizeId } = require('./hook-observability');
 
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
 
@@ -16,10 +17,6 @@ const C = {
   DIM: '\x1b[38;2;71;85;105m',
   ORANGE: '\x1b[38;2;251;146;60m'
 };
-
-function sanitizeId(id) {
-  return String(id || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
-}
 
 function resolveAutoSessionId() {
   const candidates = [
@@ -78,6 +75,13 @@ function formatTaskList(tasks, useStderr) {
 // --- CLI mode ---
 if (process.argv.length > 2) {
   const args = process.argv.slice(2);
+  function emitCli(event, details) {
+    writeHookEvent(Object.assign({
+      hook: 'tilldone',
+      mode: 'cli',
+      event
+    }, details || {}));
+  }
 
   function getArg(flag) {
     const idx = args.indexOf(flag);
@@ -95,6 +99,7 @@ if (process.argv.length > 2) {
   }
 
   if (!sessionId) {
+    emitCli('cli_error', { reason: 'missing_session' });
     console.error(`${C.ROSE}Error: --session ID is required (or use --session auto with EVOKORE_SESSION_ID/CLAUDE_SESSION_ID env)${RESET}`);
     process.exit(1);
   }
@@ -102,41 +107,50 @@ if (process.argv.length > 2) {
   if (hasFlag('--add')) {
     const text = getArg('--add');
     if (!text) {
+      emitCli('cli_error', { reason: 'missing_add_text', session_id: sessionId });
       console.error(`${C.ROSE}Error: --add requires task text${RESET}`);
       process.exit(1);
     }
     const tasks = loadTasks(sessionId);
     tasks.push({ text, done: false, added: new Date().toISOString() });
     saveTasks(sessionId, tasks);
+    emitCli('cli_action', { action: 'add', session_id: sessionId });
     console.log(`${C.EMERALD}Added:${RESET} ${text}`);
     formatTaskList(tasks, false);
   } else if (hasFlag('--toggle')) {
     const num = parseInt(getArg('--toggle'), 10);
     const tasks = loadTasks(sessionId);
     if (isNaN(num) || num < 1 || num > tasks.length) {
+      emitCli('cli_error', { reason: 'invalid_toggle_number', session_id: sessionId });
       console.error(`${C.ROSE}Error: Invalid task number ${num}${RESET}`);
       process.exit(1);
     }
     tasks[num - 1].done = !tasks[num - 1].done;
     saveTasks(sessionId, tasks);
+    emitCli('cli_action', { action: 'toggle', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--done')) {
     const num = parseInt(getArg('--done'), 10);
     const tasks = loadTasks(sessionId);
     if (isNaN(num) || num < 1 || num > tasks.length) {
+      emitCli('cli_error', { reason: 'invalid_done_number', session_id: sessionId });
       console.error(`${C.ROSE}Error: Invalid task number ${num}${RESET}`);
       process.exit(1);
     }
     tasks[num - 1].done = true;
     saveTasks(sessionId, tasks);
+    emitCli('cli_action', { action: 'done', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--list')) {
     const tasks = loadTasks(sessionId);
+    emitCli('cli_action', { action: 'list', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--clear')) {
     saveTasks(sessionId, []);
+    emitCli('cli_action', { action: 'clear', session_id: sessionId });
     console.log(`${C.ORANGE}Tasks cleared for session ${sessionId}${RESET}`);
   } else {
+    emitCli('cli_error', { reason: 'invalid_usage', session_id: sessionId });
     console.error(`${C.ROSE}Usage: tilldone.js --add "text" | --toggle N | --done N | --list | --clear  --session ID|auto${RESET}`);
     process.exit(1);
   }
@@ -156,6 +170,13 @@ process.stdin.on('end', () => {
     const incomplete = tasks.filter(t => !t.done);
 
     if (incomplete.length > 0) {
+      writeHookEvent({
+        hook: 'tilldone',
+        mode: 'hook',
+        event: 'hook_mode_block',
+        session_id: sessionId,
+        incomplete_count: incomplete.length
+      });
       process.stderr.write(`\n${C.ROSE}⚠ TillDone: ${incomplete.length} incomplete task(s) remain!${RESET}\n`);
       formatTaskList(tasks, true);
       process.stderr.write(`${C.ORANGE}Complete all tasks before ending the session, or run:${RESET}\n`);
@@ -163,9 +184,21 @@ process.stdin.on('end', () => {
       process.exit(2);
     }
 
+    writeHookEvent({
+      hook: 'tilldone',
+      mode: 'hook',
+      event: 'hook_mode_allow',
+      session_id: sessionId
+    });
     process.exit(0);
-  } catch {
+  } catch (error) {
     // Fail safe — allow stop
+    writeHookEvent({
+      hook: 'tilldone',
+      mode: 'hook',
+      event: 'hook_mode_fail_safe',
+      error: String(error && error.message ? error.message : error)
+    });
     process.exit(0);
   }
 });

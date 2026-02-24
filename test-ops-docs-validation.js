@@ -11,11 +11,13 @@ function run() {
   const runbookPath = path.resolve(__dirname, 'docs', 'PR_MERGE_RUNBOOK.md');
   const docsReadmePath = path.resolve(__dirname, 'docs', 'README.md');
   const contributingPath = path.resolve(__dirname, 'CONTRIBUTING.md');
+  const prTemplatePath = path.resolve(__dirname, '.github', 'pull_request_template.md');
 
   assert.ok(fs.existsSync(trackerPath), 'ORCHESTRATION_TRACKER.md should exist');
   assert.ok(fs.existsSync(decisionsPath), 'RESEARCH_DECISIONS_LOG.md should exist');
   assert.ok(fs.existsSync(matrixPath), 'PRIORITY_STATUS_MATRIX.md should exist');
   assert.ok(fs.existsSync(runbookPath), 'PR_MERGE_RUNBOOK.md should exist');
+  assert.ok(fs.existsSync(prTemplatePath), '.github/pull_request_template.md should exist');
 
   const tracker = fs.readFileSync(trackerPath, 'utf8');
   const decisions = fs.readFileSync(decisionsPath, 'utf8');
@@ -23,6 +25,7 @@ function run() {
   const runbook = fs.readFileSync(runbookPath, 'utf8');
   const docsReadme = fs.readFileSync(docsReadmePath, 'utf8');
   const contributing = fs.readFileSync(contributingPath, 'utf8');
+  const prTemplate = fs.readFileSync(prTemplatePath, 'utf8');
 
   assert.match(tracker, /context-rot prevention/i);
   assert.match(tracker, /Session Snapshot Template/);
@@ -38,6 +41,13 @@ function run() {
   assert.match(matrix, /Priority item\/phase/);
 
   assert.match(runbook, /Pre-merge Checklist/);
+  assert.match(runbook, /Required Checks by Change Type/);
+  assert.match(runbook, /Reviewer Responsibilities/);
+  assert.match(runbook, /\.github\/pull_request_template\.md/);
+  assert.match(runbook, /Approve only the current chain head/i);
+  assert.match(runbook, /Merge-boundary Checkpoints/);
+  assert.match(runbook, /At every dependency merge boundary/i);
+  assert.match(runbook, /Merge-order Controls \(Dependency Chain\)/);
   assert.match(runbook, /Post-merge Verification/);
   assert.match(runbook, /Rollback Plan/);
   assert.match(runbook, /Initial Entry \(This Execution\)/);
@@ -47,6 +57,17 @@ function run() {
   assert.match(docsReadme, /PRIORITY_STATUS_MATRIX\.md/);
   assert.match(docsReadme, /PR_MERGE_RUNBOOK\.md/);
   assert.match(contributing, /docs\/PR_MERGE_RUNBOOK\.md/);
+  assert.match(contributing, /\.github\/pull_request_template\.md/);
+  assert.match(contributing, /process\/tooling\/release-impacting changes/i);
+  assert.match(contributing, /Dependency chain \(`base -> dependent`\)/);
+  assert.match(contributing, /Merge-boundary revalidation notes/);
+
+  assert.match(prTemplate, /Priority ID/);
+  assert.match(prTemplate, /Dependency Chain \(base -> dependent\)/);
+  assert.match(prTemplate, /Chain-head PR\? \(yes\/no\)/);
+  assert.match(prTemplate, /Required Checks Evidence/);
+  assert.match(prTemplate, /Merge-boundary Revalidation Notes/);
+  assert.match(prTemplate, /Release-impact Notes/);
 
   console.log('Ops docs validation passed.');
 }

@@ -17,8 +17,10 @@ function run() {
 
   assert.match(syncScript, /const ENTRY_POINT = path\.join\(PROJECT_ROOT, 'dist', 'index\.js'\);/);
   assert.match(syncScript, /args: \[ENTRY_POINT\]/);
-  assert.ok(proxySource.includes('value.replace(/\\$\\{(\\w+)\\}/g'), 'ProxyManager env interpolation regex should be present');
-  assert.match(proxySource, /resolvedEnv\[key\] = value\.replace/);
+  assert.ok(proxySource.includes('const ENV_PLACEHOLDER_REGEX = /\\$\\{(\\w+)\\}/g;'), 'ProxyManager env placeholder regex should be present');
+  assert.match(proxySource, /const resolvedEnv = this\.resolveServerEnv\(serverId, serverConfig\.env\);/);
+  assert.match(proxySource, /Unresolved env placeholder\(s\) for child server '\$\{serverId\}' key '\$\{key\}':/);
+  assert.match(proxySource, /missingVars\.add\(varName\);/);
   assert.match(mcpConfig, /\$\{ELEVENLABS_API_KEY\}/);
   assert.match(envExample, /ELEVENLABS_API_KEY=/);
 
