@@ -36,6 +36,11 @@ Close remaining implementation gaps (#9 VoiceMode Windows guidance, #10 VoiceSid
 - `node test-tool-prefix-collision-validation.js && node test-voice-sidecar-smoke-validation.js && node test-hitl.js && node test-hitl-hardening.js`
 - `npm run build && npm test`
 
+## PR Outputs
+
+- PR #12: https://github.com/mattmre/EVOKORE-MCP/pull/12
+- PR #13: https://github.com/mattmre/EVOKORE-MCP/pull/13
+
 ## Remaining Ops/Manual Items
 
 - Merge open PRs (`docs/PR_MERGE_RUNBOOK.md`)
