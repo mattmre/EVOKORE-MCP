@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*.*.*' ]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        registry-url: 'https://registry.npmjs.org'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run test suite
+      run: npm test
+
+    - name: Build package
+      run: npm run build
+
+    - name: Publish to npm
+      if: ${{ secrets.NPM_TOKEN != '' }}
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      run: npm publish
+
+    - name: Publish skipped (NPM_TOKEN missing)
+      if: ${{ secrets.NPM_TOKEN == '' }}
+      run: echo "NPM_TOKEN is not configured; publish step skipped."

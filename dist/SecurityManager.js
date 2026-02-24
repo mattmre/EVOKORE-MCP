@@ -12,6 +12,7 @@ const PERMISSIONS_FILE = path_1.default.resolve(__dirname, "../permissions.yml")
 class SecurityManager {
     rules = {};
     pendingTokens = new Map();
+    static TOKEN_TTL_MS = 5 * 60 * 1000;
     async loadPermissions() {
         try {
             const content = await promises_1.default.readFile(PERMISSIONS_FILE, "utf-8");
@@ -41,19 +42,54 @@ class SecurityManager {
         }
         return "allow";
     }
-    generateToken(toolName) {
+    normalizeValue(value) {
+        if (Array.isArray(value)) {
+            return value.map((item) => this.normalizeValue(item));
+        }
+        if (value && typeof value === "object") {
+            const normalized = {};
+            for (const key of Object.keys(value).sort()) {
+                normalized[key] = this.normalizeValue(value[key]);
+            }
+            return normalized;
+        }
+        return value;
+    }
+    hashArgs(args) {
+        const normalizedArgs = this.normalizeValue(args ?? {});
+        return crypto_1.default.createHash("sha256").update(JSON.stringify(normalizedArgs)).digest("hex");
+    }
+    purgeExpiredTokens() {
+        const now = Date.now();
+        for (const [token, metadata] of this.pendingTokens.entries()) {
+            if (metadata.expiresAt < now) {
+                this.pendingTokens.delete(token);
+            }
+        }
+    }
+    generateToken(toolName, args) {
+        this.purgeExpiredTokens();
         const token = crypto_1.default.randomBytes(16).toString("hex");
-        this.pendingTokens.set(toolName, token);
+        this.pendingTokens.set(token, {
+            toolName,
+            argsHash: this.hashArgs(args),
+            expiresAt: Date.now() + SecurityManager.TOKEN_TTL_MS
+        });
         return token;
     }
-    validateToken(toolName, token) {
-        const expected = this.pendingTokens.get(toolName);
-        return expected !== undefined && expected === token;
+    validateToken(toolName, token, args) {
+        this.purgeExpiredTokens();
+        const metadata = this.pendingTokens.get(token);
+        if (!metadata)
+            return false;
+        if (metadata.toolName !== toolName)
+            return false;
+        if (metadata.expiresAt < Date.now())
+            return false;
+        return metadata.argsHash === this.hashArgs(args);
     }
-    consumeToken(toolName, token) {
-        if (this.validateToken(toolName, token)) {
-            this.pendingTokens.delete(toolName);
-        }
+    consumeToken(token) {
+        this.pendingTokens.delete(token);
     }
 }
 exports.SecurityManager = SecurityManager;
