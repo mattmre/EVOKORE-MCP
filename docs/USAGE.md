@@ -46,6 +46,8 @@ When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructi
 EVOKORE-MCP exposes skills through tools like `search_skills`, `get_skill_help`, and `resolve_workflow`.
 *"Adopt the `session-wrap` workflow."* -> The AI can discover the skill and load its canonical instructions through these tools before executing the workflow.
 
+When EVOKORE proxies child MCP servers, tool names use the prefixed tool name format `${serverId}_${tool.name}`. If the same prefixed name appears more than once, EVOKORE keeps the first registration, skips later duplicates, and logs a warning.
+
 ## 4. Voice Integration
 
 EVOKORE-MCP supports voice input/output through two complementary systems:

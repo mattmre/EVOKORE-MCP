@@ -88,3 +88,26 @@ Use this template at session start:
      - `node test-env-sync-validation.js`
      - `node test-dist-path-validation.js`
    - **Output:** Context-rot-resistant docs aligned to current code/tests.
+
+## Agent Execution Log (Current Orchestration Session)
+
+- **Date:** 2026-02-24
+
+1. **Researcher phase**
+   - Re-audited all 15 priorities and identified remaining implementation gaps in VoiceMode Windows guidance, sidecar runtime smoke coverage, and prefixed-tool collision handling.
+   - **Output:** Evidence-backed gap list with file/test targets.
+2. **Architect phase**
+   - Defined two-PR rollout: PR1 for voice docs/smoke coverage and PR2 for collision guard hardening, with ops/manual items tracked separately.
+   - **Output:** Low-churn implementation and validation plan.
+3. **Implementer (PR1) phase**
+   - Added VoiceMode Windows guidance and new validation tests: `test-voice-windows-docs-validation.js` and `test-voice-sidecar-smoke-validation.js`.
+   - **Output:** Voice gap coverage implemented with test wiring.
+4. **Implementer (PR2) phase**
+   - Added duplicate prefixed-tool collision guard in `src/ProxyManager.ts` plus `test-tool-prefix-collision-validation.js`.
+   - **Output:** Deterministic first-registration-wins collision behavior with regression coverage.
+5. **Reviewer phase**
+   - Flagged smoke-test reliability and duplicate-count observability hardening opportunities.
+   - **Output:** Follow-up fixes applied for startup readiness/shutdown handling and proxied duplicate summary logging.
+6. **Tester phase**
+   - Executed targeted validations and full regression.
+   - **Output:** `node test-tool-prefix-collision-validation.js && node test-voice-sidecar-smoke-validation.js && node test-hitl.js && node test-hitl-hardening.js` and `npm run build && npm test` passed.

@@ -68,3 +68,21 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Extend `test-dist-path-validation.js` to assert runtime dry-run behavior for dist path resolution.
 - Trade-offs: Minor test complexity increase, but materially stronger confidence in packaged/runtime path correctness.
 - Follow-up: Preserve targeted validation in regression checks (`node test-dist-path-validation.js`).
+
+### Decision: Tool-prefix collision policy uses first-registration-wins
+- Date: 2026-02-24
+- Owner: architect
+- Context: Multiple proxied servers can expose the same prefixed tool name during registration.
+- Options considered: overwrite existing entry vs fail load vs keep-first-and-skip-duplicates.
+- Decision: Keep first registration, skip duplicate registrations, and emit warning plus duplicate-skip summary in proxied-tool logs.
+- Trade-offs: Later duplicate tools are not exposed, but tool registry behavior stays deterministic and avoids unsafe silent override.
+- Follow-up: Maintain guardrail coverage in `test-tool-prefix-collision-validation.js` and `src/ProxyManager.ts` duplicate log assertions.
+
+### Decision: Voice sidecar smoke test stays runtime-only and provider-independent
+- Date: 2026-02-24
+- Owner: researcher
+- Context: Sidecar validation needed startup/connect/shutdown confidence without brittle external API dependence.
+- Options considered: integration test with live ElevenLabs dependency vs local runtime smoke over WebSocket lifecycle only.
+- Decision: Validate sidecar runtime startup, socket connect, basic send/flush, and clean shutdown with no external ElevenLabs network dependency.
+- Trade-offs: Does not validate live provider synthesis behavior, but improves reliability/speed and keeps CI deterministic.
+- Follow-up: Keep smoke coverage anchored in `test-voice-sidecar-smoke-validation.js` and reserve live-provider checks for explicit manual verification.

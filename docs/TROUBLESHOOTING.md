@@ -71,3 +71,8 @@ uvx --version
 
 Then restart Claude Code and retry `converse`.
 
+## 8. Duplicate Proxied Tool Name Warning
+**Symptoms:** Startup logs include a warning like `Skipping duplicate proxied tool 'server_tool' from server 'server' (already registered).`
+**Cause:** Two registrations produced the same prefixed name (`${serverId}_${tool.name}`).
+**Solution:** EVOKORE keeps the first tool registration and skips duplicates by design. Rename one upstream tool or adjust server IDs if you need both tools exposed.
+

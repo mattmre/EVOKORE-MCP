@@ -1,5 +1,5 @@
 # Next Session Priorities
 
-1. **Merge Pending PRs (Ops)**: Merge all approved open PRs to `main` using the documented runbook flow, then confirm CI completes on merge commits.
-2. **Execute Release (Manual/Ops)**: Run the release checklist and publish flow (`docs/RELEASE_FLOW.md`) once merge queue is clear.
-3. **Submodule Discipline Enforcement (Ops Hygiene)**: Ensure any future docs/code updates that involve submodules follow `docs/SUBMODULE_WORKFLOW.md` (submodule commit first, parent pointer update second) before merge.
+1. **Review New PRs (Immediate)**: Validate PR1 (VoiceMode Windows docs + sidecar smoke tests) and PR2 (tool-prefix collision guard + validation/docs updates), then approve merge order.
+2. **Merge Pending PRs (Ops)**: Merge approved open PRs to `main` via `docs/PR_MERGE_RUNBOOK.md`, then confirm CI passes on merge commits.
+3. **Execute Release (Manual/Ops)**: Run `docs/RELEASE_FLOW.md` after merge queue is clear.
