@@ -123,14 +123,23 @@ function main() {
   if (DRY_RUN) console.log('Mode: DRY RUN (no files will be written)\n');
   else console.log('Mode: APPLY (changes will be written)\n');
 
+  const supportedTargets = Object.keys(CLI_DEFS);
+  const invalidTargets = TARGETS.filter(target => !CLI_DEFS[target]);
+  if (invalidTargets.length > 0) {
+    console.error(
+      `ERROR: Unknown target(s): ${invalidTargets.join(', ')}. Supported targets: ${supportedTargets.join(', ')}`
+    );
+    process.exit(1);
+  }
+
   if (!fs.existsSync(ENTRY_POINT)) {
     console.error(`ERROR: ${ENTRY_POINT} not found. Run 'npx tsc' first.`);
     process.exit(1);
   }
 
   const targetKeys = TARGETS.length > 0
-    ? TARGETS.filter(t => CLI_DEFS[t])
-    : Object.keys(CLI_DEFS);
+    ? TARGETS
+    : supportedTargets;
 
   let synced = 0;
 

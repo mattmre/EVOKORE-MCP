@@ -110,10 +110,24 @@ function validateConflictingFlagsFailNonZero() {
   }
 }
 
+function validateUnknownTargetFailsNonZero() {
+  const { tempRoot, env } = createIsolatedEnv();
+  try {
+    const result = runSync(['unknown-target'], env);
+    assert.notStrictEqual(result.status, 0, 'Unknown target should fail non-zero');
+    const combinedOutput = `${result.stdout}\n${result.stderr}`;
+    assert.match(combinedOutput, /unknown target\(s\):\s*unknown-target/i);
+    assert.match(combinedOutput, /supported targets:/i);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 function run() {
   validateDefaultDryRunDoesNotWrite();
   validateApplyWritesConfig();
   validateConflictingFlagsFailNonZero();
+  validateUnknownTargetFailsNonZero();
   console.log('Sync configs mode validation passed.');
 }
 
