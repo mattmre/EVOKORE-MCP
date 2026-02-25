@@ -211,7 +211,7 @@ Use this template at session start:
    - **Output:** Validation plan recorded in session log for handoff execution.
 9. **PR tracking refresh phase**
    - Refreshed stacked PR tracking metadata for the continuation chain.
-   - **Output:** `#30 -> #31 -> #32 -> #33 -> #38` with `#38` recorded as chain head.
+   - **Output:** p-chain `#30 -> #31 -> #32 -> #33` (head `#33`) and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` (head `#38`) recorded explicitly.
 
 ## Agent Execution Log (2026-02-25 Orchestration Follow-up)
 

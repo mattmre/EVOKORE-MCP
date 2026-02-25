@@ -191,6 +191,6 @@ Durable log for implementation decisions and context-rot prevention.
 - Owner: documentation-agent
 - Context: p15 context-rot risk increases when continuation handoffs imply PR ordering instead of stating it directly.
 - Options considered: keep chain continuity implicit in scattered references vs state the active chain explicitly in handoff-facing docs.
-- Decision: Use explicit chain notation `#30 -> #31 -> #32 -> #33 -> #38` and record `#38` as chain head in continuation updates.
+- Decision: Use explicit dual-chain notation: p-chain `#30 -> #31 -> #32 -> #33` and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38`, with heads `#33` and `#38` respectively.
 - Trade-offs: Slight duplication across docs, but lower ambiguity and safer multi-session orchestration continuity.
 - Follow-up: Keep next-session/tracker/matrix/session-log chain references synchronized on future follow-up passes.

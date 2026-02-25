@@ -18,7 +18,7 @@ Snapshot of the requested 15 priority items/phases, grounded in current reposito
 | p12 | Env interpolation guarantees | done | `src/ProxyManager.ts`, `test-env-sync-validation.js`, `test-unresolved-env-placeholder-validation.js`, `docs/TROUBLESHOOTING.md` | Unresolved placeholders now fail fast with explicit server/key diagnostics. |
 | p13 | Voice sidecar contract | done | `docs/USAGE.md`, `test-voice-contract-validation.js`, `test-voice-sidecar-hotreload-validation.js` | Formalized protocol contract (`text`/`persona`/`flush`) and hot-reload expectations. |
 | p14 | Sync-config safety | done | `scripts/sync-configs.js`, `test-sync-configs-mode-validation.js`, `test-sync-configs-preserve-force-validation.js`, `docs/USAGE.md` | Added preserve-existing default, `--force` override, and conflict guards. |
-| p15 | Orchestration tracking and PR slicing | done | `docs/ORCHESTRATION_TRACKER.md`, `scripts/validate-tracker-consistency.js`, `test-tracker-consistency-validation.js`, `test-next-session-freshness-validation.js`, `docs/RESEARCH_DECISIONS_LOG.md`, `docs/session-logs/session-2026-02-25-priority-orchestration.md`, `docs/session-logs/session-2026-02-25-context-rot-orchestration.md` | Added tracker evidence-path integrity checks and next-session freshness guard evidence for context-rot-resistant orchestration continuity; PR chain explicitly tracked as `#30 -> #31 -> #32 -> #33 -> #38` (`#38` chain head). |
+| p15 | Orchestration tracking and PR slicing | done | `docs/ORCHESTRATION_TRACKER.md`, `scripts/validate-tracker-consistency.js`, `test-tracker-consistency-validation.js`, `test-next-session-freshness-validation.js`, `docs/RESEARCH_DECISIONS_LOG.md`, `docs/session-logs/session-2026-02-25-priority-orchestration.md`, `docs/session-logs/session-2026-02-25-context-rot-orchestration.md` | Added tracker evidence-path integrity checks and next-session freshness guard evidence for context-rot-resistant orchestration continuity; PR chains explicitly tracked as p-chain `#30 -> #31 -> #32 -> #33` (head `#33`) and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` (head `#38`). |
 
 ## Fresh Evidence Refresh (2026-02-24)
 
@@ -33,5 +33,5 @@ Snapshot of the requested 15 priority items/phases, grounded in current reposito
 - **Tracker evidence-path integrity:** `scripts/validate-tracker-consistency.js` validates evidence tokens as repo-relative existing files; negative path case is covered in `test-tracker-consistency-validation.js`.
 - **Docs-wide link crawl:** `test-docs-canonical-links.js` recursively validates internal markdown links across `docs/`, `README.md`, and `CONTRIBUTING.md`.
 - **Windows targeted runtime confidence:** `.github/workflows/ci.yml` `windows-runtime` job runs `node test-windows-exec-validation.js` and `npx tsx test-windows-command-runtime-validation.ts`.
-- **PR chain tracking refresh:** Orchestration docs now explicitly record `#30 -> #31 -> #32 -> #33 -> #38` with `#38` as chain head.
+- **PR chain tracking refresh:** Orchestration docs now explicitly record p-chain `#30 -> #31 -> #32 -> #33` and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` with correct chain heads (`#33`, `#38`).
 
