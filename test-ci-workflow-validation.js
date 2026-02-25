@@ -18,6 +18,18 @@ function run() {
     workflow,
     /-\s*name:\s*Validate PR metadata\s*\r?\n\s*if:\s*github\.event_name\s*==\s*['"]pull_request['"]\s*\r?\n\s*run:\s*node scripts\/validate-pr-metadata\.js/
   );
+  assert.match(
+    workflow,
+    /jobs:\s*\r?\n(?:[^\n]*\r?\n)*?\s{2,}windows-runtime:\s*\r?\n\s*runs-on:\s*windows-latest\b/
+  );
+  assert.match(
+    workflow,
+    /\s*-\s*run:\s*node test-windows-exec-validation\.js\b/
+  );
+  assert.match(
+    workflow,
+    /\s*-\s*run:\s*npx tsx test-windows-command-runtime-validation\.ts\b/
+  );
 
   console.log('CI workflow trigger validation passed.');
 }
