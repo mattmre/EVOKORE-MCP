@@ -21,6 +21,41 @@ function getInternalMarkdownLinks(markdown) {
   return links;
 }
 
+function collectMarkdownFiles(dirPath) {
+  const files = [];
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectMarkdownFiles(fullPath));
+      continue;
+    }
+    if (entry.isFile() && path.extname(entry.name).toLowerCase() === '.md') {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
+function resolveInternalLinkPath(sourceFilePath, href) {
+  const hrefWithoutAnchor = href.split('#')[0].split('?')[0];
+  if (!hrefWithoutAnchor) {
+    return null;
+  }
+
+  const canonicalAliasMap = {
+    '/docs/architecture.md': path.join('docs', 'V2_ARCHITECTURE_PLAN.md'),
+    '/docs/workflows.md': path.join('docs', 'V2_MULTI_AGENT_WORKFLOWS.md')
+  };
+
+  const mappedTarget = canonicalAliasMap[hrefWithoutAnchor] || hrefWithoutAnchor;
+  if (mappedTarget.startsWith('/')) {
+    return path.resolve(__dirname, mappedTarget.replace(/^\/+/, ''));
+  }
+  return path.resolve(path.dirname(sourceFilePath), mappedTarget);
+}
+
 function run() {
   const docsReadmePath = path.resolve(__dirname, 'docs', 'README.md');
   const submodulePath = path.resolve(__dirname, 'docs', 'SUBMODULE_WORKFLOW.md');
@@ -38,15 +73,25 @@ function run() {
   assert.match(docsReadme, /\/docs\/architecture\.md/);
   assert.match(docsReadme, /\/docs\/workflows\.md/);
 
-  const internalLinks = getInternalMarkdownLinks(docsReadme);
-  assert.ok(internalLinks.length > 0, 'docs/README.md should contain internal markdown links');
-  for (const href of internalLinks) {
-    const hrefWithoutAnchor = href.split('#')[0].split('?')[0];
-    if (!hrefWithoutAnchor) {
-      continue;
+  const markdownFilesToValidate = [
+    ...collectMarkdownFiles(path.resolve(__dirname, 'docs')),
+    readmePath,
+    contributingPath
+  ].sort((a, b) => a.localeCompare(b));
+
+  for (const markdownFilePath of markdownFilesToValidate) {
+    const markdown = fs.readFileSync(markdownFilePath, 'utf8');
+    const internalLinks = getInternalMarkdownLinks(markdown);
+    for (const href of internalLinks) {
+      const resolvedLinkPath = resolveInternalLinkPath(markdownFilePath, href);
+      if (!resolvedLinkPath) {
+        continue;
+      }
+      assert.ok(
+        fs.existsSync(resolvedLinkPath),
+        `${path.relative(__dirname, markdownFilePath)} link target missing: ${href}`
+      );
     }
-    const resolvedLinkPath = path.resolve(path.dirname(docsReadmePath), hrefWithoutAnchor);
-    assert.ok(fs.existsSync(resolvedLinkPath), `docs/README.md link target missing: ${href}`);
   }
 
   const canonicalArchitecturePath = path.resolve(__dirname, 'docs', 'V2_ARCHITECTURE_PLAN.md');
