@@ -49,6 +49,10 @@ jobs:
       with:
         node-version: '18.x'
 
+    - name: Validate PR metadata
+      if: github.event_name == 'pull_request'
+      run: node scripts/validate-pr-metadata.js
+
     - run: npm ci
 
     - name: Run tests
