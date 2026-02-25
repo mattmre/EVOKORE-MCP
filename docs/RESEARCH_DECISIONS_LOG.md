@@ -185,3 +185,12 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Maintain `.github/workflows/ci.yml` `windows-runtime` job running `test-windows-exec-validation.js` and `test-windows-command-runtime-validation.ts`.
 - Trade-offs: Additional CI runtime/cost, but materially higher confidence in Windows command resolution behavior.
 - Follow-up: Keep p11 evidence and notes explicitly anchored to the Windows job and runtime tests.
+
+### Decision: Make active PR chain continuity explicit in handoff docs
+- Date: 2026-02-25
+- Owner: documentation-agent
+- Context: p15 context-rot risk increases when continuation handoffs imply PR ordering instead of stating it directly.
+- Options considered: keep chain continuity implicit in scattered references vs state the active chain explicitly in handoff-facing docs.
+- Decision: Use explicit chain notation `#30 -> #31 -> #32 -> #33 -> #38` and record `#38` as chain head in continuation updates.
+- Trade-offs: Slight duplication across docs, but lower ambiguity and safer multi-session orchestration continuity.
+- Follow-up: Keep next-session/tracker/matrix/session-log chain references synchronized on future follow-up passes.
