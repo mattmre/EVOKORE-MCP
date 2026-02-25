@@ -103,6 +103,14 @@ Then restart Claude Code and retry `converse`.
 
 **Location:** `~/.evokore/logs/hooks.jsonl`
 
+**Schema quick reference:**
+
+- `ts` (ISO timestamp)
+- `hook` (for example `damage-control`, `purpose-gate`, `session-replay`, `tilldone`)
+- `event` (hook-specific event label)
+- `session_id` (optional, sanitized)
+- hook-specific fields (for example `tool`, `reason`, `mode`, `incomplete_count`)
+
 **PowerShell checks:**
 ```powershell
 # Last 50 events
@@ -113,4 +121,30 @@ Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
   ForEach-Object { $_ | ConvertFrom-Json } |
   Where-Object { $_.hook -eq "tilldone" }
 ```
+
+## 12. Windows Command Boot Fails for Child Servers
+**Symptoms:** Child server boot fails on Windows when using `uv` or `uvx`, even though `npx`-based servers work.
+
+**Cause:** EVOKORE remaps only `npx` to `npx.cmd` on Windows. It does not rewrite `uv` or `uvx` command names.
+
+**Solution:**
+- Verify `uv --version` and `uvx --version` in the same shell used to launch your MCP host.
+- Ensure the configured command in `mcp.config.json` matches a command available on PATH.
+- Use `npx`-based child configs only when that command is intentionally required.
+
+## 13. CI Fails on Submodule Cleanliness Validation
+**Symptoms:** CI fails on `node scripts/validate-submodule-cleanliness.js`.
+
+**Common causes by marker/state:**
+- `-` uninitialized submodule
+- `+` submodule commit mismatch (worktree commit differs from parent gitlink)
+- `U` submodule merge conflict
+- non-empty submodule `git status --porcelain` output (dirty submodule worktree)
+
+**Solution:**
+1. Run `git submodule update --init --recursive`.
+2. Run `git submodule status --recursive` and verify no unexpected mismatch/conflict states.
+3. Commit inside the submodule first when needed.
+4. Commit the updated submodule pointer in this parent repo.
+5. Re-run `node scripts/validate-submodule-cleanliness.js` before pushing.
 
