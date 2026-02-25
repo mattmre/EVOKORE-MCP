@@ -40,10 +40,17 @@ function validatePriorityMatrix(matrixContents) {
   const issues = [];
   const expectedIds = expectedPriorityIds();
   const expectedIdSet = new Set(expectedIds);
-  const idMatches = matrixContents.match(/\bp\d{2}\b/g) || [];
-  const idCounts = new Map();
+  const matrixRows = matrixContents
+    .split(/\r?\n/)
+    .filter((line) => /^\|\s*p\d{2}\s*\|/.test(line));
 
-  for (const id of idMatches) {
+  const idCounts = new Map();
+  for (const row of matrixRows) {
+    const columns = row.split('|');
+    const id = (columns[1] || '').trim();
+    if (!id) {
+      continue;
+    }
     idCounts.set(id, (idCounts.get(id) || 0) + 1);
   }
 
@@ -59,10 +66,6 @@ function validatePriorityMatrix(matrixContents) {
       issues.push(`Unexpected priority ID found: "${id}".`);
     }
   }
-
-  const matrixRows = matrixContents
-    .split(/\r?\n/)
-    .filter((line) => /^\|\s*p\d{2}\s*\|/.test(line));
 
   for (const row of matrixRows) {
     const columns = row.split('|');
