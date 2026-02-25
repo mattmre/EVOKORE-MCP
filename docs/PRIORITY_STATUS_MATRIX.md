@@ -35,3 +35,22 @@ Snapshot of the requested 15 priority items/phases, grounded in current reposito
 - **Windows targeted runtime confidence:** `.github/workflows/ci.yml` `windows-runtime` job runs `node test-windows-exec-validation.js` and `npx tsx test-windows-command-runtime-validation.ts`.
 - **PR chain tracking refresh:** Orchestration docs now explicitly record p-chain `#30 -> #31 -> #32 -> #33` and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` with correct chain heads (`#33`, `#38`).
 
+## Fresh Evidence Refresh (2026-02-25 Final PR-Chain Outcome)
+
+- **Final chain closure snapshot:** PRs `#30`, `#31`, `#32`, `#33`, `#34`, `#36`, `#37`, and `#38` are now merged, closing both tracked chains.
+- **PR #35 contained-commit nuance:** PR `#35` is closed with `merged=false`; `head` SHA equals `base` SHA (`10c93dc64cc9b79ad5968161e90366e5409256cd`), confirming no merge commit was needed because content was already present in `main`.
+- **Durable outcome artifact:** `docs/session-logs/session-2026-02-25-pr-chain-outcome.md` captures PR-by-PR final outcomes and evidence links.
+
+## Fresh Evidence Refresh (2026-02-25 Post-Dispatch Release Verification)
+
+- **Release workflow outcome:** `workflow_dispatch` run `22404533191` completed with overall status `success` and `publish` job status `success` (evidence: https://github.com/mattmre/EVOKORE-MCP/actions/runs/22404533191).
+- **Publish-step behavior:** In `publish`, step `Publish to npm` is `skipped` while step `Publish skipped (NPM_TOKEN missing)` is `success`.
+- **Tag/release reconciliation:** Remote tags include `v2.0.0` and `v2.0.1`; latest releases API check returned `404`, indicating no GitHub release object in this run context.
+
+## Fresh Evidence Refresh (2026-02-25 Post-Release Next-Slice Selection)
+
+- **Priority #2 closure reaffirmed:** Final PR outcomes remain captured with contained-commit nuance for `#35` (`merged=false`, head SHA equals base SHA), as documented in `docs/session-logs/session-2026-02-25-pr-chain-outcome.md`.
+- **Priority #5 closure completed:** Release verification is complete and next-priority selection is now finalized.
+- **Selected next slice:** Dynamic Tool Discovery MVP (metadata index + retrieval-gated tool injection) with baseline benchmark harness.
+- **Decision log artifact:** `docs/session-logs/session-2026-02-25-post-release-next-slice.md`.
+
