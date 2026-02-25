@@ -14,7 +14,10 @@ function run() {
     workflow,
     /jobs:\s*\r?\n(?:[^\n]*\r?\n)*?\s{2,}test:\s*\r?\n(?:[^\n]*\r?\n)*?\s*-\s*name:\s*Run tests\s*\r?\n\s*run:\s*npm test\b/
   );
-  assert.doesNotMatch(workflow, /(?:^|\r?\n)\s*if:\s*github\.event_name\s*==\s*['"]pull_request['"]/);
+  assert.match(
+    workflow,
+    /-\s*name:\s*Validate PR metadata\s*\r?\n\s*if:\s*github\.event_name\s*==\s*['"]pull_request['"]\s*\r?\n\s*run:\s*node scripts\/validate-pr-metadata\.js/
+  );
 
   console.log('CI workflow trigger validation passed.');
 }

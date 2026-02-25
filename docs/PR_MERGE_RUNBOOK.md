@@ -6,6 +6,7 @@ Operator runbook for reliable merges and context-rot prevention.
 
 - [ ] PR scope matches approved plan
 - [ ] PR description is filled using `.github/pull_request_template.md`
+- [ ] PR metadata automation check (`scripts/validate-pr-metadata.js`) is passing for pull_request CI runs
 - [ ] Required tests pass locally/CI
 - [ ] Docs updated for user-facing behavior changes
 - [ ] Release-impacting changes called out
