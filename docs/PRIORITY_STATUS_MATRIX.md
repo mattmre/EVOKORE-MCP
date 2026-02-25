@@ -13,12 +13,12 @@ Snapshot of the requested 15 priority items/phases, grounded in current reposito
 | p07 | Submodule commit-order safety | done | `.github/workflows/ci.yml`, `scripts/validate-submodule-cleanliness.js`, `test-submodule-commit-order-guard-validation.js` | Added CI guard for uninitialized/mismatched/dirty submodules. |
 | p08 | Dist path resolution safety | done | `test-dist-path-validation.js` | Dist/runtime path validation remains passing and unchanged by this cycle. |
 | p09 | Frontmatter regex robustness | done | `test-regex-frontmatter-standardization.js`, `src/SkillManager.ts` | Added SkillManager canonical regex coverage to regression guard. |
-| p10 | Docs canonical mapping | done | `test-docs-canonical-links.js`, `docs/README.md` | Extended docs link validation to resolve internal links and mapped canonical targets. |
-| p11 | Windows command resolution | done | `src/utils/resolveCommandForPlatform.ts`, `src/ProxyManager.ts`, `test-windows-command-runtime-validation.ts`, `test-windows-exec-validation.js`, `test-voice-windows-docs-validation.js` | Runtime and integration coverage validate `npx -> npx.cmd` behavior and Windows guidance. |
+| p10 | Docs canonical mapping | done | `test-docs-canonical-links.js`, `docs/README.md`, `README.md`, `CONTRIBUTING.md` | Docs-wide internal markdown link crawl now validates recursive link targets plus canonical alias mappings. |
+| p11 | Windows command resolution | done | `.github/workflows/ci.yml` (`windows-runtime` job), `src/utils/resolveCommandForPlatform.ts`, `src/ProxyManager.ts`, `test-windows-command-runtime-validation.ts`, `test-windows-exec-validation.js`, `test-voice-windows-docs-validation.js` | Targeted Windows CI runtime job executes command-resolution validations for higher platform confidence. |
 | p12 | Env interpolation guarantees | done | `src/ProxyManager.ts`, `test-env-sync-validation.js`, `test-unresolved-env-placeholder-validation.js`, `docs/TROUBLESHOOTING.md` | Unresolved placeholders now fail fast with explicit server/key diagnostics. |
 | p13 | Voice sidecar contract | done | `docs/USAGE.md`, `test-voice-contract-validation.js`, `test-voice-sidecar-hotreload-validation.js` | Formalized protocol contract (`text`/`persona`/`flush`) and hot-reload expectations. |
 | p14 | Sync-config safety | done | `scripts/sync-configs.js`, `test-sync-configs-mode-validation.js`, `test-sync-configs-preserve-force-validation.js`, `docs/USAGE.md` | Added preserve-existing default, `--force` override, and conflict guards. |
-| p15 | Orchestration tracking and PR slicing | done | `docs/ORCHESTRATION_TRACKER.md`, `scripts/validate-tracker-consistency.js`, `test-tracker-consistency-validation.js`, `docs/RESEARCH_DECISIONS_LOG.md`, `docs/session-logs/session-2026-02-25-priority-orchestration.md` | Added automated tracker/matrix consistency guard with durable latest-run slicing evidence. |
+| p15 | Orchestration tracking and PR slicing | done | `docs/ORCHESTRATION_TRACKER.md`, `scripts/validate-tracker-consistency.js`, `test-tracker-consistency-validation.js`, `test-next-session-freshness-validation.js`, `docs/RESEARCH_DECISIONS_LOG.md`, `docs/session-logs/session-2026-02-25-priority-orchestration.md`, `docs/session-logs/session-2026-02-25-context-rot-orchestration.md` | Added tracker evidence-path integrity checks and next-session freshness guard evidence for context-rot-resistant orchestration continuity; PR chains explicitly tracked as p-chain `#30 -> #31 -> #32 -> #33` (head `#33`) and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` (head `#38`). |
 
 ## Fresh Evidence Refresh (2026-02-24)
 
@@ -26,4 +26,12 @@ Snapshot of the requested 15 priority items/phases, grounded in current reposito
 - **Release manual gate:** `.github/workflows/release.yml` enforces `workflow_dispatch` input `chain_complete=true` before publish continues.
 - **Hooks observability:** `scripts/hook-observability.js` provides JSONL telemetry (`~/.evokore/logs/hooks.jsonl`) with validation in `hook-test-suite.js` and `hook-e2e-validation.js`.
 - **Windows execution:** `src/ProxyManager.ts` includes platform command resolution helper (`resolveCommandForPlatform`) and remains guarded by `test-windows-exec-validation.js`.
+
+## Fresh Evidence Refresh (2026-02-25)
+
+- **Next-session freshness guard:** `test-next-session-freshness-validation.js` enforces `next-session.md` date recency in default validation flow.
+- **Tracker evidence-path integrity:** `scripts/validate-tracker-consistency.js` validates evidence tokens as repo-relative existing files; negative path case is covered in `test-tracker-consistency-validation.js`.
+- **Docs-wide link crawl:** `test-docs-canonical-links.js` recursively validates internal markdown links across `docs/`, `README.md`, and `CONTRIBUTING.md`.
+- **Windows targeted runtime confidence:** `.github/workflows/ci.yml` `windows-runtime` job runs `node test-windows-exec-validation.js` and `npx tsx test-windows-command-runtime-validation.ts`.
+- **PR chain tracking refresh:** Orchestration docs now explicitly record p-chain `#30 -> #31 -> #32 -> #33` and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` with correct chain heads (`#33`, `#38`).
 

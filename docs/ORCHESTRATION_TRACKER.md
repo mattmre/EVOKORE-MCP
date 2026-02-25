@@ -180,3 +180,70 @@ Use this template at session start:
 6. **PR publication phase**
    - Published stacked review chain for this run.
    - **Output:** `#30 -> #31 -> #32 -> #33`.
+
+## Agent Execution Log (2026-02-25 Context-Rot Orchestration Run)
+
+- **Date:** 2026-02-25
+
+1. **Researcher phase**
+   - Re-checked documentation and validation coverage for context-rot guardrails.
+   - **Output:** Scope set for freshness, evidence integrity, docs link crawl, and Windows CI runtime confidence.
+2. **Architect phase**
+   - Defined minimal additive documentation-only update plan aligned to existing code/tests/workflow evidence.
+   - **Output:** Phase plan with implementer slices A-D.
+3. **Implementer slice A**
+   - Captured next-session freshness guard evidence alignment.
+   - **Output:** Tracker/matrix/decision updates scoped to freshness guard.
+4. **Implementer slice B**
+   - Captured tracker evidence-path integrity guard evidence alignment.
+   - **Output:** Tracker/matrix/decision updates scoped to evidence-path validation.
+5. **Implementer slice C**
+   - Captured docs-wide link crawl guard evidence alignment.
+   - **Output:** Tracker/matrix/decision updates scoped to markdown link crawl validation.
+6. **Implementer slice D**
+   - Captured Windows targeted CI runtime confidence evidence alignment.
+   - **Output:** Tracker/matrix/decision updates scoped to `windows-runtime` CI job and runtime test.
+7. **Documentation phase**
+   - Added session log and refreshed docs index latest-log link.
+   - **Output:** New session artifact linked from docs README.
+8. **Tester/Reviewer planned phase**
+   - Planned targeted validation pass and reviewer sweep for doc-evidence consistency.
+   - **Output:** Validation plan recorded in session log for handoff execution.
+9. **PR tracking refresh phase**
+   - Refreshed stacked PR tracking metadata for the continuation chain.
+   - **Output:** p-chain `#30 -> #31 -> #32 -> #33` (head `#33`) and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` (head `#38`) recorded explicitly.
+
+## Agent Execution Log (2026-02-25 Orchestration Follow-up)
+
+- **Researcher phase**
+  - Re-checked continuation handoff context against p15 context-rot risks and active PR ordering.
+  - **Output:** Confirmed chain refresh should explicitly include `#38` as current head.
+- **Architect phase**
+  - Scoped minimal additive documentation-only follow-up for continuity evidence.
+  - **Output:** Planned explicit chain continuity + run-artifact refresh with no code-scope expansion.
+- **Implementer phase**
+  - Applied concise documentation refresh across continuation artifacts.
+  - **Output:** Docs updates recorded in `next-session.md`, orchestration tracker, priority matrix, and session log.
+- **Tester phase**
+  - Captured validation outcomes for handoff integrity.
+  - **Output:** Targeted validations passed and full `npm test` passed.
+
+## Agent Execution Log (2026-02-25 Agentic Orchestration Execution)
+
+1. **Researcher phase**
+   - Revalidated active PR chains and mergeability states for `#30-#38`.
+   - **Output:** Current-state chain audit for merge handoff.
+2. **Architect phase**
+   - Confirmed strict base-first ordering and explicit instability handling for `#34`.
+   - **Output:** Chain-safe merge sequence plan.
+3. **Documentation/Implementer phase**
+   - Added durable session artifact and refreshed tracker/index/next-session continuity pointers.
+   - **Output:** Minimal additive docs-only continuity updates.
+4. **Tester phase**
+   - Executed targeted docs/tracker guardrails plus `npm run build` and full `npm test`.
+   - **Output:** All validation commands passed.
+5. **Reviewer phase**
+   - Confirmed chain snapshot and required sequencing controls before merge.
+   - **Output:** Approval/merge handoff constraints documented.
+
+- **Chain snapshot summary:** p-chain `#30 -> #31 -> #32 -> #33` all open/clean; context-rot chain `#34 -> #35 -> #36 -> #37 -> #38` with `#34` open/unstable and `#35-#38` open/clean.

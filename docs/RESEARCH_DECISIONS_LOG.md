@@ -149,3 +149,48 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Write sanitized hook events to `~/.evokore/logs/hooks.jsonl` through `scripts/hook-observability.js`.
 - Trade-offs: Additional local log footprint, but strong post-run diagnostics and replayability across hook phases.
 - Follow-up: Maintain coverage in `hook-test-suite.js` and `hook-e2e-validation.js` for event creation and stability.
+
+### Decision: Enforce next-session freshness guard in baseline validation
+- Date: 2026-02-25
+- Owner: architect
+- Context: `next-session.md` can become stale and degrade handoff quality during orchestration continuation.
+- Options considered: manual freshness checks vs automated age validation in test suite.
+- Decision: Treat `test-next-session-freshness-validation.js` as required freshness guard evidence for orchestration docs continuity.
+- Trade-offs: Requires timely date maintenance, but prevents stale session-handoff state from persisting unnoticed.
+- Follow-up: Keep freshness guard listed in docs validation anchors and orchestration evidence.
+
+### Decision: Validate tracker evidence paths as repo-relative, in-repo, and existing files
+- Date: 2026-02-25
+- Owner: implementer
+- Context: Priority matrix evidence drift or invalid paths can silently break tracker reliability.
+- Options considered: ID/status-only tracker checks vs deep evidence-token path validation.
+- Decision: Keep evidence-path integrity checks in `scripts/validate-tracker-consistency.js` and failure coverage in `test-tracker-consistency-validation.js`.
+- Trade-offs: Slightly stricter docs maintenance, but deterministic detection of broken/escaped/missing evidence paths.
+- Follow-up: Preserve evidence-path summary/failure assertions in tracker consistency test flow.
+
+### Decision: Use docs-wide internal markdown link crawl as canonical docs integrity guard
+- Date: 2026-02-25
+- Owner: researcher
+- Context: Point checks on selected docs miss broken links introduced in less-touched markdown files.
+- Options considered: validate only docs index links vs recursively crawl internal markdown links across docs/readme/contributing.
+- Decision: Rely on `test-docs-canonical-links.js` recursive crawl and canonical alias mapping as docs-wide integrity evidence.
+- Trade-offs: Broader crawl can surface more failures, but catches regressions earlier and improves docs durability.
+- Follow-up: Keep docs link guard in default `npm test` chain and matrix evidence notes.
+
+### Decision: Add targeted Windows CI runtime confidence job
+- Date: 2026-02-25
+- Owner: architect
+- Context: Linux-only CI cannot prove runtime command invocation behavior specific to Windows.
+- Options considered: rely on static/unit docs checks vs add dedicated Windows CI runtime job.
+- Decision: Maintain `.github/workflows/ci.yml` `windows-runtime` job running `test-windows-exec-validation.js` and `test-windows-command-runtime-validation.ts`.
+- Trade-offs: Additional CI runtime/cost, but materially higher confidence in Windows command resolution behavior.
+- Follow-up: Keep p11 evidence and notes explicitly anchored to the Windows job and runtime tests.
+
+### Decision: Make active PR chain continuity explicit in handoff docs
+- Date: 2026-02-25
+- Owner: documentation-agent
+- Context: p15 context-rot risk increases when continuation handoffs imply PR ordering instead of stating it directly.
+- Options considered: keep chain continuity implicit in scattered references vs state the active chain explicitly in handoff-facing docs.
+- Decision: Use explicit dual-chain notation: p-chain `#30 -> #31 -> #32 -> #33` and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38`, with heads `#33` and `#38` respectively.
+- Trade-offs: Slight duplication across docs, but lower ambiguity and safer multi-session orchestration continuity.
+- Follow-up: Keep next-session/tracker/matrix/session-log chain references synchronized on future follow-up passes.

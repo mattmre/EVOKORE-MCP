@@ -59,6 +59,26 @@ When EVOKORE proxies child MCP servers, tool names use the prefixed tool name fo
 
 Child server env values in `mcp.config.json` can reference placeholders like `${ELEVENLABS_API_KEY}`. If any placeholder is unresolved at startup, EVOKORE fails fast for that child server and logs an explicit error instead of silently substituting an empty value. Other child servers continue booting.
 
+### 3.1 PR governance metadata for process/tooling/release changes
+
+For process/tooling/release-impacting changes, use `.github/pull_request_template.md` and follow `docs/PR_MERGE_RUNBOOK.md`.
+
+Required metadata fields include:
+
+- Priority ID(s)
+- Dependency chain (`base -> dependent`)
+- Chain-head PR yes/no
+- Required checks evidence
+- Merge-boundary revalidation notes
+- Release-impact notes
+
+### 3.2 Windows command resolution behavior
+
+On Windows, EVOKORE runtime command resolution remaps **only** `npx` to `npx.cmd`.
+
+- `uv` and `uvx` are **not** remapped to `.cmd` by EVOKORE.
+- Ensure your shell PATH can resolve `uv --version` / `uvx --version` directly when used in child-server configs.
+
 ## 4. Voice Integration
 
 EVOKORE-MCP supports voice input/output through two complementary systems:
@@ -211,6 +231,8 @@ Validation checks for this path:
 Safe npm publish is handled in GitHub Actions via `.github/workflows/release.yml`.
 
 - Triggers: `v*.*.*` tags and `workflow_dispatch`
+- Manual workflow guard: `workflow_dispatch` requires `chain_complete=true`
+- Mainline safety gate: release commit must be an ancestor of `origin/main`
 - Gates: `npm ci`, `npm test`, `npm run build`
 - Publish guard: requires `NPM_TOKEN` secret
 - Validation: `node test-npm-release-flow-validation.js`
@@ -258,6 +280,23 @@ EVOKORE hook scripts emit structured JSONL events to:
 - `~/.evokore/logs/hooks.jsonl`
 
 Use this when validating hook behavior (damage-control, purpose-gate, session-replay, tilldone) without changing normal hook UX.
+
+Event envelope fields:
+
+- `ts`: ISO timestamp
+- `hook`: hook identifier (`damage-control`, `purpose-gate`, `session-replay`, `tilldone`)
+- `event`: hook-specific event name
+- `session_id` (optional): sanitized session ID when available
+- additional hook-specific metadata (for example `tool`, `reason`, `mode`, `incomplete_count`)
+
+Common events:
+
+- `damage-control`: `allow`, `ask`, `block`, `fail_open`
+- `purpose-gate`: `state_initialized`, `purpose_recorded`, `purpose_reminder`, `fail_safe_error`
+- `session-replay`: `replay_entry_written`, `fail_safe_error`
+- `tilldone`: `hook_mode_block`, `hook_mode_allow`, `hook_mode_fail_safe`, `cli_action`, `cli_error`
+
+Observability logging is best-effort and fail-safe: hook logging failures do not block hook execution paths.
 
 PowerShell quick checks:
 

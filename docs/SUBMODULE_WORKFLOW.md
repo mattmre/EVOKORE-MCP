@@ -27,14 +27,32 @@ git status
 git diff --submodule
 ```
 
-## 3) Update Docs in This Repo
+## 3) Validate Submodule Cleanliness (Local + CI)
+
+Run the same guard used in CI before opening your PR:
+
+```bash
+git submodule status --recursive
+node scripts/validate-submodule-cleanliness.js
+```
+
+Cleanliness semantics:
+
+- `-` => uninitialized submodule
+- `+` => submodule commit mismatch (worktree vs gitlink pointer)
+- `U` => submodule merge conflict
+- dirty submodule worktree => non-empty `git -C <submodule> status --porcelain`
+
+Submodule paths can include spaces (for example `SKILLS/ANTHROPIC COOKBOOK`), so always quote path arguments when running manual `git -C` commands.
+
+## 4) Update Docs in This Repo
 
 When a submodule changes behavior, update:
 - `docs/README.md` if canonical links changed
 - `docs/USAGE.md` / `docs/TROUBLESHOOTING.md` if runtime guidance changed
 - `README.md` / `CONTRIBUTING.md` if contributor workflow changed
 
-## 4) PR Expectations
+## 5) PR Expectations
 
 For submodule-related PRs:
 1. Commit inside the submodule first.
