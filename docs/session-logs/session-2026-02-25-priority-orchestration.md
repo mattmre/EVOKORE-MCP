@@ -58,3 +58,4 @@ Capture the 2026-02-25 orchestration run with durable evidence for priority slic
 - Keep changes reviewable as priority-aligned slices: **p01/p02**, **p04**, **p11**, **p15**.
 - Merge base-first with revalidation at each boundary before approving dependent PRs.
 - Run release sequence only after chain completion and final green checks.
+- Published stacked PR chain: **#30 -> #31 -> #32 -> #33**.

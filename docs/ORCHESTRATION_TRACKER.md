@@ -177,3 +177,6 @@ Use this template at session start:
 5. **Tester phase**
    - Recorded targeted pass set and full-suite confirmation for orchestration guardrails.
    - **Output:** Validation outcomes captured for merge/release handoff.
+6. **PR publication phase**
+   - Published stacked review chain for this run.
+   - **Output:** `#30 -> #31 -> #32 -> #33`.
