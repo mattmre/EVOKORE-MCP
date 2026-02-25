@@ -9,6 +9,7 @@ const path_1 = __importDefault(require("path"));
 const index_js_1 = require("@modelcontextprotocol/sdk/client/index.js");
 const stdio_js_1 = require("@modelcontextprotocol/sdk/client/stdio.js");
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
+const resolveCommandForPlatform_1 = require("./utils/resolveCommandForPlatform");
 const CONFIG_FILE = path_1.default.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 class ProxyManager {
@@ -52,16 +53,10 @@ class ProxyManager {
             const config = JSON.parse(content);
             if (!config.servers)
                 return;
-            const isWindows = process.platform === "win32";
             for (const [serverId, serverConfig] of Object.entries(config.servers)) {
                 try {
                     console.error(`[EVOKORE] Booting child server: ${serverId}`);
-                    let cmd = serverConfig.command;
-                    // Apply Windows executable fallback
-                    // npx needs .cmd extension on Windows; uvx/uv install as .exe and resolve via PATH
-                    if (isWindows && cmd === "npx") {
-                        cmd = "npx.cmd";
-                    }
+                    const cmd = (0, resolveCommandForPlatform_1.resolveCommandForPlatform)(serverConfig.command);
                     // Resolve ${VAR} references in env values from process.env
                     const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
                     const env = { ...process.env, ...resolvedEnv };

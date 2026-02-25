@@ -5,6 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { Tool, CallToolRequestSchema, McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { SecurityManager } from "./SecurityManager";
+import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
 
 const CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
@@ -52,14 +53,6 @@ export class ProxyManager {
     return resolvedEnv;
   }
 
-  private resolveCommandForPlatform(command: string): string {
-    if (process.platform === "win32" && command === "npx") {
-      return "npx.cmd";
-    }
-
-    return command;
-  }
-
   async loadServers() {
     this.clients.clear();
     this.transports.clear();
@@ -75,7 +68,7 @@ export class ProxyManager {
       for (const [serverId, serverConfig] of Object.entries(config.servers as Record<string, ServerConfig>)) {
         try {
           console.error(`[EVOKORE] Booting child server: ${serverId}`);
-          const cmd = this.resolveCommandForPlatform(serverConfig.command);
+          const cmd = resolveCommandForPlatform(serverConfig.command);
           
           // Resolve ${VAR} references in env values from process.env
           const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
