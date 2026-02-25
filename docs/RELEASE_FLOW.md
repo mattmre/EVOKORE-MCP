@@ -2,6 +2,24 @@
 
 This repository publishes to npm through a guarded GitHub Actions workflow: `.github/workflows/release.yml`.
 
+## Current State Verification
+
+Do not rely on static values in this document for release state.
+Always verify current release status at runtime with commands:
+
+```bash
+# Latest pushed release tag in the remote repository
+git ls-remote --tags origin "v*" | sed 's/.*refs\/tags\///' | sort -V | tail -n 1
+
+# Latest GitHub release metadata (if releases are created)
+gh release list --limit 1
+
+# Most recent Release workflow runs and outcomes
+gh run list --workflow release.yml --limit 5
+```
+
+If `NPM_TOKEN` is not configured, the workflow completes successfully with publish explicitly skipped.
+
 ## Triggers
 
 - **Git tag push**: `v*.*.*` (for normal releases)
@@ -11,6 +29,14 @@ This repository publishes to npm through a guarded GitHub Actions workflow: `.gi
 
 Before any release (including manual reruns), confirm the full dependency chain is complete.
 Manual workflow dispatches are blocked unless the `chain_complete` input is explicitly set to `true`.
+
+## Manual Dispatch Gate Details
+
+For `workflow_dispatch` runs:
+
+- Input: `chain_complete` (`boolean`)
+- Required value to proceed: `true`
+- If `chain_complete != true`, the workflow exits early before publish steps
 
 ## Safe Publish Sequence
 
