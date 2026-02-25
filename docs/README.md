@@ -16,12 +16,13 @@ Use this file as the canonical entrypoint for repository documentation.
 - [PR Template](../.github/pull_request_template.md)
 - [Release Notes v2.0.1](./RELEASE_NOTES_v2.0.1.md)
 - [Session Logs](./session-logs/)
-- [Latest Orchestration Log (2026-02-25)](./session-logs/session-2026-02-25-priority-orchestration.md)
+- [Latest Orchestration Log (2026-02-25, Context-Rot)](./session-logs/session-2026-02-25-context-rot-orchestration.md)
 
 ## Validation Anchors
 
 - Docs canonical links: `test-docs-canonical-links.js`
 - Ops docs guardrails: `test-ops-docs-validation.js`
+- Next session freshness guard: `test-next-session-freshness-validation.js`
 - Voice hook transport: `test-voice-e2e-validation.js`
 - Voice persona/speed refinement: `test-voice-refinement-validation.js`
 - Voice sidecar runtime smoke: `test-voice-sidecar-smoke-validation.js`
