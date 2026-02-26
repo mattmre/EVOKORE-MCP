@@ -47,8 +47,17 @@ The release job runs the same quality gates used in development:
 3. `npm test`
 4. `npm run build`
 5. `npm publish` (only when `NPM_TOKEN` is configured)
+6. Create GitHub Release (only on tag push; see below)
 
 If `NPM_TOKEN` is not set in repository secrets, publish is skipped and the workflow still reports the guard condition.
+
+## GitHub Release Auto-Creation
+
+When the workflow is triggered by a tag push (`refs/tags/v*.*.*`), a GitHub Release is automatically created after the publish step using [softprops/action-gh-release@v2](https://github.com/softprops/action-gh-release). The release uses GitHub's auto-generated release notes, which summarize commits since the previous tag.
+
+A `workflow_dispatch` run does not create a GitHub Release because the `if: startsWith(github.ref, 'refs/tags/')` condition is not satisfied. Manual releases should only be created via the GitHub UI if needed after a dispatch run.
+
+The workflow requires `contents: write` permission on the `GITHUB_TOKEN` to allow release creation.
 
 ## Operator Checklist
 
