@@ -66,3 +66,57 @@ function copilot-evokore {
     node "/absolute/path/to/EVOKORE-MCP/scripts/status.js"
 }
 ```
+
+---
+
+## Cross-CLI Config Sync
+
+EVOKORE-MCP includes a config sync script (`scripts/sync-configs.js`) that automatically registers the `evokore-mcp` server entry in each supported CLI's configuration file. This eliminates manual JSON editing across multiple tools.
+
+### Quick Start
+
+```bash
+# Preview what would change (default mode -- no files written)
+npm run sync:dry
+
+# Apply changes to all detected CLIs
+npm run sync
+```
+
+### Supported Targets
+
+| Target | Config File Location | Detection Method |
+|---|---|---|
+| `claude-code` | `~/.claude/settings.json` | `which claude` / `where claude` |
+| `claude-desktop` | `%APPDATA%/Claude/claude_desktop_config.json` (Windows), `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS), `~/.config/claude/claude_desktop_config.json` (Linux) | Config directory exists |
+| `cursor` | `~/.cursor/mcp.json` (user-level, preferred) or `<project>/.cursor/mcp.json` (fallback) | `which cursor` / `where cursor`, or `~/.cursor/` directory exists |
+| `gemini` | Manual only (no file written) | `which gemini` / `where gemini` |
+
+You can also target specific CLIs by passing them as positional arguments:
+
+```bash
+node scripts/sync-configs.js --apply claude-code cursor
+```
+
+### Entry Modes
+
+The script supports two entry modes that control how existing `evokore-mcp` entries are handled:
+
+- **`--preserve-existing`** (default): If an `evokore-mcp` entry already exists in the config file, it is left untouched. Other servers in the config are never modified. This is the safe default for users who have customized their entry.
+- **`--force`**: Overwrites any existing `evokore-mcp` entry with the canonical entry pointing to the current project's `dist/index.js`. Useful after moving the project directory or resetting to defaults.
+
+These flags are mutually exclusive; passing both will exit with an error.
+
+### Gemini Manual-Only Mode
+
+The Gemini CLI does not use a JSON config file for MCP server registration. Instead, the sync script detects whether `gemini` is available on PATH and, if so, prints the manual command to run:
+
+```
+gemini mcp add evokore-mcp node /path/to/dist/index.js --scope user
+```
+
+No file is written for the Gemini target, even when `--apply` is used. This is by design -- Gemini's `mcp add` command manages its own internal state.
+
+### Cursor Fallback Path Logic
+
+The Cursor target checks for a user-level config at `~/.cursor/mcp.json` first. If that file exists, it is used. Otherwise, the script falls back to the project-level path at `<project-root>/.cursor/mcp.json`. This means user-level configuration always takes priority over project-level when both could apply.
