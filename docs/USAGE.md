@@ -298,6 +298,48 @@ Common events:
 
 Observability logging is best-effort and fail-safe: hook logging failures do not block hook execution paths.
 
+### Log Rotation
+
+`hooks.jsonl` is automatically rotated to prevent unbounded growth:
+
+- **Threshold:** 5 MB per file
+- **Rotation count:** Up to 3 rotated files (`hooks.jsonl.1`, `.2`, `.3`)
+- **Trigger:** Checked before each write; when `hooks.jsonl` exceeds 5 MB, the current file is renamed to `.1`, existing `.1` shifts to `.2`, and `.2` to `.3`
+- **Oldest file:** `.3` is overwritten on the next rotation cycle
+- **Fail-safe:** Rotation errors are silently caught and never block hook execution
+
+### Hook Log Viewer
+
+View and filter hook events with the built-in viewer:
+
+```bash
+# Show last 50 events (default)
+npm run hooks:view
+
+# Filter by hook name
+npm run hooks:view -- --hook damage-control
+
+# Filter by date
+npm run hooks:view -- --since 2025-02-26
+
+# Filter by session ID (partial match)
+npm run hooks:view -- --session abc123
+
+# Show last 100 events
+npm run hooks:view -- --tail 100
+
+# Show all events (no tail limit)
+npm run hooks:view -- --all
+
+# Raw JSONL output (for piping)
+npm run hooks:view -- --json
+
+# Combine filters
+npm run hooks:view -- --hook purpose-gate --since 2025-02-26 --tail 20
+```
+
+The viewer prints a formatted table with timestamps, hook names, event types, and session IDs, followed by summary statistics showing event counts by hook type.
+
 PowerShell quick checks:
 
 ```powershell

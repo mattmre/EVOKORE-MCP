@@ -4,14 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node test-hitl.js && node e2e-test.js && node test-skill-manager.js && node hook-test-suite.js && node hook-e2e-validation.js && node test-hitl-hardening.js && node test-hitl-token-docs-validation.js && node test-dist-path-validation.js && node test-regex-frontmatter-standardization.js && node test-docs-canonical-links.js && node test-windows-exec-validation.js && npx tsx test-windows-command-runtime-validation.ts && node test-tool-prefix-collision-validation.js && node test-env-sync-validation.js && node test-unresolved-env-placeholder-validation.js && node test-sync-configs-mode-validation.js && node test-sync-configs-preserve-force-validation.js && node test-ops-docs-validation.js && node test-next-session-freshness-validation.js && node test-tracker-consistency-validation.js && node test-submodule-doc-workflow.js && node test-submodule-commit-order-guard-validation.js && node test-voice-e2e-validation.js && node test-voice-refinement-validation.js && node test-voice-sidecar-smoke-validation.js && node test-voice-sidecar-hotreload-validation.js && node test-voice-contract-validation.js && node test-voice-windows-docs-validation.js && node test-pr-metadata-validation.js && node test-ci-workflow-validation.js && node test-release-doc-freshness-validation.js && node test-npm-release-flow-validation.js",
+    "test": "node test-hitl.js && node e2e-test.js && node test-skill-manager.js && node hook-test-suite.js && node hook-e2e-validation.js && node test-hitl-hardening.js && node test-hitl-token-docs-validation.js && node test-dist-path-validation.js && node test-regex-frontmatter-standardization.js && node test-docs-canonical-links.js && node test-windows-exec-validation.js && npx tsx test-windows-command-runtime-validation.ts && node test-tool-prefix-collision-validation.js && node test-env-sync-validation.js && node test-unresolved-env-placeholder-validation.js && node test-sync-configs-mode-validation.js && node test-sync-configs-preserve-force-validation.js && node test-ops-docs-validation.js && node test-next-session-freshness-validation.js && node test-tracker-consistency-validation.js && node test-submodule-doc-workflow.js && node test-submodule-commit-order-guard-validation.js && node test-voice-e2e-validation.js && node test-voice-refinement-validation.js && node test-voice-sidecar-smoke-validation.js && node test-voice-sidecar-hotreload-validation.js && node test-voice-contract-validation.js && node test-voice-windows-docs-validation.js && node test-pr-metadata-validation.js && node test-ci-workflow-validation.js && node test-release-doc-freshness-validation.js && node test-npm-release-flow-validation.js && node test-hook-observability-hardening.js",
     "build": "npx tsc",
     "voice": "node dist/VoiceSidecar.js",
     "voice:dev": "npx tsx src/VoiceSidecar.ts",
     "release:check": "node test-npm-release-flow-validation.js",
     "sync": "node scripts/sync-configs.js --apply",
     "sync:dry": "node scripts/sync-configs.js --dry-run",
-    "replay": "node scripts/session-replay-view.js --latest"
+    "replay": "node scripts/session-replay-view.js --latest",
+    "hooks:view": "node scripts/hook-log-view.js"
   },
   "keywords": [],
   "author": "",
