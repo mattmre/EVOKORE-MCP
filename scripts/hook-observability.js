@@ -26,6 +26,12 @@ function rotateIfNeeded() {
     const stat = fs.statSync(HOOK_LOG_PATH);
     if (stat.size < MAX_LOG_SIZE) return;
 
+    // Remove the oldest target first so sparse rotation sequences don't retain stale files.
+    const oldest = `${HOOK_LOG_PATH}.${MAX_ROTATED_FILES}`;
+    if (fs.existsSync(oldest)) {
+      fs.unlinkSync(oldest);
+    }
+
     // Shift existing rotated files: .2 -> .3, .1 -> .2
     for (let i = MAX_ROTATED_FILES - 1; i >= 1; i--) {
       const older = `${HOOK_LOG_PATH}.${i}`;

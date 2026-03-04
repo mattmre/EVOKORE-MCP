@@ -320,7 +320,7 @@ npm run hooks:view
 npm run hooks:view -- --hook damage-control
 
 # Filter by date
-npm run hooks:view -- --since 2026-02-26
+npm run hooks:view -- --since 2025-02-26
 
 # Filter by session ID (partial match)
 npm run hooks:view -- --session abc123
@@ -335,7 +335,7 @@ npm run hooks:view -- --all
 npm run hooks:view -- --json
 
 # Combine filters
-npm run hooks:view -- --hook purpose-gate --since 2026-02-26 --tail 20
+npm run hooks:view -- --hook purpose-gate --since 2025-02-26 --tail 20
 ```
 
 The viewer prints a formatted table with timestamps, hook names, event types, and session IDs, followed by summary statistics showing event counts by hook type.

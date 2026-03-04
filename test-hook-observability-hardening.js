@@ -2,6 +2,7 @@
 
 const assert = require('assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 function run() {
@@ -40,6 +41,49 @@ function run() {
   assert.match(observabilitySrc, /HOOK_LOG_PATH/, 'HOOK_LOG_PATH should be exported');
 
   console.log('  [PASS] hook-observability.js has log rotation logic');
+
+  // 1b. Behavioral regression: rotation should handle gaps in numbered files.
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-hook-'));
+  const priorHome = process.env.HOME;
+  const priorUserProfile = process.env.USERPROFILE;
+  process.env.HOME = tempHome;
+  process.env.USERPROFILE = tempHome;
+
+  try {
+    delete require.cache[require.resolve(observabilityPath)];
+    const observability = require(observabilityPath);
+    const logDir = path.dirname(observability.HOOK_LOG_PATH);
+    fs.mkdirSync(logDir, { recursive: true });
+
+    // Seed sparse rotation files: .1 and .3 exist, .2 missing.
+    fs.writeFileSync(`${observability.HOOK_LOG_PATH}.1`, 'older\n', 'utf8');
+    fs.writeFileSync(`${observability.HOOK_LOG_PATH}.3`, 'oldest\n', 'utf8');
+    fs.writeFileSync(
+      observability.HOOK_LOG_PATH,
+      'x'.repeat(observability.MAX_LOG_SIZE + 10),
+      'utf8'
+    );
+
+    observability.rotateIfNeeded();
+
+    assert.ok(fs.existsSync(`${observability.HOOK_LOG_PATH}.1`), 'current log must rotate to .1');
+    assert.ok(fs.existsSync(`${observability.HOOK_LOG_PATH}.2`), 'existing .1 must shift to .2');
+    assert.ok(!fs.existsSync(`${observability.HOOK_LOG_PATH}.3`), 'stale .3 must be removed with sparse rotation');
+    console.log('  [PASS] rotateIfNeeded handles sparse rotation files safely');
+  } finally {
+    if (priorHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = priorHome;
+    }
+    if (priorUserProfile === undefined) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = priorUserProfile;
+    }
+    fs.rmSync(tempHome, { recursive: true, force: true });
+    delete require.cache[require.resolve(observabilityPath)];
+  }
 
   // 2. Validate hook-log-view.js exists with required features
   const viewerPath = path.resolve(__dirname, 'scripts', 'hook-log-view.js');
