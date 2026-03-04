@@ -194,3 +194,12 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Use explicit dual-chain notation: p-chain `#30 -> #31 -> #32 -> #33` and context-rot chain `#34 -> #35 -> #36 -> #37 -> #38`, with heads `#33` and `#38` respectively.
 - Trade-offs: Slight duplication across docs, but lower ambiguity and safer multi-session orchestration continuity.
 - Follow-up: Keep next-session/tracker/matrix/session-log chain references synchronized on future follow-up passes.
+
+### Decision: Require workflow run-id evidence in release handoffs
+- Date: 2026-02-25
+- Owner: implementer
+- Context: Release handoffs that cite only "successful dispatch" can drift or become ambiguous across multiple runs on the same workflow.
+- Options considered: keep narrative-only release status vs require immutable run evidence (`run_id` + URL).
+- Decision: Require release handoff entries to include workflow run ID and HTML URL as primary evidence for guarded release execution.
+- Trade-offs: Slightly more handoff bookkeeping, but materially stronger traceability and lower context-rot risk.
+- Follow-up: Keep run evidence captured in `next-session.md` and release session logs for each manual dispatch.
