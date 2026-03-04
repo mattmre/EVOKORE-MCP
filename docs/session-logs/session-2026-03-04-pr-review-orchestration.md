@@ -15,7 +15,10 @@
      - `#44` branch `chore/git-housekeeping-20260226` commit `8d6c3e5` (version authority drift fixed to `2.0.1`).
      - `#47` branch `feat/hook-observability-hardening-20260226` commit `41f63d9` (sparse rotation bug fix + regression test + docs date example).
 4. **Documentation phase**
-   - Added open-PR audit artifact and refreshed orchestration continuity docs for post-run merge handling.
+    - Added open-PR audit artifact and refreshed orchestration continuity docs for post-run merge handling.
+5. **Merge phase**
+   - Revalidated updated PR metadata + CI checks and merged required-fix PRs `#44` and `#47` to `main`.
+   - Output: immediate blocker fixes landed; queue reduced for remaining PR orchestration.
 
 ## Validation Evidence (Provided by Run)
 - **Main baseline**: `npm run build && npm test` ✅
@@ -24,6 +27,8 @@
   - `npm run build` ✅
   - `node test-hook-observability-hardening.js` ✅
   - `npm test` ✅
+- **PR44 CI rerun** (`22680375111`): build/test/windows-runtime/security checks ✅
+- **PR47 CI rerun** (`22680377451`): build/test/windows-runtime/security checks ✅
 
 ## Artifacts
 - Open PR audit: `docs/research/open-pr-audit-2026-03-04.md`
