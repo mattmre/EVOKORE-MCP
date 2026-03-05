@@ -16,7 +16,7 @@ Use this file as the canonical entrypoint for repository documentation.
 - [PR Template](../.github/pull_request_template.md)
 - [Release Notes v2.0.1](./RELEASE_NOTES_v2.0.1.md)
 - [Session Logs](./session-logs/)
-- [Latest Session Log (2026-02-25, Post-Release Next-Slice Selection)](./session-logs/session-2026-02-25-post-release-next-slice.md)
+- [Latest Orchestration Log (2026-03-04, Queue Closure Orchestration)](./session-logs/session-2026-03-04-queue-closure-orchestration.md)
 
 ## Validation Anchors
 
