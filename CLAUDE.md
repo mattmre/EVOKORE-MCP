@@ -18,6 +18,8 @@
 - **VoiceMode Windows Bug:** The `voice-mode-install` script crashes on Windows due to a Unicode encoding error (cp1252 codec). Skip the installer and use `claude mcp add` directly.
 - **Voice Sidecar:** `VoiceSidecar.ts` is standalone (never imported by `index.ts`). It runs as a separate process on `ws://localhost:8888`. Audio playback uses temp files + platform players (no native deps). `voices.json` supports hot-reload (re-read per connection).
 - **Cross-CLI Sync:** `scripts/sync-configs.js` merges the `evokore-mcp` entry into each CLI's config. It never overwrites existing server entries. Use `--dry-run` to preview changes.
+- **Environment Validation:** When validating `.env` configurations, use the `test-dotenv-quiet-validation.js` script to ensure quiet parsing is enforced.
+- **Git Worktree Cleanup:** Abandoned agent worktrees can accumulate (e.g., 9 found previously). Run `git worktree list` and `git worktree remove <path>` aggressively when doing branch cleanups.
 
 ## Claude Code Hooks
 

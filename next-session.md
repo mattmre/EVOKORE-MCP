@@ -4,10 +4,10 @@ Last Updated (UTC): 2026-03-05
 
 ## Next Actions (Prioritized)
 
-1. **Post-Merge Monitoring & Stability**: Execute phase 1 monitoring. Ensure the CI and default branch are stable after recent large merges.
-2. **Docs Validation Guardrails**: Verify that docs correctly map references to prevent context rot. Run `test-docs-canonical-links.js` and other relevant tools.
-3. **Perform cleanup-only follow-up**: Address any fragility or flakiness observed in recent CI runs and document in `docs/research/ci-stability-audit.md`.
-4. **Use closure artifacts as source of truth**: `docs/research/open-pr-audit-2026-03-04-queue-closure.md` and `docs/session-logs/session-2026-03-05-phase-1-monitoring-stability.md`.
+1. **Feature Work - Dynamic Tool Discovery MVP**: We have completed the core post-merge monitoring and stabilization phases (Phases 1-3). The primary focus is now the Dynamic Tool Discovery MVP (metadata index + retrieval-gated tool injection) with a baseline benchmark harness from `docs/PRIORITY_STATUS_MATRIX.md`.
+2. **Define MVP acceptance contract**: Define the contract for the metadata index shape and retrieval gating behavior.
+3. **Implement benchmark harness**: Create baseline runs (pre-injection vs retrieval-gated injection).
+4. **Capture Evidence**: Capture evidence links and outcomes in tracker/matrix artifacts for PR slicing.
 
 ## Next Slice (Post-Release)
 
@@ -21,6 +21,6 @@ Last Updated (UTC): 2026-03-05
 
 - Timestamp: 2026-03-05
 - Fetch/prune status: `git fetch --all --prune` completed successfully.
-- Active branch: `chore/phase-1-monitoring-and-stability`
+- Active branch: `chore/session-wrap-2026-03-05`
 - `main` sync state: local `main` is up-to-date with recent large merges.
-- Branch inventory: maintain clean stale branches.
+- Branch inventory: maintain clean stale branches; remember to run `git worktree list` and `git worktree remove` aggressively to identify and remove abandoned worktrees.
