@@ -60,6 +60,8 @@ uvx voice-mode-install
 claude mcp add --scope user voicemode -- uvx --refresh voice-mode
 ```
 
+**Windows VoiceMode Bypass:** On Windows, skip the `uvx voice-mode-install` step as it may fail. Instead, directly use `claude mcp add --scope user voicemode -- uvx --refresh voice-mode`.
+
 Use the `converse` command inside Claude Code to activate.
 
 **Providers:**
