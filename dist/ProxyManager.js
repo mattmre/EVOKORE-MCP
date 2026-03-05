@@ -18,6 +18,8 @@ class ProxyManager {
     toolRegistry = new Map();
     cachedTools = [];
     security;
+    serverRegistry = new Map();
+    toolCooldowns = new Map();
     constructor(security) {
         this.security = security;
     }
@@ -48,6 +50,7 @@ class ProxyManager {
         this.transports.clear();
         this.toolRegistry.clear();
         this.cachedTools = [];
+        this.serverRegistry.clear();
         try {
             const content = await promises_1.default.readFile(CONFIG_FILE, "utf-8");
             const config = JSON.parse(content);
@@ -56,6 +59,13 @@ class ProxyManager {
             for (const [serverId, serverConfig] of Object.entries(config.servers)) {
                 try {
                     console.error(`[EVOKORE] Booting child server: ${serverId}`);
+                    this.serverRegistry.set(serverId, {
+                        id: serverId,
+                        status: 'booting',
+                        connectionType: 'stdio',
+                        errorCount: 0,
+                        lastPing: Date.now()
+                    });
                     const cmd = (0, resolveCommandForPlatform_1.resolveCommandForPlatform)(serverConfig.command);
                     // Resolve ${VAR} references in env values from process.env
                     const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
@@ -72,6 +82,11 @@ class ProxyManager {
                     await client.connect(transport);
                     this.clients.set(serverId, client);
                     this.transports.set(serverId, transport);
+                    const serverState = this.serverRegistry.get(serverId);
+                    if (serverState) {
+                        serverState.status = 'connected';
+                        serverState.lastPing = Date.now();
+                    }
                     // Fetch tools from child and register them
                     const { tools } = await client.listTools();
                     let registeredCount = 0;
@@ -108,6 +123,11 @@ class ProxyManager {
                 }
                 catch (e) {
                     console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
+                    const serverState = this.serverRegistry.get(serverId);
+                    if (serverState) {
+                        serverState.status = 'error';
+                        serverState.errorCount++;
+                    }
                 }
             }
         }
@@ -150,12 +170,54 @@ class ProxyManager {
             // Valid token provided. Consume it so it can't be reused, then proceed.
             this.security.consumeToken(providedToken);
         }
+        // 2. Cooldown Check
+        const cooldownExpires = this.toolCooldowns.get(toolName);
+        if (cooldownExpires && Date.now() < cooldownExpires) {
+            const remainingSeconds = Math.ceil((cooldownExpires - Date.now()) / 1000);
+            return {
+                content: [{
+                        type: "text",
+                        text: `[EVOKORE COOLDOWN] Tool '${toolName}' is currently on cooldown to prevent infinite loops. Please wait ${remainingSeconds} seconds or try a different approach.`
+                    }],
+                isError: true
+            };
+        }
         const client = this.clients.get(serverId);
         if (!client) {
             throw new types_js_1.McpError(types_js_1.ErrorCode.InternalError, `Client for server '${serverId}' is not connected.`);
         }
-        const result = await client.callTool({ name: originalName, arguments: toolArgs });
-        return result;
+        const serverState = this.serverRegistry.get(serverId);
+        if (serverState) {
+            serverState.lastPing = Date.now();
+        }
+        try {
+            const result = await client.callTool({ name: originalName, arguments: toolArgs });
+            // Analyze Result for Cooldown
+            let shouldCooldown = false;
+            if (result.isError) {
+                shouldCooldown = true;
+            }
+            else if (!result.content || result.content.length === 0) {
+                shouldCooldown = true;
+            }
+            else if (result.content[0].type === "text" && result.content[0].text.length < 15) {
+                shouldCooldown = true;
+            }
+            if (shouldCooldown) {
+                this.toolCooldowns.set(toolName, Date.now() + 10000); // 10 seconds
+            }
+            return result;
+        }
+        catch (e) {
+            if (serverState) {
+                serverState.errorCount++;
+                if (serverState.errorCount >= 5) {
+                    serverState.status = 'error';
+                }
+            }
+            this.toolCooldowns.set(toolName, Date.now() + 10000); // 10 seconds cooldown on throw
+            throw e;
+        }
     }
 }
 exports.ProxyManager = ProxyManager;

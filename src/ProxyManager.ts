@@ -16,12 +16,22 @@ interface ServerConfig {
   env?: Record<string, string>;
 }
 
+export interface ServerState {
+  id: string;
+  status: 'booting' | 'connected' | 'error' | 'disconnected';
+  connectionType: 'stdio' | 'sse';
+  errorCount: number;
+  lastPing: number;
+}
+
 export class ProxyManager {
   private clients: Map<string, Client> = new Map();
   private transports: Map<string, StdioClientTransport> = new Map();
   private toolRegistry: Map<string, { serverId: string; originalName: string }> = new Map();
   private cachedTools: Tool[] = [];
   private security: SecurityManager;
+  private serverRegistry: Map<string, ServerState> = new Map();
+  private toolCooldowns: Map<string, number> = new Map();
 
   constructor(security: SecurityManager) {
     this.security = security;
@@ -58,6 +68,7 @@ export class ProxyManager {
     this.transports.clear();
     this.toolRegistry.clear();
     this.cachedTools = [];
+    this.serverRegistry.clear();
 
     try {
       const content = await fs.readFile(CONFIG_FILE, "utf-8");
@@ -68,6 +79,15 @@ export class ProxyManager {
       for (const [serverId, serverConfig] of Object.entries(config.servers as Record<string, ServerConfig>)) {
         try {
           console.error(`[EVOKORE] Booting child server: ${serverId}`);
+          
+          this.serverRegistry.set(serverId, {
+            id: serverId,
+            status: 'booting',
+            connectionType: 'stdio',
+            errorCount: 0,
+            lastPing: Date.now()
+          });
+
           const cmd = resolveCommandForPlatform(serverConfig.command);
           
           // Resolve ${VAR} references in env values from process.env
@@ -93,6 +113,12 @@ export class ProxyManager {
           
           this.clients.set(serverId, client);
           this.transports.set(serverId, transport);
+
+          const serverState = this.serverRegistry.get(serverId);
+          if (serverState) {
+            serverState.status = 'connected';
+            serverState.lastPing = Date.now();
+          }
 
           // Fetch tools from child and register them
           const { tools } = await client.listTools();
@@ -136,6 +162,11 @@ export class ProxyManager {
           }
         } catch (e: any) {
           console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
+          const serverState = this.serverRegistry.get(serverId);
+          if (serverState) {
+            serverState.status = 'error';
+            serverState.errorCount++;
+          }
         }
       }
     } catch (e) {
@@ -187,14 +218,56 @@ export class ProxyManager {
       this.security.consumeToken(providedToken);
     }
 
+    // 2. Cooldown Check
+    const cooldownExpires = this.toolCooldowns.get(toolName);
+    if (cooldownExpires && Date.now() < cooldownExpires) {
+      const remainingSeconds = Math.ceil((cooldownExpires - Date.now()) / 1000);
+      return {
+        content: [{
+          type: "text",
+          text: `[EVOKORE COOLDOWN] Tool '${toolName}' is currently on cooldown to prevent infinite loops. Please wait ${remainingSeconds} seconds or try a different approach.`
+        }],
+        isError: true
+      };
+    }
+
     const client = this.clients.get(serverId);
     if (!client) {
       throw new McpError(ErrorCode.InternalError, `Client for server '${serverId}' is not connected.`);
     }
 
-    const result = await client.callTool({ name: originalName, arguments: toolArgs });
-    return result;
+    const serverState = this.serverRegistry.get(serverId);
+    if (serverState) {
+      serverState.lastPing = Date.now();
+    }
+
+    try {
+      const result: any = await client.callTool({ name: originalName, arguments: toolArgs });
+      
+      // Analyze Result for Cooldown
+      let shouldCooldown = false;
+      if (result.isError) {
+        shouldCooldown = true;
+      } else if (!result.content || result.content.length === 0) {
+        shouldCooldown = true;
+      } else if (result.content[0].type === "text" && result.content[0].text.length < 15) {
+        shouldCooldown = true;
+      }
+
+      if (shouldCooldown) {
+        this.toolCooldowns.set(toolName, Date.now() + 10000); // 10 seconds
+      }
+
+      return result;
+    } catch (e: any) {
+      if (serverState) {
+        serverState.errorCount++;
+        if (serverState.errorCount >= 5) {
+          serverState.status = 'error';
+        }
+      }
+      this.toolCooldowns.set(toolName, Date.now() + 10000); // 10 seconds cooldown on throw
+      throw e;
+    }
   }
 }
-
-
