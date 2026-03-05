@@ -4,18 +4,18 @@ Last Updated (UTC): 2026-03-05
 
 ## Next Actions (Prioritized)
 
-1. **Feature Work - Dynamic Tool Discovery MVP**: We have completed the core post-merge monitoring and stabilization phases (Phases 1-3). The primary focus is now the Dynamic Tool Discovery MVP (metadata index + retrieval-gated tool injection) with a baseline benchmark harness from `docs/PRIORITY_STATUS_MATRIX.md`.
-2. **Define MVP acceptance contract**: Define the contract for the metadata index shape and retrieval gating behavior.
-3. **Implement benchmark harness**: Create baseline runs (pre-injection vs retrieval-gated injection).
-4. **Capture Evidence**: Capture evidence links and outcomes in tracker/matrix artifacts for PR slicing.
+1. **Ecosystem Research Sprint (Top 20 MCP Repositories)**: We are halting immediate implementation of the static dynamic tool discovery plan to execute a massive 4-phase research and development cycle. We will clone and deeply analyze the top 20 repositories matching "MCP" on GitHub.
+2. **Execute Phase 1**: Dispatch a fresh agent to begin **Phase 1: Clone & Deep Extract**. The agent will clone the top 20 repos, dig deeply into their code, design patterns, and architectures, and map out meta-movements.
+3. **Component Breakdown Discipline**: Each implementation phase must strictly follow the `Research -> Architecture/Design -> Implementation -> Test/Bug/Lint` cycle.
+4. **Stale Branch Cleanup**: Before executing the deep clone, dispatch a quick agent to clean up the `worktree-agent-*` branches left behind from previous sessions.
 
 ## Next Slice (Post-Release)
 
-- **Selected slice:** Dynamic Tool Discovery MVP (metadata index + retrieval-gated tool injection) with baseline benchmark harness.
+- **Selected slice:** MCP Ecosystem Deep Dive and 4-Phase R&D Cycle.
 - **Immediate actions:**
-  1. Define MVP acceptance contract for metadata index shape and retrieval gating behavior.
-  2. Implement benchmark harness baseline runs (pre-injection vs retrieval-gated injection).
-  3. Capture evidence links and outcomes in tracker/matrix artifacts for PR slicing.
+  1. Clean up lingering local worktrees.
+  2. Implement Phase 1: Clone top 20 repos and draft `docs/research/ecosystem-sprint-results.md`.
+  3. Extract core features to feed into Phase 2 (Aggregation Overhaul) and Phase 3 (Core Infrastructure Adaptation).
 
 ## Branch Context Snapshot (UTC)
 
@@ -23,4 +23,4 @@ Last Updated (UTC): 2026-03-05
 - Fetch/prune status: `git fetch --all --prune` completed successfully.
 - Active branch: `chore/session-wrap-2026-03-05`
 - `main` sync state: local `main` is up-to-date with recent large merges.
-- Branch inventory: maintain clean stale branches; remember to run `git worktree list` and `git worktree remove` aggressively to identify and remove abandoned worktrees.
+- Branch inventory: Needs clean up of multiple abandoned `worktree-agent-*` branches.

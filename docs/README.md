@@ -11,6 +11,7 @@ Use this file as the canonical entrypoint for repository documentation.
 - [Submodule Workflow](./SUBMODULE_WORKFLOW.md)
 - [Orchestration Tracker](./ORCHESTRATION_TRACKER.md)
 - [Research Decisions Log](./RESEARCH_DECISIONS_LOG.md)
+- [Ecosystem Sprint Results](./research/ecosystem-sprint-results.md)
 - [Priority Status Matrix](./PRIORITY_STATUS_MATRIX.md)
 - [PR Merge Runbook](./PR_MERGE_RUNBOOK.md)
 - [PR Template](../.github/pull_request_template.md)
