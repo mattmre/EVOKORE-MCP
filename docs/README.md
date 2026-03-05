@@ -38,6 +38,7 @@ Use this file as the canonical entrypoint for repository documentation.
 
 ## Architecture & Reference
 
+- [v2 Phase 2 Architecture Design](./V2_PHASE2_ARCHITECTURE_DESIGN.md) - Covers the Stateful Hypervisor Registry and Infinite Loop Cooldown Wrapper implemented in Phase 2
 - [v2 Architecture Plan](./V2_ARCHITECTURE_PLAN.md)
 - [v2 Multi-Agent Workflows](./V2_MULTI_AGENT_WORKFLOWS.md)
 - [Skills Overview](./SKILLS_OVERVIEW.md)
