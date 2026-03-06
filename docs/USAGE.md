@@ -70,13 +70,15 @@ Use the benchmark script to capture a deterministic JSON snapshot of the discove
 npm run benchmark:tool-discovery
 ```
 
-The script always writes the benchmark JSON payload to stdout. To preserve the same artifact on disk, pass `--output <path>`:
+The default JSON payload is deterministic across repeated runs: it captures the discovery/listing contract, stable token-size estimates, and top matches while omitting machine-specific timing telemetry. To preserve the same artifact on disk, pass `--output <path>`:
 
 ```bash
 node scripts/benchmark-tool-discovery.js --output artifacts/tool-discovery-benchmark.json
 ```
 
 The output file contains the exact same JSON document emitted to stdout.
+
+If you also want live timing telemetry for a one-off local benchmark, pass `--live-timings`. That mode adds a non-deterministic `liveTimings` block and is intended for manual inspection rather than durable artifact comparison.
 
 ### 2.3 HITL approval token (`_evokore_approval_token`)
 

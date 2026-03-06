@@ -50,7 +50,7 @@ If the server still won't connect, launch your AI assistant in debug mode to see
 EVOKORE_RUN_LIVE_VOICE_TEST=1 ELEVENLABS_API_KEY=your_key_here npm run test:voice:live
 ```
 
-If `EVOKORE_RUN_LIVE_VOICE_TEST` is not set to `1`, the live validation skips intentionally. If you enable the gate without providing `ELEVENLABS_API_KEY`, the test fails fast so local and CI runs do not silently pass with a misconfigured live check.
+If `EVOKORE_RUN_LIVE_VOICE_TEST` is not set to `1`, the live validation skips intentionally. If you enable the gate without providing `ELEVENLABS_API_KEY` through your shell environment or `.env`, the test fails fast so local and CI runs do not silently pass with a misconfigured live check.
 
 ## 6. Release Workflow Did Not Publish
 **Symptoms:** Release workflow runs but package is not published.
