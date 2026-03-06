@@ -20,6 +20,7 @@
 - **Cross-CLI Sync:** `scripts/sync-configs.js` merges the `evokore-mcp` entry into each CLI's config. It never overwrites existing server entries. Use `--dry-run` to preview changes.
 - **Environment Validation:** When validating `.env` configurations, use the `test-dotenv-quiet-validation.js` script to ensure quiet parsing is enforced.
 - **Git Worktree Cleanup:** Abandoned agent worktrees can accumulate (e.g., 9 found previously). Run `git worktree list` and `git worktree remove <path>` aggressively when doing branch cleanups.
+- **Clean Worktree Installs:** Running `npm ci` in a clean worktree can dirty tracked `node_modules/`; restore `node_modules` before committing so dependency refresh noise does not leak into the branch.
 
 - **Orchestration Conflicts:** When orchestrating multiple agents in parallel, ensure they do not commit shared ephemeral tracking logs (like `session-logs/*.md` or `next-session.md`) to their feature branches. Committing shared trackers on feature branches causes unresolvable git merge conflicts when sequentially squashing PRs. Trackers should be updated directly on `main` after all PRs are merged.\r\n\r\n## Claude Code Hooks
 

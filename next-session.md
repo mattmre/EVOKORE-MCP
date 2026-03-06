@@ -12,5 +12,12 @@ Last Updated (UTC): 2026-03-06
 - **Audit Outcome:** All planned maintenance checks passed; no functional fix PR was required.
 - **Wrap Scope:** Branch retained as durable evidence plus a small guardrail hardening update for the Windows VoiceMode docs validator.
 
+## In-Flight / Review Queue
+- **PR #63:** Phase 3 recovery verification and session-wrap artifact for the completed maintenance audit.
+- **PR #64:** Separate roadmap PR for `docs/V2_PHASE3_CORE_INFRASTRUCTURE_ROADMAP.md`.
+- **PR #61:** Still open, but unrelated to this session.
+
 ## Next Actions (Prioritized)
-1. **Phase 3 Roadmap Preparation:** Begin architectural planning for the upcoming Phase 3 Core Infrastructure feature work based on any remaining findings from the Ecosystem Research Sprint. This is distinct from the completed Phase 3 maintenance recovery verification above.
+1. **Merge PR #63:** Land the recovery verification and wrap artifact.
+2. **Merge PR #64:** Land the separate Phase 3 roadmap artifact.
+3. **Start Runtime State Foundation:** Begin the session-scoped runtime state foundation from a fresh `main` after PRs #63 and #64 are merged.
