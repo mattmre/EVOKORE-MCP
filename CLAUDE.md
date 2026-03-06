@@ -21,7 +21,7 @@
 - **Environment Validation:** When validating `.env` configurations, use the `test-dotenv-quiet-validation.js` script to ensure quiet parsing is enforced.
 - **Git Worktree Cleanup:** Abandoned agent worktrees can accumulate (e.g., 9 found previously). Run `git worktree list` and `git worktree remove <path>` aggressively when doing branch cleanups.
 
-## Claude Code Hooks
+- **Orchestration Conflicts:** When orchestrating multiple agents in parallel, ensure they do not commit shared ephemeral tracking logs (like `session-logs/*.md` or `next-session.md`) to their feature branches. Committing shared trackers on feature branches causes unresolvable git merge conflicts when sequentially squashing PRs. Trackers should be updated directly on `main` after all PRs are merged.\r\n\r\n## Claude Code Hooks
 
 Four hooks are wired in `.claude/settings.json`. All scripts follow fail-safe conventions (exit 0 on error, never crash Claude Code). State lives in `~/.evokore/sessions/` and logs in `~/.evokore/logs/`.
 

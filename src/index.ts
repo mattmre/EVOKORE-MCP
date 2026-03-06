@@ -14,7 +14,7 @@ import dotenv from "dotenv";
 import path from "path";
 
 // Load Vault Secrets before any proxy spawns
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
 import { SkillManager } from "./SkillManager";
 import { ProxyManager } from "./ProxyManager";
