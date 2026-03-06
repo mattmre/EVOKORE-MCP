@@ -20,6 +20,8 @@ import { SkillManager } from "./SkillManager";
 import { ProxyManager } from "./ProxyManager";
 import { SecurityManager } from "./SecurityManager";
 
+const SERVER_VERSION = "2.0.2";
+
 class EvokoreMCPServer {
   private server: Server;
   private skillManager: SkillManager;
@@ -30,7 +32,7 @@ class EvokoreMCPServer {
     this.server = new Server(
       {
         name: "evokore-mcp",
-        version: "2.0.0",
+        version: SERVER_VERSION,
       },
       {
         capabilities: {
@@ -104,7 +106,7 @@ class EvokoreMCPServer {
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("[EVOKORE] v2.0 Enterprise Router running on stdio");
+    console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio`);
   }
 }
 

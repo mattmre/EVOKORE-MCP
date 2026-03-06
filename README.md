@@ -1,6 +1,6 @@
-# EVOKORE-MCP v2.0.1 (The Enterprise Router)
+# EVOKORE-MCP
 
-A unified Model Context Protocol (MCP) server that aggregates, indexes, and dynamically serves over 200+ specialized Agent Skills, while functioning as a **Multi-Server Aggregator**. EVOKORE-MCP v2.0 proxies traffic to child servers (e.g., GitHub, Filesystem), namespaces their tools dynamically, and governs execution with a Human-in-the-Loop (HITL) Security Interceptor.
+A unified Model Context Protocol (MCP) server that aggregates, indexes, and dynamically serves over 200+ specialized Agent Skills, while functioning as a **Multi-Server Aggregator**. EVOKORE-MCP proxies traffic to child servers (e.g., GitHub, Filesystem), namespaces their tools dynamically, and governs execution with a Human-in-the-Loop (HITL) Security Interceptor.
 
 ## 🚀 Features
 
@@ -11,7 +11,7 @@ A unified Model Context Protocol (MCP) server that aggregates, indexes, and dyna
 - **Dynamic Skill Loading**: Automatically scans the `SKILLS/` directory on startup. Keeps context windows lean by using lightweight semantic search (`fuse.js`) to serve prompts only when requested via the `resolve_workflow` tool.
 - **Massive Built-in Library**: Includes 146 specialized developer plugins (Wshobson), the Hive Framework, the Manus `planning-with-files` protocol, and extensive custom orchestration workflows (e.g., `arch-aep-runner`, `session-wrap`).
 
-## 🆕 v2.0.1 Hardening Highlights
+## 🆕 Recent Hardening Highlights
 
 - **PR Governance Metadata**: Standardized metadata is now required through `.github/pull_request_template.md`, with merge-boundary controls documented in `docs/PR_MERGE_RUNBOOK.md`.
 - **Release Safety Gate**: Manual release runs require explicit dependency-chain confirmation (`chain_complete=true`) before workflow execution continues.
@@ -49,6 +49,7 @@ Dive into our extensive, deeply researched use cases and training guides for all
 
 ## ✅ Validation Coverage
 - Full regression: `npm test`
+- Version/config consistency: `node test-version-contract-consistency.js`
 - Ops docs guardrails: `node test-ops-docs-validation.js`
 - Release flow guardrails: `node test-npm-release-flow-validation.js`
 - Windows command contract: `node test-windows-exec-validation.js`
