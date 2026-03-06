@@ -37,6 +37,36 @@ export class ProxyManager {
     this.security = security;
   }
 
+  private normalizeCooldownArgs(value: any): any {
+    if (Array.isArray(value)) {
+      return value.map((item) => this.normalizeCooldownArgs(item));
+    }
+
+    if (value && typeof value === "object") {
+      const normalized: Record<string, any> = {};
+      for (const key of Object.keys(value).sort()) {
+        normalized[key] = this.normalizeCooldownArgs(value[key]);
+      }
+      return normalized;
+    }
+
+    return value;
+  }
+
+  private getCooldownKey(toolName: string, args: any): string {
+    const normalizedArgs = this.normalizeCooldownArgs(args ?? {});
+    return `${toolName}:${JSON.stringify(normalizedArgs)}`;
+  }
+
+  private recordServerError(serverState?: ServerState) {
+    if (!serverState) return;
+
+    serverState.errorCount++;
+    if (serverState.errorCount >= 5) {
+      serverState.status = 'error';
+    }
+  }
+
   private resolveServerEnv(serverId: string, serverEnv?: Record<string, string>): Record<string, string> {
     const resolvedEnv: Record<string, string> = {};
     if (!serverEnv) return resolvedEnv;
@@ -203,6 +233,7 @@ export class ProxyManager {
       throw new McpError(ErrorCode.InvalidRequest, `Execution of '${toolName}' is strictly denied by EVOKORE-MCP security policies.`);
     }
 
+    let approvalTokenToConsume: string | undefined;
     if (permission === "require_approval") {
       if (!providedToken || !this.security.validateToken(toolName, providedToken, toolArgs)) {
         const newToken = this.security.generateToken(toolName, toolArgs);
@@ -214,12 +245,13 @@ export class ProxyManager {
           isError: true
         };
       }
-      // Valid token provided. Consume it so it can't be reused, then proceed.
-      this.security.consumeToken(providedToken);
+      // Only consume a valid token once the call is about to be dispatched upstream.
+      approvalTokenToConsume = providedToken;
     }
 
     // 2. Cooldown Check
-    const cooldownExpires = this.toolCooldowns.get(toolName);
+    const cooldownKey = this.getCooldownKey(toolName, toolArgs);
+    const cooldownExpires = this.toolCooldowns.get(cooldownKey);
     if (cooldownExpires && Date.now() < cooldownExpires) {
       const remainingSeconds = Math.ceil((cooldownExpires - Date.now()) / 1000);
       return {
@@ -242,11 +274,15 @@ export class ProxyManager {
     }
 
     try {
+      if (approvalTokenToConsume) {
+        this.security.consumeToken(approvalTokenToConsume);
+      }
       const result: any = await client.callTool({ name: originalName, arguments: toolArgs });
       
       // Analyze Result for Cooldown
       let shouldCooldown = false;
       if (result.isError) {
+        this.recordServerError(serverState);
         shouldCooldown = true;
       } else if (!result.content || result.content.length === 0) {
         shouldCooldown = true;
@@ -255,18 +291,13 @@ export class ProxyManager {
       }
 
       if (shouldCooldown) {
-        this.toolCooldowns.set(toolName, Date.now() + 10000); // 10 seconds
+        this.toolCooldowns.set(cooldownKey, Date.now() + 10000); // 10 seconds
       }
 
       return result;
     } catch (e: any) {
-      if (serverState) {
-        serverState.errorCount++;
-        if (serverState.errorCount >= 5) {
-          serverState.status = 'error';
-        }
-      }
-      this.toolCooldowns.set(toolName, Date.now() + 10000); // 10 seconds cooldown on throw
+      this.recordServerError(serverState);
+      this.toolCooldowns.set(cooldownKey, Date.now() + 10000); // 10 seconds cooldown on throw
       throw e;
     }
   }
