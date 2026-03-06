@@ -19,14 +19,24 @@ dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 import { SkillManager } from "./SkillManager";
 import { ProxyManager } from "./ProxyManager";
 import { SecurityManager } from "./SecurityManager";
+import { ToolCatalogIndex } from "./ToolCatalogIndex";
 
-class EvokoreMCPServer {
+type ToolDiscoveryMode = "legacy" | "dynamic";
+type RequestExtra = { sessionId?: string };
+
+const DEFAULT_SESSION_ID = "__stdio_default_session__";
+
+export class EvokoreMCPServer {
   private server: Server;
   private skillManager: SkillManager;
   private securityManager: SecurityManager;
   private proxyManager: ProxyManager;
+  private toolCatalog: ToolCatalogIndex;
+  private discoveryMode: ToolDiscoveryMode;
+  private activatedToolsBySession: Map<string, Set<string>>;
 
   constructor() {
+    this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
     this.server = new Server(
       {
         name: "evokore-mcp",
@@ -36,7 +46,9 @@ class EvokoreMCPServer {
         capabilities: {
           prompts: {},
           resources: {},
-          tools: {},
+          tools: {
+            listChanged: true
+          },
         },
       }
     );
@@ -44,9 +56,130 @@ class EvokoreMCPServer {
     this.securityManager = new SecurityManager();
     this.proxyManager = new ProxyManager(this.securityManager);
     this.skillManager = new SkillManager(this.proxyManager);
+    this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
+    this.activatedToolsBySession = new Map();
 
     this.setupHandlers();
     this.server.onerror = (error) => console.error("[MCP Error]", error);
+  }
+
+  private parseToolDiscoveryMode(value?: string): ToolDiscoveryMode {
+    if (value === "dynamic") {
+      return "dynamic";
+    }
+
+    if (!value || value === "legacy") {
+      return "legacy";
+    }
+
+    console.error(`[EVOKORE] Unknown EVOKORE_TOOL_DISCOVERY_MODE '${value}'. Falling back to legacy mode.`);
+    return "legacy";
+  }
+
+  private rebuildToolCatalog() {
+    this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), this.proxyManager.getProxiedTools());
+  }
+
+  private getSessionId(extra?: RequestExtra): string {
+    return extra?.sessionId ?? DEFAULT_SESSION_ID;
+  }
+
+  private getActivatedTools(extra?: RequestExtra): Set<string> {
+    const sessionId = this.getSessionId(extra);
+    let activatedTools = this.activatedToolsBySession.get(sessionId);
+
+    if (!activatedTools) {
+      activatedTools = new Set<string>();
+      this.activatedToolsBySession.set(sessionId, activatedTools);
+    }
+
+    return activatedTools;
+  }
+
+  private async notifyToolListChangedIfNeeded(changed: boolean) {
+    if (!changed || this.discoveryMode !== "dynamic") {
+      return;
+    }
+
+    try {
+      await this.server.sendToolListChanged();
+    } catch (error: any) {
+      console.error(`[EVOKORE] sendToolListChanged() failed in best-effort mode: ${error?.message || error}`);
+    }
+  }
+
+  private async handleDiscoverTools(args: any, extra?: RequestExtra): Promise<any> {
+    const query = String(args?.query ?? "").trim();
+    const limitValue = typeof args?.limit === "number" ? args.limit : Number(args?.limit);
+    const limit = Number.isFinite(limitValue) ? limitValue : 8;
+
+    if (!query) {
+      return {
+        content: [{ type: "text", text: "Please provide a non-empty discovery query." }],
+        isError: true
+      };
+    }
+
+    const activatedTools = this.getActivatedTools(extra);
+    const matches = this.toolCatalog.discover(query, activatedTools, limit);
+
+    if (matches.length === 0) {
+      return {
+        content: [{
+          type: "text",
+          text: `[EVOKORE TOOL DISCOVERY] No tools matched '${query}'. Hidden proxied tools remain callable by exact name even when they are not listed.`
+        }]
+      };
+    }
+
+    let activatedCount = 0;
+    if (this.discoveryMode === "dynamic") {
+      for (const match of matches) {
+        if (match.entry.source === "proxy" && !activatedTools.has(match.entry.name)) {
+          activatedTools.add(match.entry.name);
+          activatedCount++;
+        }
+      }
+    }
+
+    const lines = [
+      `[EVOKORE TOOL DISCOVERY] mode=${this.discoveryMode}`,
+      `Query: ${query}`,
+      `Matched ${matches.length} tool(s).`
+    ];
+
+    if (this.discoveryMode === "dynamic") {
+      lines.push(
+        activatedCount > 0
+          ? `Activated ${activatedCount} proxied tool(s) for this session.`
+          : "No new proxied tools needed activation for this session."
+      );
+    } else {
+      lines.push("Legacy mode already exposes the full tool list, so discovery does not change tool visibility.");
+    }
+
+    lines.push("");
+    for (const match of matches) {
+      const statusParts: string[] = [match.entry.source];
+      const isVisible = this.discoveryMode === "legacy" || match.entry.alwaysVisible || activatedTools.has(match.entry.name);
+      if (match.entry.serverId) {
+        statusParts.push(`server=${match.entry.serverId}`);
+      }
+      statusParts.push(
+        isVisible ? "visible" : "callable-by-exact-name"
+      );
+      lines.push(`- ${match.entry.name} [${statusParts.join(", ")}]: ${match.entry.description}`);
+    }
+
+    if (this.discoveryMode === "dynamic") {
+      lines.push("", "Re-run tools/list to fetch the updated tool projection.");
+    }
+
+    await this.notifyToolListChangedIfNeeded(activatedCount > 0);
+
+    return {
+      content: [{ type: "text", text: lines.join("\n") }]
+    };
   }
 
   private setupHandlers() {
@@ -69,21 +202,24 @@ class EvokoreMCPServer {
     });
 
     // 3. Tools (Dynamic Injection & Proxied Actions)
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      const nativeTools = this.skillManager.getTools();
-      const proxiedTools = this.proxyManager.getProxiedTools();
+    this.server.setRequestHandler(ListToolsRequestSchema, async (_request, extra) => {
       return {
-        tools: [...nativeTools, ...proxiedTools]
+        tools: this.discoveryMode === "dynamic"
+          ? this.toolCatalog.getProjectedTools(this.getActivatedTools(extra))
+          : this.toolCatalog.getAllTools()
       };
     });
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const toolName = request.params.name;
       const args = request.params.arguments || {};
 
+      if (toolName === "discover_tools") {
+        return await this.handleDiscoverTools(args, extra);
+      }
+
       // Handle Native Skill Tools
-      const nativeToolNames = this.skillManager.getTools().map(t => t.name);
-      if (nativeToolNames.includes(toolName)) {
+      if (this.toolCatalog.isNativeTool(toolName)) {
         return await this.skillManager.handleToolCall(toolName, args);
       }
 
@@ -101,12 +237,15 @@ class EvokoreMCPServer {
     await this.securityManager.loadPermissions();
     await this.skillManager.loadSkills();
     await this.proxyManager.loadServers();
+    this.rebuildToolCatalog();
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("[EVOKORE] v2.0 Enterprise Router running on stdio");
+    console.error(`[EVOKORE] v2.0 Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
   }
 }
 
-const server = new EvokoreMCPServer();
-server.run().catch(console.error);
+if (require.main === module) {
+  const server = new EvokoreMCPServer();
+  server.run().catch(console.error);
+}

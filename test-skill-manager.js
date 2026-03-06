@@ -19,6 +19,12 @@ async function run() {
 
   await client.connect(transport);
   console.log("Connected to EVOKORE-MCP Server!");
+
+  const toolsResponse = await client.listTools();
+  if (!toolsResponse.tools.some((tool) => tool.name === "discover_tools")) {
+    console.error("discover_tools was not exposed in the server tool list.");
+    process.exit(1);
+  }
   
   // Test docs_architect
   console.log("Testing docs_architect...");

@@ -10,7 +10,7 @@ const index_js_1 = require("@modelcontextprotocol/sdk/client/index.js");
 const stdio_js_1 = require("@modelcontextprotocol/sdk/client/stdio.js");
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const resolveCommandForPlatform_1 = require("./utils/resolveCommandForPlatform");
-const CONFIG_FILE = path_1.default.resolve(__dirname, "../mcp.config.json");
+const DEFAULT_CONFIG_FILE = path_1.default.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 class ProxyManager {
     clients = new Map();
@@ -22,6 +22,10 @@ class ProxyManager {
     toolCooldowns = new Map();
     constructor(security) {
         this.security = security;
+    }
+    getConfigFilePath() {
+        const overridePath = process.env.EVOKORE_MCP_CONFIG_PATH;
+        return overridePath ? path_1.default.resolve(overridePath) : DEFAULT_CONFIG_FILE;
     }
     normalizeCooldownArgs(value) {
         if (Array.isArray(value)) {
@@ -77,7 +81,8 @@ class ProxyManager {
         this.cachedTools = [];
         this.serverRegistry.clear();
         try {
-            const content = await promises_1.default.readFile(CONFIG_FILE, "utf-8");
+            const configFile = this.getConfigFilePath();
+            const content = await promises_1.default.readFile(configFile, "utf-8");
             const config = JSON.parse(content);
             if (!config.servers)
                 return;

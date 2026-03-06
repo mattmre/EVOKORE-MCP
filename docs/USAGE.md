@@ -38,10 +38,31 @@ Once connected, your AI assistant will automatically have access to the followin
 
 - **`search_skills`**: Ask the AI to find a specific workflow. (e.g., *"Search the MCP for React styling skills."*)
 - **`get_skill_help`**: If you want to know what a specific skill does, ask the AI to explain it. (e.g., *"What does the 'arch-aep-runner' skill do? Show me some examples."*)
+- **`discover_tools`**: Search the merged EVOKORE catalog of native and proxied tools. In `dynamic` mode, matching proxied tools become visible for the current session.
 
 When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructions to the LLM, enabling the LLM to understand exactly what the skill is capable of and explain it to you in plain English.
 
-### 2.1 HITL approval token (`_evokore_approval_token`)
+### 2.1 Tool discovery mode (`EVOKORE_TOOL_DISCOVERY_MODE`)
+
+EVOKORE supports two tool-listing modes:
+
+- **`legacy`** (default): every `tools/list` returns the full native + proxied tool list, now including `discover_tools`.
+- **`dynamic`**: `tools/list` returns the always-visible native tools plus only the proxied tools activated during the current session.
+
+```bash
+EVOKORE_TOOL_DISCOVERY_MODE=dynamic node dist/index.js
+```
+
+In `dynamic` mode:
+
+1. Call `discover_tools` with a natural-language query or exact tool name.
+2. Matching proxied tools are activated for the current session.
+3. EVOKORE emits `sendToolListChanged()` on a best-effort basis.
+4. Re-run `tools/list` if your client does not auto-refresh.
+
+Hidden proxied tools remain callable by exact prefixed name for compatibility, even when they are not currently listed.
+
+### 2.2 HITL approval token (`_evokore_approval_token`)
 
 For tools configured as `require_approval`, EVOKORE returns a security-intercept error first, then includes a `_evokore_approval_token` for the retry.
 
