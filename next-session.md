@@ -2,13 +2,15 @@
 
 Last Updated (UTC): 2026-03-06
 
-## Completed (Published Phase 3 Implementation Stack)
-- **PR1 / local branch `feat/phase2-proxy-hardening-20260306` (`9619b82`) / PR #65:** Proxy cooldown hardening completed with regression coverage in `test-proxy-cooldown.js` and `test-proxy-server-errors.js`; validated with `npm run build && npm test`.
-- **PR2 / local branch `feat/dynamic-tool-discovery-mvp-20260306` (`5ad4254`) / PR #66:** Dynamic tool discovery MVP completed, including `src/ToolCatalogIndex.ts`, `discover_tools`, `test-tool-discovery-validation.js`, and the benchmark harness; validated with `npm run build && node test-tool-discovery-validation.js && npm test`. Benchmark run produced `toolCounts legacy=56, dynamic=8, discovered=2` and `estimatedTokens legacy=2684, dynamic=347`.
-- **PR3 / local branch `test/phase3-maintenance-live-provider-artifacts-20260306` (`a32c1d1`) / PR #67:** Maintenance validation completed for deterministic benchmark artifact output and opt-in live voice validation/artifact capture; validated with `npm run build && node test-tool-discovery-benchmark-validation.js && npm run test:voice:live && npm test`. `npm run test:voice:live` skipped cleanly because `EVOKORE_RUN_LIVE_VOICE_TEST` was not set.
-- **PR4 / local branch `docs/phase3-tracking-wrap-20260306` (`0af6191`) / PR #68:** Documentation tracking wrap is now published as the chain head for the open stacked PR chain `#65 -> #66 -> #67 -> #68`.
+## Completed (Audited Open Phase 3 PR Stack)
+- **PR #65 / `feat/phase2-proxy-hardening-20260306`:** Base `main`, mergeable state `clean`, no reviews yet. Proxy cooldown hardening remains backed by `test-proxy-cooldown.js` and `test-proxy-server-errors.js`.
+- **PR #66 / `feat/dynamic-tool-discovery-mvp-20260306`:** Base `feat/phase2-proxy-hardening-20260306`, mergeable state `clean`, no reviews yet. Dynamic tool discovery MVP remains backed by `src/ToolCatalogIndex.ts`, `discover_tools`, `test-tool-discovery-validation.js`, and the benchmark harness.
+- **PR #67 / `test/phase3-maintenance-live-provider-artifacts-20260306`:** Base `feat/dynamic-tool-discovery-mvp-20260306`, mergeable state `clean`, no reviews yet. Maintenance validation remains backed by deterministic benchmark artifact output plus opt-in live voice artifact capture coverage.
+- **PR #68 / `docs/phase3-tracking-wrap-20260306`:** Base `test/phase3-maintenance-live-provider-artifacts-20260306`, mergeable state `clean`, no reviews yet. This docs-wrap PR remains the open chain head for `#65 -> #66 -> #67 -> #68`.
+- **Validation evidence to trust right now:** GitHub status endpoints currently report `state=pending` and `total_count=0` for each head SHA, so the durable evidence is the recorded local validation. The current docs-wrap branch has now passed `npm run build && npm test` plus the post-refresh guardrail set: `node test-ops-docs-validation.js`, `node test-docs-canonical-links.js`, `node test-next-session-freshness-validation.js`, and `node test-tracker-consistency-validation.js`.
 
 ## Next Actions (Prioritized)
-1. **Review and merge the open PR chain in order `#65 -> #66 -> #67 -> #68`:** The stack is now published for review, but none of the PRs should be treated as merged yet.
-2. **Re-run validations after each parent merge and dependent rebase:** Reconfirm `npm run build`, targeted discovery/benchmark/live-voice commands as needed, and full `npm test` after branch rebases or conflict resolution.
-3. **Decide whether broader post-MVP Phase 3 work remains:** After review of the current stack, determine whether any larger infrastructure/state-management follow-up should continue beyond the MVP and maintenance slice.
+1. **Get reviews and merge strictly in order `#65 -> #66 -> #67 -> #68`:** None of these PRs is merged yet, and all four currently show no reviews.
+2. **At every merge boundary, rebase the next child branch and re-run validations:** Reconfirm `npm run build`, the targeted discovery/benchmark/live-voice checks required by the rebased branch, and `npm test` before moving to the next PR in the chain.
+3. **Do not start broader post-MVP Phase 3 implementation yet:** First close the current stack safely and keep the review/rebase surface area small.
+4. **After the stack is stable, take the smallest standalone cleanup next:** Open a version/config consistency PR to reconcile current drift (`README.md` v2.0.1 vs `package.json` 2.0.2 vs `src/index.ts` 2.0.0) and fix the stale `.env.example` discovery environment-variable naming.

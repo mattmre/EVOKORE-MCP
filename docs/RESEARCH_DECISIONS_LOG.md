@@ -239,3 +239,12 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Gate live voice validation behind `EVOKORE_RUN_LIVE_VOICE_TEST=1`, disable playback with `VOICE_SIDECAR_DISABLE_PLAYBACK=1`, and capture artifacts through `VOICE_SIDECAR_ARTIFACT_DIR`.
 - Trade-offs: Default runs do not prove provider availability, but the suite remains deterministic and operators still have a repeatable live-validation path when credentials are available.
 - Follow-up: Keep manual/opt-in coverage in `package.json` (`test:voice:live`) and `test-voice-sidecar-live-validation.js`.
+
+### Decision: Defer broader post-MVP Phase 3 work until the current stack is closed
+- Date: 2026-03-06
+- Owner: architect
+- Context: The live Phase 3 PR chain `#65 -> #66 -> #67 -> #68` is open, mergeable, and still unreviewed; GitHub status endpoints are currently `pending` with `total_count=0`, so local validation evidence carries more weight than remote check summaries during this handoff window.
+- Options considered: start the next broader Phase 3 implementation slice immediately vs stabilize and close the existing stack first vs switch to a small standalone cleanup after closure.
+- Decision: Do not begin broader post-MVP Phase 3 implementation yet. First review, merge, rebase, and revalidate the current chain safely from base to head.
+- Trade-offs: Delays larger infrastructure/state-management exploration, but reduces stacked-PR churn, avoids unnecessary rebase risk, and keeps the review narrative evidence-backed.
+- Follow-up: Once the stack is stable, prefer a small standalone version/config consistency PR to reconcile `README.md` v2.0.1, `package.json` 2.0.2, `src/index.ts` 2.0.0, and the stale `.env.example` discovery env naming.
