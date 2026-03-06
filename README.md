@@ -7,6 +7,7 @@ A unified Model Context Protocol (MCP) server that aggregates, indexes, and dyna
 - **Multi-Server Aggregation (Proxy Layer)**: Bootstraps child MCP servers from `mcp.config.json` and routes JSON-RPC messages via stdio, acting as a single unified endpoint for AI clients.
 - **Dynamic Tool Prefixing**: Automatically namespaces proxied tools (e.g., `fs_read_file`, `github_create_issue`) to prevent collisions and keep contexts organized.
 - **Dynamic Tool Discovery MVP**: Default `legacy` mode preserves the full listing contract, while optional `dynamic` mode exposes always-visible native tools plus session-activated proxied tools through `discover_tools`.
+- **Benchmarkable Discovery Contract**: The tool-discovery benchmark keeps a stable JSON stdout contract and can optionally persist the same artifact with `--output <path>`.
 - **Human-in-the-Loop (HITL) Security Interceptor**: A stateless security architecture that intercepts restricted tool calls and enforces explicit human approval via the `_evokore_approval_token`, protecting sensitive endpoints.
 - **Active Skill Orchestration**: Built-in skills (like `docs_architect` and `skill_creator`) are directly integrated into the `SkillManager`, allowing EVOKORE to natively harness child server tools (like reading the filesystem) *before* returning contextualized prompts to the AI.
 - **Dynamic Skill Loading**: Automatically scans the `SKILLS/` directory on startup. Keeps context windows lean by using lightweight semantic search (`fuse.js`) to serve prompts only when requested via the `resolve_workflow` tool.
@@ -45,6 +46,23 @@ EVOKORE_TOOL_DISCOVERY_MODE=legacy
 EVOKORE_TOOL_DISCOVERY_MODE=dynamic
 ```
 
+Voice sidecar validation toggles:
+
+```bash
+# Skip local playback during sidecar validation runs
+VOICE_SIDECAR_DISABLE_PLAYBACK=1
+
+# Preserve the final playable mp3 artifact
+VOICE_SIDECAR_ARTIFACT_DIR=artifacts/voice-sidecar
+```
+
+Tool discovery benchmark artifact capture:
+
+```bash
+npm run benchmark:tool-discovery
+node scripts/benchmark-tool-discovery.js --output artifacts/tool-discovery-benchmark.json
+```
+
 ## 🎓 Comprehensive Training
 Dive into our extensive, deeply researched use cases and training guides for all 200+ skills: [**Training & Use Cases Documentation**](docs/TRAINING_AND_USE_CASES.md).
 
@@ -66,6 +84,8 @@ Dive into our extensive, deeply researched use cases and training guides for all
 - Hook observability: `node hook-test-suite.js` and `node hook-e2e-validation.js`
 - Submodule safety guard: `node test-submodule-commit-order-guard-validation.js`
 - Dynamic tool discovery guard: `node test-tool-discovery-validation.js`
+- Discovery benchmark contract: `node test-tool-discovery-benchmark-validation.js`
+- Opt-in live voice artifact capture: `npm run test:voice:live`
 
 ## 📂 Repository Structure
 

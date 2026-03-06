@@ -1,4 +1,6 @@
 const { performance } = require("perf_hooks");
+const fs = require("fs");
+const path = require("path");
 const { ToolCatalogIndex } = require("../dist/ToolCatalogIndex.js");
 
 function createTool(name, description) {
@@ -64,7 +66,27 @@ function measure(fn, iterations = 250) {
   };
 }
 
+function parseArgs(argv) {
+  let outputPath = null;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--output") {
+      outputPath = argv[i + 1];
+      if (!outputPath) {
+        throw new Error("Missing value for --output");
+      }
+      i += 1;
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  return { outputPath };
+}
+
 function run() {
+  const { outputPath } = parseArgs(process.argv.slice(2));
   const catalog = createSyntheticCatalog();
   const activatedTools = new Set(["github_search_01", "docs_markdown_05"]);
 
@@ -98,7 +120,20 @@ function run() {
     topMatches: discoveryResults.map((match) => match.entry.name)
   };
 
-  console.log(JSON.stringify(payload, null, 2));
+  const serializedPayload = JSON.stringify(payload, null, 2);
+
+  if (outputPath) {
+    const resolvedOutputPath = path.resolve(outputPath);
+    fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+    fs.writeFileSync(resolvedOutputPath, `${serializedPayload}\n`, "utf8");
+  }
+
+  console.log(serializedPayload);
 }
 
-run();
+try {
+  run();
+} catch (error) {
+  console.error(`benchmark-tool-discovery failed: ${error.message}`);
+  process.exit(1);
+}

@@ -62,7 +62,23 @@ In `dynamic` mode:
 
 Hidden proxied tools remain callable by exact prefixed name for compatibility, even when they are not currently listed.
 
-### 2.2 HITL approval token (`_evokore_approval_token`)
+### 2.2 Benchmarking tool discovery
+
+Use the benchmark script to capture a deterministic JSON snapshot of the discovery/listing contract:
+
+```bash
+npm run benchmark:tool-discovery
+```
+
+The script always writes the benchmark JSON payload to stdout. To preserve the same artifact on disk, pass `--output <path>`:
+
+```bash
+node scripts/benchmark-tool-discovery.js --output artifacts/tool-discovery-benchmark.json
+```
+
+The output file contains the exact same JSON document emitted to stdout.
+
+### 2.3 HITL approval token (`_evokore_approval_token`)
 
 For tools configured as `require_approval`, EVOKORE returns a security-intercept error first, then includes a `_evokore_approval_token` for the retry.
 
@@ -181,6 +197,13 @@ The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses
 
 The sidecar listens on `ws://localhost:8888` (override with `VOICE_SIDECAR_PORT` env var). This `ws://localhost:<VOICE_SIDECAR_PORT>` endpoint is the standalone sidecar protocol endpoint for any custom producer. When Claude Code finishes a response, the hook forwards the text to that endpoint, which streams it to ElevenLabs and plays the audio.
 
+**Optional runtime controls:**
+
+- `VOICE_SIDECAR_DISABLE_PLAYBACK=1` - skip local audio playback while keeping synthesis/stream handling intact; the sidecar logs that playback is disabled.
+- `VOICE_SIDECAR_ARTIFACT_DIR=/absolute/path` - preserve a copy of the final playable `.mp3` in the specified directory and log the saved path.
+
+These toggles are opt-in only; if unset, the sidecar preserves the existing playback behavior.
+
 **Protocol contract (for custom integrations):**
 
 Each WebSocket message is a JSON object with these fields:
@@ -246,6 +269,16 @@ For natural-sounding fast speech, prefer Layer 1 (API speed) over Layer 3 (ffmpe
 Validation checks for this path:
 - `node test-voice-e2e-validation.js`
 - `node test-voice-refinement-validation.js`
+- `node test-voice-sidecar-smoke-validation.js`
+- `node test-voice-sidecar-hotreload-validation.js`
+
+Opt-in live validation against ElevenLabs:
+
+```bash
+EVOKORE_RUN_LIVE_VOICE_TEST=1 ELEVENLABS_API_KEY=your_key_here npm run test:voice:live
+```
+
+The live test is intentionally excluded from `npm test`. It starts the compiled sidecar with playback disabled, captures an `.mp3` artifact into a temporary directory, sends a short websocket utterance with `flush: true`, and verifies the sidecar shuts down cleanly.
 
 ### Release Workflow
 

@@ -11,6 +11,10 @@ const child_process_1 = require("child_process");
 // --- Config ---
 const PORT = parseInt(process.env.VOICE_SIDECAR_PORT || "8888", 10);
 const VOICES_PATH = path_1.default.resolve(__dirname, "../voices.json");
+const PLAYBACK_DISABLED = process.env.VOICE_SIDECAR_DISABLE_PLAYBACK === "1";
+const ARTIFACT_DIR = process.env.VOICE_SIDECAR_ARTIFACT_DIR
+    ? path_1.default.resolve(process.env.VOICE_SIDECAR_ARTIFACT_DIR)
+    : null;
 function loadVoicesConfig() {
     const raw = fs_1.default.readFileSync(VOICES_PATH, "utf-8");
     return JSON.parse(raw);
@@ -21,6 +25,22 @@ function resolvePersona(role) {
         return config.default;
     }
     return { ...config.default, ...config.personas[role] };
+}
+function saveAudioArtifact(filePath) {
+    if (!ARTIFACT_DIR) {
+        return null;
+    }
+    try {
+        fs_1.default.mkdirSync(ARTIFACT_DIR, { recursive: true });
+        const extension = path_1.default.extname(filePath) || ".mp3";
+        const artifactPath = path_1.default.join(ARTIFACT_DIR, `evokore-voice-${Date.now()}${extension}`);
+        fs_1.default.copyFileSync(filePath, artifactPath);
+        return artifactPath;
+    }
+    catch (err) {
+        console.error("[VoiceSidecar] Failed to save audio artifact:", err.message);
+        return null;
+    }
 }
 // --- Audio Playback ---
 function playAudio(filePath) {
@@ -167,8 +187,17 @@ class ElevenLabsStreamer {
                 playFile = processedFile;
             }
         }
-        console.error(`[VoiceSidecar] Playing audio (${(combined.length / 1024).toFixed(1)}KB)`);
-        await playAudio(playFile);
+        const artifactPath = saveAudioArtifact(playFile);
+        if (artifactPath) {
+            console.error(`[VoiceSidecar] Saved audio artifact: ${artifactPath}`);
+        }
+        if (PLAYBACK_DISABLED) {
+            console.error("[VoiceSidecar] Playback disabled by VOICE_SIDECAR_DISABLE_PLAYBACK=1");
+        }
+        else {
+            console.error(`[VoiceSidecar] Playing audio (${(combined.length / 1024).toFixed(1)}KB)`);
+            await playAudio(playFile);
+        }
         // Cleanup temp files
         try {
             fs_1.default.unlinkSync(tmpFile);
