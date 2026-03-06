@@ -26,7 +26,7 @@ function validatePayload(payload) {
   assert.ok(payload.toolCounts && typeof payload.toolCounts === "object", "toolCounts must be present.");
   assert.ok(payload.payloadBytes && typeof payload.payloadBytes === "object", "payloadBytes must be present.");
   assert.ok(payload.estimatedTokens && typeof payload.estimatedTokens === "object", "estimatedTokens must be present.");
-  assert.ok(payload.timings && typeof payload.timings === "object", "timings must be present.");
+  assert.ok(payload.benchmarkScenario && typeof payload.benchmarkScenario === "object", "benchmarkScenario must be present.");
   assert.ok(Array.isArray(payload.topMatches), "topMatches must be an array.");
 
   assert.ok(payload.toolCounts.legacy > payload.toolCounts.dynamic, "legacy tool count should exceed dynamic tool count.");
@@ -35,9 +35,16 @@ function validatePayload(payload) {
   assert.ok(payload.estimatedTokens.legacy >= payload.estimatedTokens.dynamic, "legacy token estimate should be >= dynamic token estimate.");
   assert.strictEqual(payload.topMatches.length, payload.toolCounts.discovered, "topMatches length should match discovered count.");
   assert.ok(payload.topMatches.includes("github_issue_03"), "top matches should include the seeded exact query match.");
+  assert.strictEqual(payload.benchmarkScenario.iterations, 250, "Benchmark iterations should remain stable.");
+  assert.strictEqual(typeof payload.benchmarkScenario.deterministicArtifact, "boolean", "deterministicArtifact must be a boolean.");
+  assert.strictEqual(typeof payload.benchmarkScenario.liveTimingsIncluded, "boolean", "liveTimingsIncluded must be a boolean.");
+}
+
+function validateLiveTimings(payload) {
+  assert.ok(payload.liveTimings && typeof payload.liveTimings === "object", "liveTimings must be present when requested.");
 
   for (const key of ["listLegacy", "listDynamic", "discover"]) {
-    const timing = payload.timings[key];
+    const timing = payload.liveTimings[key];
     assert.ok(timing && typeof timing === "object", `${key} timing block must be present.`);
     assert.strictEqual(timing.iterations, 250, `${key} should keep the default iteration count.`);
     assert.ok(timing.avgMs >= 0, `${key}.avgMs must be non-negative.`);
@@ -50,6 +57,20 @@ function validatePayload(payload) {
 function run() {
   const stdoutRun = runBenchmark();
   validatePayload(stdoutRun.payload);
+  assert.strictEqual(stdoutRun.payload.benchmarkScenario.deterministicArtifact, true, "Default benchmark run should stay deterministic.");
+  assert.strictEqual(stdoutRun.payload.benchmarkScenario.liveTimingsIncluded, false, "Default benchmark run should omit live timings.");
+  assert.ok(!Object.prototype.hasOwnProperty.call(stdoutRun.payload, "liveTimings"), "Default benchmark output should omit live timings.");
+
+  const secondStdoutRun = runBenchmark();
+  validatePayload(secondStdoutRun.payload);
+  assert.deepStrictEqual(secondStdoutRun.payload, stdoutRun.payload, "Default benchmark JSON must remain deterministic across runs.");
+  assert.strictEqual(secondStdoutRun.stdout, stdoutRun.stdout, "Default benchmark stdout must remain byte-stable across runs.");
+
+  const liveTimingRun = runBenchmark(["--live-timings"]);
+  validatePayload(liveTimingRun.payload);
+  assert.strictEqual(liveTimingRun.payload.benchmarkScenario.deterministicArtifact, false, "Live timing mode should opt out of deterministic artifact guarantees.");
+  assert.strictEqual(liveTimingRun.payload.benchmarkScenario.liveTimingsIncluded, true, "Live timing mode should record timing telemetry.");
+  validateLiveTimings(liveTimingRun.payload);
 
   const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "evokore-tool-benchmark-"));
   const outputPath = path.join(outputDir, "tool-discovery-benchmark.json");

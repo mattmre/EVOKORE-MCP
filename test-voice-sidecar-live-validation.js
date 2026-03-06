@@ -6,7 +6,11 @@ const net = require('net');
 const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
+const dotenv = require('dotenv');
 const WebSocket = require('ws');
+
+// Match the sidecar's runtime contract so a key provided in .env satisfies the live gate.
+dotenv.config({ path: path.resolve(__dirname, '.env'), quiet: true });
 
 function getUnusedPort() {
   return new Promise((resolve, reject) => {
