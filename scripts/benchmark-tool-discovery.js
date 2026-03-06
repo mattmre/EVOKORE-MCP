@@ -1,5 +1,8 @@
 const { performance } = require("perf_hooks");
+const fs = require("fs");
+const path = require("path");
 const { ToolCatalogIndex } = require("../dist/ToolCatalogIndex.js");
+const DEFAULT_ITERATIONS = 250;
 
 function createTool(name, description) {
   return {
@@ -44,7 +47,7 @@ function createSyntheticCatalog() {
   return new ToolCatalogIndex(nativeTools, proxiedTools);
 }
 
-function measure(fn, iterations = 250) {
+function measure(fn, iterations = DEFAULT_ITERATIONS) {
   const durations = [];
   for (let i = 0; i < iterations; i++) {
     const start = performance.now();
@@ -64,7 +67,30 @@ function measure(fn, iterations = 250) {
   };
 }
 
+function parseArgs(argv) {
+  let outputPath = null;
+  let includeLiveTimings = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === "--output") {
+      outputPath = argv[i + 1];
+      if (!outputPath) {
+        throw new Error("Missing value for --output");
+      }
+      i += 1;
+    } else if (arg === "--live-timings") {
+      includeLiveTimings = true;
+    } else {
+      throw new Error(`Unknown argument: ${arg}`);
+    }
+  }
+
+  return { outputPath, includeLiveTimings };
+}
+
 function run() {
+  const { outputPath, includeLiveTimings } = parseArgs(process.argv.slice(2));
   const catalog = createSyntheticCatalog();
   const activatedTools = new Set(["github_search_01", "docs_markdown_05"]);
 
@@ -90,15 +116,36 @@ function run() {
       legacy: Math.ceil(legacyBytes / 4),
       dynamic: Math.ceil(dynamicBytes / 4)
     },
-    timings: {
-      listLegacy: measure(() => catalog.getAllTools()),
-      listDynamic: measure(() => catalog.getProjectedTools(activatedTools)),
-      discover: measure(() => catalog.discover(discoveryQuery, activatedTools, 8))
+    benchmarkScenario: {
+      iterations: DEFAULT_ITERATIONS,
+      deterministicArtifact: !includeLiveTimings,
+      liveTimingsIncluded: includeLiveTimings
     },
     topMatches: discoveryResults.map((match) => match.entry.name)
   };
 
-  console.log(JSON.stringify(payload, null, 2));
+  if (includeLiveTimings) {
+    payload.liveTimings = {
+      listLegacy: measure(() => catalog.getAllTools()),
+      listDynamic: measure(() => catalog.getProjectedTools(activatedTools)),
+      discover: measure(() => catalog.discover(discoveryQuery, activatedTools, 8))
+    };
+  }
+
+  const serializedPayload = JSON.stringify(payload, null, 2);
+
+  if (outputPath) {
+    const resolvedOutputPath = path.resolve(outputPath);
+    fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+    fs.writeFileSync(resolvedOutputPath, `${serializedPayload}\n`, "utf8");
+  }
+
+  console.log(serializedPayload);
 }
 
-run();
+try {
+  run();
+} catch (error) {
+  console.error(`benchmark-tool-discovery failed: ${error.message}`);
+  process.exit(1);
+}

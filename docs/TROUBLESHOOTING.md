@@ -38,9 +38,19 @@ If the server still won't connect, launch your AI assistant in debug mode to see
 **Checks:**
 - Ensure the sidecar is running: `npm run voice`
 - Verify your `ELEVENLABS_API_KEY` is set
+- If you intentionally want silent validation or artifact-only runs, set `VOICE_SIDECAR_DISABLE_PLAYBACK=1`
+- To preserve generated audio for inspection, set `VOICE_SIDECAR_ARTIFACT_DIR=/absolute/path` and check the logged saved path
 - Validate hook and payload behavior with:
   - `node test-voice-e2e-validation.js`
   - `node test-voice-refinement-validation.js`
+
+**Optional live ElevenLabs validation:**
+
+```bash
+EVOKORE_RUN_LIVE_VOICE_TEST=1 ELEVENLABS_API_KEY=your_key_here npm run test:voice:live
+```
+
+If `EVOKORE_RUN_LIVE_VOICE_TEST` is not set to `1`, the live validation skips intentionally. If you enable the gate without providing `ELEVENLABS_API_KEY` through your shell environment or `.env`, the test fails fast so local and CI runs do not silently pass with a misconfigured live check.
 
 ## 6. Release Workflow Did Not Publish
 **Symptoms:** Release workflow runs but package is not published.
@@ -157,4 +167,18 @@ Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
 - Call `discover_tools` with a natural-language query or the exact prefixed tool name.
 - Re-run `tools/list` if your client does not refresh automatically after `tools/list_changed`.
 - If needed, call a proxied tool directly by exact name; hidden/unlisted proxied tools remain callable for compatibility.
+
+## 15. Discovery Benchmark Artifact Was Not Saved
+**Symptoms:** `npm run benchmark:tool-discovery` prints JSON, but you expected a file artifact too.
+
+**Cause:** File capture is opt-in. By default, the benchmark writes JSON to stdout only.
+
+**Solution:**
+- Pass `--output <path>` to save the same JSON artifact to disk.
+- Ensure the parent directory is writable.
+
+Example:
+```bash
+node scripts/benchmark-tool-discovery.js --output artifacts/tool-discovery-benchmark.json
+```
 
