@@ -339,6 +339,6 @@ Use this template at session start:
    - Updated `next-session.md`, `docs/PRIORITY_STATUS_MATRIX.md`, `docs/RESEARCH_DECISIONS_LOG.md`, and `docs/README.md`; added `docs/session-logs/session-2026-03-06-phase-3-tracking-wrap.md`.
    - **Output:** Current docs now reflect the local stacked branch outcomes and latest handoff artifact.
 3. **Wrap / publication handoff phase**
-   - Recorded that implementation publication is still pending because EVOKORE-assisted GitHub branch creation failed with bad credentials.
-   - Captured the next actions: restore GitHub auth, publish/review the stack, rerun validations after rebases, and decide whether broader post-MVP Phase 3 infrastructure/state work remains after review.
-   - **Output:** Docs-only PR4 handoff prepared with no runtime/test behavior changes.
+   - Published the implementation stack as open GitHub PRs `#65 -> #66 -> #67 -> #68` after pushing the four-branch chain and opening reviewable PRs with GitHub CLI.
+   - Captured the next actions: review/merge the stack in order, rerun validations after each parent merge and dependent rebase, and decide whether broader post-MVP Phase 3 infrastructure/state work remains after review.
+   - **Output:** Docs-only PR4 handoff now points at the live PR chain with no additional runtime/test behavior changes.
