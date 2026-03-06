@@ -9,10 +9,11 @@ const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 // Load Vault Secrets before any proxy spawns
-dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../.env") });
+dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env"), quiet: true });
 const SkillManager_1 = require("./SkillManager");
 const ProxyManager_1 = require("./ProxyManager");
 const SecurityManager_1 = require("./SecurityManager");
+const SERVER_VERSION = "2.0.2";
 class EvokoreMCPServer {
     server;
     skillManager;
@@ -21,7 +22,7 @@ class EvokoreMCPServer {
     constructor() {
         this.server = new index_js_1.Server({
             name: "evokore-mcp",
-            version: "2.0.0",
+            version: SERVER_VERSION,
         }, {
             capabilities: {
                 prompts: {},
@@ -29,9 +30,9 @@ class EvokoreMCPServer {
                 tools: {},
             },
         });
-        this.skillManager = new SkillManager_1.SkillManager();
         this.securityManager = new SecurityManager_1.SecurityManager();
         this.proxyManager = new ProxyManager_1.ProxyManager(this.securityManager);
+        this.skillManager = new SkillManager_1.SkillManager(this.proxyManager);
         this.setupHandlers();
         this.server.onerror = (error) => console.error("[MCP Error]", error);
     }
@@ -62,7 +63,8 @@ class EvokoreMCPServer {
             const toolName = request.params.name;
             const args = request.params.arguments || {};
             // Handle Native Skill Tools
-            if (["resolve_workflow", "search_skills", "get_skill_help"].includes(toolName)) {
+            const nativeToolNames = this.skillManager.getTools().map(t => t.name);
+            if (nativeToolNames.includes(toolName)) {
                 return await this.skillManager.handleToolCall(toolName, args);
             }
             // Handle Proxied Execution Tools
@@ -79,9 +81,8 @@ class EvokoreMCPServer {
         await this.proxyManager.loadServers();
         const transport = new stdio_js_1.StdioServerTransport();
         await this.server.connect(transport);
-        console.error("[EVOKORE] v2.0 Enterprise Router running on stdio");
+        console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio`);
     }
 }
 const server = new EvokoreMCPServer();
 server.run().catch(console.error);
-//# sourceMappingURL=index.js.map
