@@ -75,3 +75,9 @@ Snapshot of the requested 15 priority items/phases, grounded in current reposito
 - **Scope control decision:** Do not begin broader post-MVP Phase 3 implementation until this chain is reviewed, merged, and rebased through closure.
 - **Best next standalone follow-up after closure:** Version/config consistency cleanup for `README.md` v2.0.1 vs `package.json` 2.0.2 vs `src/index.ts` 2.0.0, plus stale `.env.example` discovery env naming.
 
+## Fresh Evidence Refresh (2026-03-06 PR Publication Session Wrap)
+
+- **No unpublished repo work remains to recover after the latest docs-wrap publication:** next session can start from the published PR set instead of looking for hidden local edits.
+- **Live checks source:** `gh pr status` now shows checks passing for `#65`, `#66`, `#67`, `#68`, and standalone `#69`, while GitHub MCP `get_status` still reports stale `state=pending` / `total_count=0`.
+- **Standalone cleanup publication:** Version/config consistency cleanup is now open as independent PR `#69` against `main`; it is not part of the `#65 -> #66 -> #67 -> #68` chain.
+
