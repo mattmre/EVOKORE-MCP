@@ -2,6 +2,8 @@
 
 This guide covers how to install, configure, and use EVOKORE-MCP with your favorite AI assistants.
 
+> **See also:** [SETUP.md](./SETUP.md) · [USE_CASES_AND_WALKTHROUGHS.md](./USE_CASES_AND_WALKTHROUGHS.md) · [TOOLS_AND_DISCOVERY.md](./TOOLS_AND_DISCOVERY.md) · [VOICE_AND_HOOKS.md](./VOICE_AND_HOOKS.md) · [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)
+
 ## 1. Connecting to an AI Assistant
 
 EVOKORE-MCP uses the standard Model Context Protocol via `stdio`. You must point your AI client to the compiled `index.js` file.
