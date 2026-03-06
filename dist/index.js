@@ -9,7 +9,7 @@ const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 // Load Vault Secrets before any proxy spawns
-dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env") });
+dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env"), quiet: true });
 const SkillManager_1 = require("./SkillManager");
 const ProxyManager_1 = require("./ProxyManager");
 const SecurityManager_1 = require("./SecurityManager");

@@ -239,5 +239,5 @@ function startServer() {
 }
 // --- Load .env and start ---
 const dotenv_1 = __importDefault(require("dotenv"));
-dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env") });
+dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../.env"), quiet: true });
 startServer();
