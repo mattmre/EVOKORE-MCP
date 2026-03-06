@@ -247,4 +247,4 @@ Durable log for implementation decisions and context-rot prevention.
 - Options considered: start the next broader Phase 3 implementation slice immediately vs stabilize and close the existing stack first vs switch to a small standalone cleanup after closure.
 - Decision: Do not begin broader post-MVP Phase 3 implementation yet. First review, merge, rebase, and revalidate the current chain safely from base to head.
 - Trade-offs: Delays larger infrastructure/state-management exploration, but reduces stacked-PR churn, avoids unnecessary rebase risk, and keeps the review narrative evidence-backed.
-- Follow-up: Once the stack is stable, prefer a small standalone version/config consistency PR to reconcile `README.md` v2.0.1, `package.json` 2.0.2, `src/index.ts` 2.0.0, and the stale `.env.example` discovery env naming.
+- Follow-up: Standalone cleanup PR `#69` now carries the version/config consistency work (`README.md`, `package.json`, `package-lock.json`, `src/index.ts`, `src/index.js`, `dist/index.js`, and `.env.example`) and can be reviewed independently from the `#65 -> #66 -> #67 -> #68` chain.

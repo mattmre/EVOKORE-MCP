@@ -41,12 +41,15 @@ Refresh the durable wrap docs so they reflect the live, audited state of the ope
 - Do **not** start broader post-MVP Phase 3 implementation yet.
 - First close the current stack safely, keeping review scope tight and reducing rebase/context-rot risk.
 
-## Best Standalone Follow-up After Stack Closure
-- Open a small version/config consistency PR that reconciles:
-  - `README.md` version `v2.0.1`
-  - `package.json` version `2.0.2`
-  - `src/index.ts` version `2.0.0`
-  - stale `.env.example` discovery environment-variable naming
+## Independent Standalone Follow-up Now Open
+- PR **#69** (`fix/version-contract-consistency-20260306` -> `main`) is now published as a standalone cleanup review item.
+- Scope:
+  - align `package.json`, `package-lock.json`, `src/index.ts`, `src/index.js`, and `dist/index.js`
+  - remove brittle version-pinned headings from `README.md`
+  - fix `.env.example` discovery environment-variable naming
+  - add `test-version-contract-consistency.js`
+- Validation passed locally as `npm run build && node test-version-contract-consistency.js && npm test`.
+- Treat PR #69 as independent from the stacked `#65 -> #66 -> #67 -> #68` chain.
 
 ## Outcome
-- Canonical wrap docs now capture the audited live PR state, the baseline evidence posture, the no-reviews-yet condition, the required merge order, and the explicit decision to defer broader Phase 3 expansion until after stack closure.
+- Canonical wrap docs now capture the audited live PR state, the baseline evidence posture, the no-reviews-yet condition, the required merge order, the explicit decision to defer broader Phase 3 expansion, and the publication of standalone cleanup PR #69 outside the stack.
