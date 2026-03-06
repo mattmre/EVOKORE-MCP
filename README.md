@@ -1,29 +1,85 @@
 # EVOKORE-MCP
 
-A unified Model Context Protocol (MCP) server that aggregates, indexes, and dynamically serves over 200+ specialized Agent Skills, while functioning as a **Multi-Server Aggregator**. EVOKORE-MCP proxies traffic to child servers (e.g., GitHub, Filesystem), namespaces their tools dynamically, and governs execution with a Human-in-the-Loop (HITL) Security Interceptor.
+EVOKORE-MCP is a TypeScript-based stdio MCP router and multi-server aggregator. It gives AI clients a single MCP endpoint that combines EVOKORE’s native workflow tools with proxied child servers defined in `mcp.config.json`, while adding namespace isolation, dynamic tool discovery, and human-in-the-loop approval controls.
 
-## 🚀 Features
+Current package/runtime version: `2.0.2`.
 
-- **Multi-Server Aggregation (Proxy Layer)**: Bootstraps child MCP servers from `mcp.config.json` and routes JSON-RPC messages via stdio, acting as a single unified endpoint for AI clients.
-- **Dynamic Tool Prefixing**: Automatically namespaces proxied tools (e.g., `fs_read_file`, `github_create_issue`) to prevent collisions and keep contexts organized.
-- **Dynamic Tool Discovery MVP**: Default `legacy` mode preserves the full listing contract, while optional `dynamic` mode exposes always-visible native tools plus session-activated proxied tools through `discover_tools`.
-- **Benchmarkable Discovery Contract**: The tool-discovery benchmark keeps a stable JSON stdout contract and can optionally persist the same artifact with `--output <path>`.
-- **Human-in-the-Loop (HITL) Security Interceptor**: A stateless security architecture that intercepts restricted tool calls and enforces explicit human approval via the `_evokore_approval_token`, protecting sensitive endpoints.
-- **Active Skill Orchestration**: Built-in skills (like `docs_architect` and `skill_creator`) are directly integrated into the `SkillManager`, allowing EVOKORE to natively harness child server tools (like reading the filesystem) *before* returning contextualized prompts to the AI.
-- **Dynamic Skill Loading**: Automatically scans the `SKILLS/` directory on startup. Keeps context windows lean by using lightweight semantic search (`fuse.js`) to serve prompts only when requested via the `resolve_workflow` tool.
-- **Massive Built-in Library**: Includes 146 specialized developer plugins (Wshobson), the Hive Framework, the Manus `planning-with-files` protocol, and extensive custom orchestration workflows (e.g., `arch-aep-runner`, `session-wrap`).
+## Why EVOKORE exists
 
-## 🆕 Recent Hardening Highlights
+EVOKORE exists to solve three common MCP operator problems:
 
-- **PR Governance Metadata**: Standardized metadata is now required through `.github/pull_request_template.md`, with merge-boundary controls documented in `docs/PR_MERGE_RUNBOOK.md`.
-- **Release Safety Gate**: Manual release runs require explicit dependency-chain confirmation (`chain_complete=true`) before workflow execution continues.
-- **Windows Command Resolution Contract**: Runtime command resolution on Windows remaps `npx` to `npx.cmd` only; `uv`/`uvx` must resolve directly in shell PATH.
-- **Hook Observability**: Hook scripts emit structured telemetry to `~/.evokore/logs/hooks.jsonl` for operator diagnostics without changing hook fail-safe behavior.
-- **Submodule CI Guardrails**: CI now validates submodule cleanliness and catches uninitialized/mismatch/dirty states with deterministic checks.
+- **Too many disconnected MCP endpoints**: EVOKORE collapses multiple child servers into one stdio server.
+- **Too much tool-context overhead**: EVOKORE can run in `legacy` mode for broad compatibility or `dynamic` mode for session-scoped tool activation.
+- **Too little operational control**: EVOKORE adds HITL approval, duplicate-prefix collision handling, runtime guardrails, and continuity docs for long-running repo work.
 
-## 🛠️ Setup
+## Current capabilities
 
-To use this server with your AI client (like Claude Desktop or Cursor), add the following to your MCP configuration file:
+- **Single stdio MCP endpoint** for native EVOKORE tools plus proxied child servers.
+- **Native workflow tooling**: `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`.
+- **Proxied server aggregation** from `mcp.config.json`, currently `github`, `fs`, and optional `elevenlabs`.
+- **Prefixed proxied tools** in the form `${serverId}_${tool.name}` to avoid collisions.
+- **Tool discovery modes**:
+  - `legacy` (default): full native + proxied tool listing
+  - `dynamic`: always-visible native tools plus session-activated proxied tools
+- **Exact-name compatibility in dynamic mode**: hidden proxied tools still remain callable by exact prefixed name.
+- **HITL approval flow** using `_evokore_approval_token`, with one-time, exact-args, short-lived retries.
+- **Voice integrations** across proxied ElevenLabs tools, VoiceMode guidance, and the standalone VoiceSidecar.
+- **Ops and governance hardening** for docs integrity, release flow, PR metadata, submodule cleanliness, tracker consistency, and Windows runtime behavior.
+
+## System overview
+
+```mermaid
+flowchart LR
+    Client[AI Client<br/>Claude / Cursor / Gemini / custom MCP host]
+    Router[EVOKORE-MCP Router<br/>src/index.ts]
+    Native[Native EVOKORE tools<br/>SkillManager]
+    Catalog[ToolCatalogIndex<br/>legacy or dynamic projection]
+    Security[SecurityManager<br/>permissions.yml + HITL token flow]
+    Proxy[ProxyManager<br/>prefixing + child routing]
+    GitHub[github child server]
+    FS[fs child server]
+    Eleven[optional elevenlabs child server]
+    Hooks[Hooks + observability<br/>scripts/* + ~/.evokore]
+    Sidecar[VoiceSidecar<br/>ws://localhost:8888]
+
+    Client --> Router
+    Router --> Native
+    Router --> Catalog
+    Router --> Proxy
+    Proxy --> Security
+    Proxy --> GitHub
+    Proxy --> FS
+    Proxy --> Eleven
+    Client -. hook payloads .-> Hooks
+    Hooks -. voice payloads .-> Sidecar
+```
+
+## Quick start
+
+### 1. Install and build
+
+```bash
+npm ci
+npm run build
+```
+
+### 2. Configure environment
+
+Copy `.env.example` to `.env` and set the values you need:
+
+```bash
+GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here
+ELEVENLABS_API_KEY=your_key_here
+
+# Optional
+EVOKORE_TOOL_DISCOVERY_MODE=legacy
+# or
+EVOKORE_TOOL_DISCOVERY_MODE=dynamic
+```
+
+### 3. Register EVOKORE with your MCP client
+
+Point your client at the compiled runtime entrypoint:
 
 ```json
 {
@@ -36,69 +92,85 @@ To use this server with your AI client (like Claude Desktop or Cursor), add the 
 }
 ```
 
-Optional environment toggle:
+You can also use the sync helper for supported CLIs:
 
 ```bash
-# Backward-compatible default
-EVOKORE_TOOL_DISCOVERY_MODE=legacy
-
-# Slim initial tool listing with session-scoped proxy activation
-EVOKORE_TOOL_DISCOVERY_MODE=dynamic
+npm run sync:dry
+npm run sync
 ```
 
-Voice sidecar validation toggles:
+### 4. Start using the router
 
-```bash
-# Skip local playback during sidecar validation runs
-VOICE_SIDECAR_DISABLE_PLAYBACK=1
+- In **legacy mode**, your client sees the full native + proxied tool list.
+- In **dynamic mode**, use `discover_tools` to activate relevant proxied tools for the current session.
+- For protected proxied tools, EVOKORE returns an `_evokore_approval_token` and requires explicit human approval before retry.
 
-# Preserve the final playable mp3 artifact
-VOICE_SIDECAR_ARTIFACT_DIR=artifacts/voice-sidecar
-```
+## Operator paths
 
-Tool discovery benchmark artifact capture:
+- **First-time setup**: [docs/SETUP.md](docs/SETUP.md)
+- **Day-to-day usage**: [docs/USAGE.md](docs/USAGE.md)
+- **Practical walkthroughs**: [docs/USE_CASES_AND_WALKTHROUGHS.md](docs/USE_CASES_AND_WALKTHROUGHS.md)
+- **Tool discovery behavior**: [docs/TOOLS_AND_DISCOVERY.md](docs/TOOLS_AND_DISCOVERY.md)
+- **Voice and hooks**: [docs/VOICE_AND_HOOKS.md](docs/VOICE_AND_HOOKS.md)
+- **Troubleshooting**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
-```bash
-npm run benchmark:tool-discovery
-node scripts/benchmark-tool-discovery.js --output artifacts/tool-discovery-benchmark.json
-```
+## Contributor and maintainer paths
 
-## 🎓 Comprehensive Training
-Dive into our extensive, deeply researched use cases and training guides for all 200+ skills: [**Training & Use Cases Documentation**](docs/TRAINING_AND_USE_CASES.md).
+- **Documentation portal**: [docs/README.md](docs/README.md)
+- **Runtime architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Validation surface**: [docs/TESTING_AND_VALIDATION.md](docs/TESTING_AND_VALIDATION.md)
+- **Research and handoffs**: [docs/RESEARCH_AND_HANDOFFS.md](docs/RESEARCH_AND_HANDOFFS.md)
+- **PR merge governance**: [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md)
+- **Submodule workflow**: [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md)
 
-## 📖 Documentation Index
-- Canonical docs map: [docs/README.md](docs/README.md)
-- Usage guide: [docs/USAGE.md](docs/USAGE.md)
-- Troubleshooting guide: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
-- PR merge runbook: [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md)
-- PR template: [.github/pull_request_template.md](.github/pull_request_template.md)
-- Submodule workflow: [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md)
-- Release flow: [docs/RELEASE_FLOW.md](docs/RELEASE_FLOW.md)
-- Release notes (v2.0.1): [docs/RELEASE_NOTES_v2.0.1.md](docs/RELEASE_NOTES_v2.0.1.md)
+## Runtime module summary
 
-## ✅ Validation Coverage
+| Module | Role |
+|---|---|
+| `src/index.ts` | Main stdio MCP server, request handlers, discovery-mode projection, session activation state |
+| `src/SkillManager.ts` | Native EVOKORE tools and skill indexing over `SKILLS/` |
+| `src/ProxyManager.ts` | Child-server boot, prefixing, proxy execution, cooldown handling, env interpolation |
+| `src/ToolCatalogIndex.ts` | Unified native + proxied tool catalog, search index, projected tool listing |
+| `permissions.yml` | HITL/allow/deny policy for proxied tools |
+| `mcp.config.json` | Child-server registry for `github`, `fs`, and optional `elevenlabs` |
+| `src/VoiceSidecar.ts` | Standalone WebSocket voice runtime for hook-driven speech |
+| `scripts/` | Config sync, hook observability, replay viewers, benchmark tooling, and governance helpers |
+
+## Recent implementation and research highlights
+
+- **Dynamic tool discovery MVP landed** with `legacy` default mode, opt-in `dynamic` mode, session-scoped activation, and exact-name compatibility for hidden proxied tools.
+- **Discovery benchmarking now emits deterministic JSON by default**, with optional `--output` artifact writing and opt-in `--live-timings`.
+- **HITL approval guidance and hardening were expanded** around `_evokore_approval_token`: one-time use, exact same arguments, and short-lived retry windows.
+- **VoiceSidecar matured into a standalone runtime** on `ws://localhost:8888`, with `voices.json` hot-reload per new connection, playback disable support, and audio artifact saving.
+- **Windows runtime behavior is now explicit**: EVOKORE remaps only `npx` to `npx.cmd`; `uv` and `uvx` must resolve directly on PATH.
+- **Governance and continuity docs are first-class** through PR metadata validation, tracker consistency checks, next-session freshness validation, docs link validation, release gating, and research/session logs.
+
+## Detailed documentation
+
+- [docs/README.md](docs/README.md) — canonical docs portal
+- [docs/SETUP.md](docs/SETUP.md) — install, env, client registration, and first-run validation
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — runtime architecture, modules, routing, and tech stack
+- [docs/TOOLS_AND_DISCOVERY.md](docs/TOOLS_AND_DISCOVERY.md) — native vs proxied tools, discovery lifecycle, and tradeoffs
+- [docs/VOICE_AND_HOOKS.md](docs/VOICE_AND_HOOKS.md) — voice systems, hook pipeline, observability, and state locations
+- [docs/TESTING_AND_VALIDATION.md](docs/TESTING_AND_VALIDATION.md) — subsystem validations, CI, release, Windows, and docs checks
+- [docs/RESEARCH_AND_HANDOFFS.md](docs/RESEARCH_AND_HANDOFFS.md) — tracker, logs, continuity docs, and handoff conventions
+- [docs/TRAINING_AND_USE_CASES.md](docs/TRAINING_AND_USE_CASES.md) — broader training material
+
+## Validation references
+
 - Full regression: `npm test`
-- Version/config consistency: `node test-version-contract-consistency.js`
-- Ops docs guardrails: `node test-ops-docs-validation.js`
-- Release flow guardrails: `node test-npm-release-flow-validation.js`
-- Windows command contract: `node test-windows-exec-validation.js`
-- Hook observability: `node hook-test-suite.js` and `node hook-e2e-validation.js`
-- Submodule safety guard: `node test-submodule-commit-order-guard-validation.js`
-- Dynamic tool discovery guard: `node test-tool-discovery-validation.js`
+- Build: `npm run build`
+- Tool discovery contract: `node test-tool-discovery-validation.js`
 - Discovery benchmark contract: `node test-tool-discovery-benchmark-validation.js`
-- Opt-in live voice artifact capture: `npm run test:voice:live`
+- Voice sidecar and hook coverage: `node test-voice-sidecar-smoke-validation.js`, `node test-voice-sidecar-hotreload-validation.js`, `node hook-e2e-validation.js`
+- Windows command/runtime coverage: `node test-windows-exec-validation.js`, `npx tsx test-windows-command-runtime-validation.ts`
+- Governance/docs coverage: `node test-pr-metadata-validation.js`, `node test-docs-canonical-links.js`, `node test-version-contract-consistency.js`
 
-## 📂 Repository Structure
+## Contributing
 
-- `src/index.ts`: The core MCP Server implementation.
-- `SKILLS/`: The library of 200+ organized Markdown skills.
-- `scripts/`: Maintenance scripts (like `clean_skills.js`) to normalize YAML frontmatter across the library.
+This repository uses a PR-first workflow for meaningful changes.
 
-## 🤝 Contributing
-
-This repository uses a strict **Pull Request (PR) only workflow**. Direct commits to the `main` branch are restricted (except by the owner).
-1. Fork or branch from `main`.
-2. Add or update a skill in the `SKILLS/` directory. Ensure it has valid YAML frontmatter.
-3. For process/tooling/release-impacting changes, fill `.github/pull_request_template.md` and follow `docs/PR_MERGE_RUNBOOK.md`.
-4. Submit a Pull Request.
-
+1. Branch from `main`.
+2. Keep docs and code aligned when you change runtime behavior.
+3. For process/tooling/release-impacting changes, use `.github/pull_request_template.md` and follow [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md).
+4. Re-check [docs/README.md](docs/README.md) before landing cross-cutting changes.
