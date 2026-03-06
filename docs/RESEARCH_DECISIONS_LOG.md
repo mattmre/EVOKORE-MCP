@@ -203,3 +203,39 @@ Durable log for implementation decisions and context-rot prevention.
 - Decision: Require release handoff entries to include workflow run ID and HTML URL as primary evidence for guarded release execution.
 - Trade-offs: Slightly more handoff bookkeeping, but materially stronger traceability and lower context-rot risk.
 - Follow-up: Keep run evidence captured in `next-session.md` and release session logs for each manual dispatch.
+
+### Decision: Normalize cooldown keys from tool name plus arguments
+- Date: 2026-03-06
+- Owner: implementer
+- Context: Proxy cooldown behavior needed to distinguish repeated failures for the same logical invocation without over-collapsing unrelated tool calls.
+- Options considered: tool-name-only cooldown keys vs normalized tool+args keys with repeated-failure state.
+- Decision: Track cooldown state using normalized tool name plus stable arguments so repeated identical failures share state while different invocations remain independent.
+- Trade-offs: Slightly more state bookkeeping, but better retry isolation and more accurate cooldown enforcement.
+- Follow-up: Preserve regression coverage in `test-proxy-cooldown.js` and `test-proxy-server-errors.js`.
+
+### Decision: Keep dynamic discovery legacy-by-default with exact-name compatibility
+- Date: 2026-03-06
+- Owner: architect
+- Context: Dynamic tool discovery reduces prompt/tool payload size, but an immediate global switch risked surprising existing clients and breaking direct exact-name flows.
+- Options considered: force dynamic mode globally vs legacy-by-default rollout with opt-in dynamic behavior.
+- Decision: Keep legacy listing as the default posture, introduce dynamic discovery as an MVP path, and preserve exact-name compatibility so hidden proxied tools remain callable directly after lookup.
+- Trade-offs: Discovery gains are not universal on day one, but rollout risk stays low and compatibility remains high.
+- Follow-up: Keep validation anchored in `src/ToolCatalogIndex.ts`, `test-tool-discovery-validation.js`, and `tests/helpers/mock-tool-discovery-server.js`.
+
+### Decision: Make benchmark artifacts deterministic and require `--output` parity
+- Date: 2026-03-06
+- Owner: implementer
+- Context: Discovery benchmarking needed a durable artifact contract suitable for docs, regressions, and repeated local comparisons.
+- Options considered: timing-only console output vs deterministic JSON artifact with optional saved output.
+- Decision: Emit deterministic JSON (including stable `generatedAt`) to stdout, support `--output`, and require saved artifact content to match stdout exactly.
+- Trade-offs: Slightly less real-time metadata realism, but significantly better reproducibility and artifact-based validation.
+- Follow-up: Maintain contract checks in `scripts/benchmark-tool-discovery.js` and `test-tool-discovery-benchmark-validation.js`.
+
+### Decision: Keep live voice validation opt-in with playback disabled artifact capture
+- Date: 2026-03-06
+- Owner: researcher
+- Context: Live provider coverage was useful for maintenance confidence, but unconditional execution would make default validation depend on external credentials/audio playback.
+- Options considered: always-on live provider validation vs explicit opt-in live validation with safe runtime flags.
+- Decision: Gate live voice validation behind `EVOKORE_RUN_LIVE_VOICE_TEST=1`, disable playback with `VOICE_SIDECAR_DISABLE_PLAYBACK=1`, and capture artifacts through `VOICE_SIDECAR_ARTIFACT_DIR`.
+- Trade-offs: Default runs do not prove provider availability, but the suite remains deterministic and operators still have a repeatable live-validation path when credentials are available.
+- Follow-up: Keep manual/opt-in coverage in `package.json` (`test:voice:live`) and `test-voice-sidecar-live-validation.js`.
