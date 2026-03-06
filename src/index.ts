@@ -26,6 +26,8 @@ type RequestExtra = { sessionId?: string };
 
 const DEFAULT_SESSION_ID = "__stdio_default_session__";
 
+const SERVER_VERSION = "2.0.2";
+
 export class EvokoreMCPServer {
   private server: Server;
   private skillManager: SkillManager;
@@ -40,7 +42,7 @@ export class EvokoreMCPServer {
     this.server = new Server(
       {
         name: "evokore-mcp",
-        version: "2.0.0",
+        version: SERVER_VERSION,
       },
       {
         capabilities: {
@@ -241,7 +243,7 @@ export class EvokoreMCPServer {
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error(`[EVOKORE] v2.0 Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
+        console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
   }
 }
 

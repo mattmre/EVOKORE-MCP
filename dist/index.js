@@ -16,6 +16,7 @@ const ProxyManager_1 = require("./ProxyManager");
 const SecurityManager_1 = require("./SecurityManager");
 const ToolCatalogIndex_1 = require("./ToolCatalogIndex");
 const DEFAULT_SESSION_ID = "__stdio_default_session__";
+const SERVER_VERSION = "2.0.2";
 class EvokoreMCPServer {
     server;
     skillManager;
@@ -28,7 +29,7 @@ class EvokoreMCPServer {
         this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
         this.server = new index_js_1.Server({
             name: "evokore-mcp",
-            version: "2.0.0",
+            version: SERVER_VERSION,
         }, {
             capabilities: {
                 prompts: {},
@@ -190,7 +191,7 @@ class EvokoreMCPServer {
         this.rebuildToolCatalog();
         const transport = new stdio_js_1.StdioServerTransport();
         await this.server.connect(transport);
-        console.error(`[EVOKORE] v2.0 Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
+        console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
     }
 }
 exports.EvokoreMCPServer = EvokoreMCPServer;
