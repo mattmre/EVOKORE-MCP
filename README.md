@@ -6,6 +6,7 @@ A unified Model Context Protocol (MCP) server that aggregates, indexes, and dyna
 
 - **Multi-Server Aggregation (Proxy Layer)**: Bootstraps child MCP servers from `mcp.config.json` and routes JSON-RPC messages via stdio, acting as a single unified endpoint for AI clients.
 - **Dynamic Tool Prefixing**: Automatically namespaces proxied tools (e.g., `fs_read_file`, `github_create_issue`) to prevent collisions and keep contexts organized.
+- **Dynamic Tool Discovery MVP**: Default `legacy` mode preserves the full listing contract, while optional `dynamic` mode exposes always-visible native tools plus session-activated proxied tools through `discover_tools`.
 - **Human-in-the-Loop (HITL) Security Interceptor**: A stateless security architecture that intercepts restricted tool calls and enforces explicit human approval via the `_evokore_approval_token`, protecting sensitive endpoints.
 - **Active Skill Orchestration**: Built-in skills (like `docs_architect` and `skill_creator`) are directly integrated into the `SkillManager`, allowing EVOKORE to natively harness child server tools (like reading the filesystem) *before* returning contextualized prompts to the AI.
 - **Dynamic Skill Loading**: Automatically scans the `SKILLS/` directory on startup. Keeps context windows lean by using lightweight semantic search (`fuse.js`) to serve prompts only when requested via the `resolve_workflow` tool.
@@ -34,6 +35,16 @@ To use this server with your AI client (like Claude Desktop or Cursor), add the 
 }
 ```
 
+Optional environment toggle:
+
+```bash
+# Backward-compatible default
+EVOKORE_TOOL_DISCOVERY_MODE=legacy
+
+# Slim initial tool listing with session-scoped proxy activation
+EVOKORE_TOOL_DISCOVERY_MODE=dynamic
+```
+
 ## 🎓 Comprehensive Training
 Dive into our extensive, deeply researched use cases and training guides for all 200+ skills: [**Training & Use Cases Documentation**](docs/TRAINING_AND_USE_CASES.md).
 
@@ -55,6 +66,7 @@ Dive into our extensive, deeply researched use cases and training guides for all
 - Windows command contract: `node test-windows-exec-validation.js`
 - Hook observability: `node hook-test-suite.js` and `node hook-e2e-validation.js`
 - Submodule safety guard: `node test-submodule-commit-order-guard-validation.js`
+- Dynamic tool discovery guard: `node test-tool-discovery-validation.js`
 
 ## 📂 Repository Structure
 

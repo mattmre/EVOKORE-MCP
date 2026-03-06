@@ -4,14 +4,24 @@
 - **Researcher:** Agent 1 (Codebase Deep Dive)
 - **Status:** Complete
 
+## Implemented MVP Contract (PR2)
+
+- `EVOKORE_TOOL_DISCOVERY_MODE` defaults to `legacy` and optionally accepts `dynamic`.
+- `discover_tools` is always exposed as a native tool.
+- `tools/list` remains fully backward-compatible in `legacy` mode.
+- `tools/list` in `dynamic` mode returns always-visible native tools plus session-activated proxied tools.
+- Session activation state is owned at the server/controller layer and keyed by `extra.sessionId ?? "__stdio_default_session__"`.
+- Hidden/unlisted proxied tools remain callable by exact name.
+- `sendToolListChanged()` is emitted best-effort after activation changes in dynamic mode.
+
 ## Current State Analysis
 
 ### Tool Registration Lifecycle
 
 The system has two tool populations:
 
-**A. Native Tools (5 tools, SkillManager)**
-- `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`
+**A. Native Tools (6 tools, SkillManager)**
+- `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`
 - Always present in every `ListToolsRequest`
 
 **B. Proxied Tools (~62 tools, ProxyManager)**

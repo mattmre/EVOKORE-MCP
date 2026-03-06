@@ -142,6 +142,18 @@ class SkillManager {
                     },
                     required: ["skill_name"]
                 }
+            },
+            {
+                name: "discover_tools",
+                description: "Search the merged EVOKORE tool catalog. In dynamic discovery mode, matching proxied tools are activated for the current session.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        query: { type: "string", description: "Describe the tools you need or provide an exact tool name." },
+                        limit: { type: "integer", description: "Optional maximum number of matches to return (default: 8)." }
+                    },
+                    required: ["query"]
+                }
             }
         ];
     }

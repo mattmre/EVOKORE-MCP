@@ -22,6 +22,10 @@ async function run() {
   console.log(`
 Success! Retrieved ${response.tools.length} tools in total.
 `);
+
+  if (!response.tools.some(t => t.name === "discover_tools")) {
+    throw new Error("discover_tools was not returned by listTools().");
+  }
   
   const proxiedFsTools = response.tools.filter(t => t.name.startsWith("fs_"));
   const proxiedGithubTools = response.tools.filter(t => t.name.startsWith("github_"));

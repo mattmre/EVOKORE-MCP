@@ -34,6 +34,7 @@ Use this file as the canonical entrypoint for repository documentation.
 - Submodule commit-order guard: `test-submodule-commit-order-guard-validation.js`
 - Release workflow guardrails: `test-npm-release-flow-validation.js`
 - Tool prefix collision guard: `test-tool-prefix-collision-validation.js`
+- Dynamic tool discovery guard: `test-tool-discovery-validation.js`
 - Tracker consistency guard: `test-tracker-consistency-validation.js`
 
 ## Architecture & Reference\r\n\r\n- [v2 Phase 2 Architecture Design](./V2_PHASE2_ARCHITECTURE_DESIGN.md) - Covers the Stateful Hypervisor Registry and Infinite Loop Cooldown Wrapper implemented in Phase 2

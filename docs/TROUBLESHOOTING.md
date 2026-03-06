@@ -148,3 +148,13 @@ Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
 4. Commit the updated submodule pointer in this parent repo.
 5. Re-run `node scripts/validate-submodule-cleanliness.js` before pushing.
 
+## 14. Dynamic Mode Looks Like It Is Missing Proxy Tools
+**Symptoms:** With `EVOKORE_TOOL_DISCOVERY_MODE=dynamic`, `tools/list` only shows the native EVOKORE tools.
+
+**Cause:** This is the intended MVP contract. Dynamic mode starts with always-visible native tools and adds proxied tools only after discovery for the current session.
+
+**Solution:**
+- Call `discover_tools` with a natural-language query or the exact prefixed tool name.
+- Re-run `tools/list` if your client does not refresh automatically after `tools/list_changed`.
+- If needed, call a proxied tool directly by exact name; hidden/unlisted proxied tools remain callable for compatibility.
+

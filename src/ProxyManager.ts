@@ -7,7 +7,7 @@ import { Tool, CallToolRequestSchema, McpError, ErrorCode } from "@modelcontextp
 import { SecurityManager } from "./SecurityManager";
 import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
 
-const CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
+const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 
 interface ServerConfig {
@@ -35,6 +35,11 @@ export class ProxyManager {
 
   constructor(security: SecurityManager) {
     this.security = security;
+  }
+
+  private getConfigFilePath(): string {
+    const overridePath = process.env.EVOKORE_MCP_CONFIG_PATH;
+    return overridePath ? path.resolve(overridePath) : DEFAULT_CONFIG_FILE;
   }
 
   private normalizeCooldownArgs(value: any): any {
@@ -101,7 +106,8 @@ export class ProxyManager {
     this.serverRegistry.clear();
 
     try {
-      const content = await fs.readFile(CONFIG_FILE, "utf-8");
+      const configFile = this.getConfigFilePath();
+      const content = await fs.readFile(configFile, "utf-8");
       const config = JSON.parse(content);
       
       if (!config.servers) return;
