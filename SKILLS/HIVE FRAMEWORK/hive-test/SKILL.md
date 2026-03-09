@@ -940,3 +940,108 @@ exports/{agent_name}/
 | Missing credentials | `/hive-test` Phase 3 | `/hive-credentials` | Set up credentials |
 | Complex runtime failure | `/hive-test` Phase 3 | `/hive-debugger` | Deep L1/L2/L3 analysis |
 | All tests pass | `/hive-test` Phase 6 | Done | Agent validated |
+
+---
+
+## Evidence Capture Protocol
+
+Adapted from Agent33's TDD evidence-capture discipline. Every test cycle must produce verifiable evidence that can be audited later.
+
+### Verification Log Format
+
+After completing a test cycle, record evidence in a verification log entry:
+
+```markdown
+| Date | Cycle ID | PR/Branch | Command | Result | Rationale Link | Artifact Link |
+|------|----------|-----------|---------|--------|----------------|---------------|
+| YYYY-MM-DD | [task-id] | [branch] | [exact test command] | [pass/fail + count] | [session-log-path] | [PR-link] |
+```
+
+### TDD Stage Evidence
+
+For each RED/GREEN/REFACTOR stage, capture structured evidence:
+
+```markdown
+## RED Stage Evidence
+- Task ID: [task-id]
+- Test file(s): [paths]
+- Command: [exact test command]
+- Result: FAIL (expected)
+- Failure reason: [why it fails - missing implementation, etc.]
+- Timestamp: [ISO 8601]
+
+## GREEN Stage Evidence
+- Task ID: [task-id]
+- Implementation file(s): [paths]
+- Command: [exact test command]
+- Result: PASS
+- Tests passed: [count]
+- Regressions: [none / list any]
+- Timestamp: [ISO 8601]
+
+## REFACTOR Stage Evidence
+- Task ID: [task-id]
+- Refactoring type: [extract method, rename, restructure, etc.]
+- Files changed: [paths]
+- Command: [exact test command]
+- Result: PASS (maintained)
+- Improvements: [brief description]
+- Timestamp: [ISO 8601]
+```
+
+### Coverage Requirements
+
+Coverage requirements are linked to the type of change being tested:
+
+| Change Type | Minimum Coverage | Evidence Required |
+|-------------|------------------|-------------------|
+| New feature | 80% line coverage for new code | Coverage report artifact |
+| Bug fix | Test that reproduces bug + fix | Before/after test output |
+| Refactor | Maintain existing coverage | Coverage diff (no decrease) |
+| Security fix | 100% coverage of security path | Security test evidence |
+
+### Evidence Capture Commands
+
+Run these commands and include their output in the session log or PR description:
+
+```bash
+# Test output with verbose results
+npm test -- --verbose 2>&1 | tee test-output.log
+# or for Python projects:
+pytest -v --tb=short 2>&1 | tee test-output.log
+
+# Coverage report
+npm test -- --coverage 2>&1 | tee coverage-report.log
+# or for Python projects:
+pytest --cov=src --cov-report=term-missing 2>&1 | tee coverage-report.log
+
+# Diff summary for the PR
+git diff --stat HEAD~1
+git diff HEAD~1 -- '*.ts' '*.js' '*.py'
+```
+
+### Acceptance Criteria Linkage
+
+Map each acceptance criterion to its test(s) to ensure full traceability:
+
+```markdown
+## Acceptance Criteria Coverage
+| Criterion | Test(s) | Status |
+|-----------|---------|--------|
+| AC-1: Feature works as specified | `test_feature_happy_path` | Covered |
+| AC-2: Edge case handled | `test_edge_case_boundary` | Covered |
+| AC-3: Error handling | `test_error_graceful` | Covered |
+```
+
+### Regression Prevention Checklist
+
+Before marking a test cycle as complete:
+
+- [ ] All new tests pass
+- [ ] All existing tests still pass (no regressions introduced)
+- [ ] Coverage meets or exceeds the minimum for the change type
+- [ ] Test output captured and saved as evidence
+- [ ] Coverage report captured and saved as evidence
+- [ ] Diff summary documented with rationale for each changed file
+- [ ] Acceptance criteria mapped to specific test cases
+- [ ] Verification log entry created with exact commands and results

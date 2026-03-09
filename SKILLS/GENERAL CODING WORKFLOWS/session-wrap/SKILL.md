@@ -16,3 +16,58 @@ This skill wraps up the current coding session, ensuring no context is lost and 
 3. **Prepare Next Session**: Update `next-session.md` and prepare for the next session. Keep in mind there may have been another session running that just completed; incorporate its handoff points if applicable.
 4. **Update Claude Learnings**: Use agentic orchestration to explore the session logs. Update `CLAUDE.md` with any information from the agents that might be pertinent to future sessions, especially repetitive errors and noticed problems that affect progress. We want to make sure future sessions improve upon previous ones. Update `CLAUDE.md` once findings are prepared.
 5. **Finalize**: Confirm completion once all the logs and PRs are updated.
+
+## Evidence-First Handoff Protocol
+
+Adapted from Agent33's evidence capture framework. Every session wrap must include verifiable evidence so the next session can trust previous work without re-running it.
+
+### Minimum Evidence Requirements Per Session
+
+Every session wrap must capture at minimum:
+
+1. **Commands run**: Exact CLI commands with their output summaries and exit codes
+2. **Test results**: Test suite name, pass/fail counts, and coverage (if available)
+3. **Diff summary**: Files changed with lines added/removed and rationale for each
+4. **Review outcomes**: Reviewer feedback, required issues, and approval status (if applicable)
+
+### Evidence Capture Format
+
+Use this template in the session log to record evidence:
+
+```markdown
+## Session Evidence
+
+### Commands Run
+| Command | Output Summary | Exit Code |
+|---------|---------------|-----------|
+| `npm test` | 24 passed, 0 failed | 0 |
+| `npm run lint` | No errors | 0 |
+
+### Full Output (if non-trivial)
+<paste full output for audit trail>
+
+### Diff Summary
+| Files Changed | Lines Added | Lines Removed | Rationale |
+|---------------|-------------|---------------|-----------|
+| `src/parser.ts` | +15 | -3 | Added error handling for malformed input |
+| `tests/parser.test.ts` | +20 | -0 | Added test for edge case |
+
+### Test Results
+- Test suite: unit tests
+- Outcome: 24 passed, 0 failed
+- Coverage: 87% lines
+- Notes: All acceptance criteria covered
+
+### Evidence Checklist
+- [ ] Commands recorded with exact CLI
+- [ ] Outputs captured (summary + full if non-trivial)
+- [ ] Diff summary documented
+- [ ] Tests recorded with pass/fail count
+- [ ] Review outcomes captured (if applicable)
+- [ ] Artifacts linked (logs, reports, screenshots)
+```
+
+### Handoff Protocol Reference
+
+For the complete orchestration handoff protocol including multi-agent evidence chains, see:
+`SKILLS/ORCHESTRATION FRAMEWORK/handoff-protocol/` (if available), or apply the evidence capture template above directly in the session log.
