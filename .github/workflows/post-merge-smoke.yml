@@ -1,0 +1,75 @@
+name: Post-Merge Smoke
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  smoke-test:
+    name: Post-Merge Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Run smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p smoke-results
+          summary="smoke-results/smoke-summary.md"
+
+          {
+            echo "# Post-merge smoke summary"
+            echo
+            echo "- Branch: ${GITHUB_REF_NAME}"
+            echo "- Commit: ${GITHUB_SHA}"
+            echo "- Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+          } > "${summary}"
+
+          echo "## Build" >> "${summary}"
+          echo "- status: PASS" >> "${summary}"
+          echo >> "${summary}"
+
+          echo "## Test Suite" >> "${summary}"
+          set +e
+          npm test > smoke-results/test-suite.log 2>&1
+          test_status=$?
+          set -e
+
+          if [ "${test_status}" -eq 0 ]; then
+            echo "- status: PASS" >> "${summary}"
+          else
+            echo "- status: FAIL (exit ${test_status})" >> "${summary}"
+          fi
+          echo "- log: test-suite.log" >> "${summary}"
+          echo >> "${summary}"
+
+          if [ "${test_status}" -eq 0 ]; then
+            echo "Overall: PASS" >> "${summary}"
+          else
+            echo "Overall: FAIL" >> "${summary}"
+            exit 1
+          fi
+
+      - name: Upload smoke summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-merge-smoke-summary
+          path: smoke-results/
+          retention-days: 30

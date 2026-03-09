@@ -2,81 +2,101 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  build:
+  lint:
+    name: Type Check
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-    - name: Validate submodule cleanliness
-      run: node scripts/validate-submodule-cleanliness.js
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
 
-    - name: Use Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18.x'
-        
-    - run: npm ci
-    
-    - name: Normalize Skills Frontmatter
-      run: node scripts/clean_skills.js
-      
-    - name: Build MCP Server
-      run: npx tsc
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
 
   test:
+    name: Test Suite
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-    - name: Validate submodule cleanliness
-      run: node scripts/validate-submodule-cleanliness.js
+      - name: Validate submodule cleanliness
+        run: node scripts/validate-submodule-cleanliness.js
 
-    - name: Use Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
 
-    - name: Validate PR metadata
-      if: github.event_name == 'pull_request'
-      run: node scripts/validate-pr-metadata.js
+      - name: Validate PR metadata
+        if: github.event_name == 'pull_request'
+        run: node scripts/validate-pr-metadata.js
 
-    - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-    - name: Run tests
-      run: npm test
+      - name: Run tests
+        run: npm test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Normalize Skills Frontmatter
+        run: node scripts/clean_skills.js
+
+      - name: Build TypeScript
+        run: npm run build
 
   windows-runtime:
+    name: Windows Runtime Validation
     runs-on: windows-latest
-
     steps:
-    - uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-    - name: Validate submodule cleanliness
-      run: node scripts/validate-submodule-cleanliness.js
+      - name: Validate submodule cleanliness
+        run: node scripts/validate-submodule-cleanliness.js
 
-    - name: Use Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
 
-    - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-    - run: node test-windows-exec-validation.js
+      - run: node test-windows-exec-validation.js
 
-    - run: npx tsx test-windows-command-runtime-validation.ts
+      - run: npx tsx test-windows-command-runtime-validation.ts
