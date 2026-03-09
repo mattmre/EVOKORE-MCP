@@ -26,12 +26,21 @@ function run() {
 
   try {
     const validBody = [
-      '- **Priority ID(s)**: 1 / 2',
-      '- **Dependency Chain (base -> dependent)**: #123 -> #124',
-      '- **Chain-head PR? (yes/no)**: yes',
-      '- **Required Checks Evidence**: node test-pr-metadata-validation.js (pass)',
-      '- **Merge-boundary Revalidation Notes**: Rebased after parent merge and re-ran checks.',
-      '- **Release-impact Notes**: none'
+      '## Description',
+      '',
+      'This PR adds a new feature.',
+      '',
+      '## Type of Change',
+      '',
+      '- [x] New feature',
+      '',
+      '## Testing',
+      '',
+      '- [x] npm test passes',
+      '',
+      '## Evidence',
+      '',
+      'npm run build output attached'
     ].join('\n');
 
     const validEventPath = writeEventFile(tempDir, 'valid-event.json', {
@@ -46,50 +55,44 @@ function run() {
     const placeholderEventPath = writeEventFile(tempDir, 'placeholder-event.json', {
       pull_request: {
         body: [
-          '- **Priority ID(s)**: 1',
-          '- **Dependency Chain (base -> dependent)**: #123 -> #124',
-          '- **Chain-head PR? (yes/no)**: no',
-          '- **Required Checks Evidence**: <!-- list exact commands + pass output/links -->',
-          '- **Merge-boundary Revalidation Notes**: complete',
-          '- **Release-impact Notes**: patch'
+          '## Description',
+          '',
+          'This PR adds a feature.',
+          '',
+          '## Type of Change',
+          '',
+          '- [x] Bug fix',
+          '',
+          '## Testing',
+          '',
+          'TBD',
+          '',
+          '## Evidence',
+          '',
+          'output attached'
         ].join('\n')
       }
     });
     const placeholderResult = runValidation(placeholderEventPath);
-    assert.notStrictEqual(placeholderResult.status, 0, 'Expected placeholder field to fail validation.');
-    assert.match(placeholderResult.stderr, /Required Checks Evidence/i);
+    assert.notStrictEqual(placeholderResult.status, 0, 'Expected placeholder section to fail validation.');
+    assert.match(placeholderResult.stderr, /Testing/i);
 
-    const invalidChainEventPath = writeEventFile(tempDir, 'invalid-chain-event.json', {
+    const missingSectionEventPath = writeEventFile(tempDir, 'missing-section-event.json', {
       pull_request: {
         body: [
-          '- **Priority ID(s)**: 1',
-          '- **Dependency Chain (base -> dependent)**: #123 and #124',
-          '- **Chain-head PR? (yes/no)**: no',
-          '- **Required Checks Evidence**: command output attached',
-          '- **Merge-boundary Revalidation Notes**: complete',
-          '- **Release-impact Notes**: patch'
+          '## Description',
+          '',
+          'This PR fixes a bug.',
+          '',
+          '## Type of Change',
+          '',
+          '- [x] Bug fix'
         ].join('\n')
       }
     });
-    const invalidChainResult = runValidation(invalidChainEventPath);
-    assert.notStrictEqual(invalidChainResult.status, 0, 'Expected invalid dependency chain to fail validation.');
-    assert.match(invalidChainResult.stderr, /dependency chain format/i);
-
-    const invalidChainHeadEventPath = writeEventFile(tempDir, 'invalid-chain-head-event.json', {
-      pull_request: {
-        body: [
-          '- **Priority ID(s)**: 1',
-          '- **Dependency Chain (base -> dependent)**: standalone',
-          '- **Chain-head PR? (yes/no)**: maybe',
-          '- **Required Checks Evidence**: command output attached',
-          '- **Merge-boundary Revalidation Notes**: complete',
-          '- **Release-impact Notes**: patch'
-        ].join('\n')
-      }
-    });
-    const invalidChainHeadResult = runValidation(invalidChainHeadEventPath);
-    assert.notStrictEqual(invalidChainHeadResult.status, 0, 'Expected invalid chain-head value to fail validation.');
-    assert.match(invalidChainHeadResult.stderr, /chain-head value/i);
+    const missingSectionResult = runValidation(missingSectionEventPath);
+    assert.notStrictEqual(missingSectionResult.status, 0, 'Expected missing sections to fail validation.');
+    assert.match(missingSectionResult.stderr, /Missing section/i);
 
     console.log('PR metadata validator tests passed.');
   } finally {

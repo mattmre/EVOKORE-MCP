@@ -11,13 +11,13 @@ function run() {
   const runbookPath = path.resolve(__dirname, 'docs', 'PR_MERGE_RUNBOOK.md');
   const docsReadmePath = path.resolve(__dirname, 'docs', 'README.md');
   const contributingPath = path.resolve(__dirname, 'CONTRIBUTING.md');
-  const prTemplatePath = path.resolve(__dirname, '.github', 'pull_request_template.md');
+  const prTemplatePath = path.resolve(__dirname, '.github', 'PULL_REQUEST_TEMPLATE.md');
 
   assert.ok(fs.existsSync(trackerPath), 'ORCHESTRATION_TRACKER.md should exist');
   assert.ok(fs.existsSync(decisionsPath), 'RESEARCH_DECISIONS_LOG.md should exist');
   assert.ok(fs.existsSync(matrixPath), 'PRIORITY_STATUS_MATRIX.md should exist');
   assert.ok(fs.existsSync(runbookPath), 'PR_MERGE_RUNBOOK.md should exist');
-  assert.ok(fs.existsSync(prTemplatePath), '.github/pull_request_template.md should exist');
+  assert.ok(fs.existsSync(prTemplatePath), '.github/PULL_REQUEST_TEMPLATE.md should exist');
 
   const tracker = fs.readFileSync(trackerPath, 'utf8');
   const decisions = fs.readFileSync(decisionsPath, 'utf8');
@@ -43,7 +43,7 @@ function run() {
   assert.match(runbook, /Pre-merge Checklist/);
   assert.match(runbook, /Required Checks by Change Type/);
   assert.match(runbook, /Reviewer Responsibilities/);
-  assert.match(runbook, /\.github\/pull_request_template\.md/);
+  assert.match(runbook, /\.github\/PULL_REQUEST_TEMPLATE\.md/);
   assert.match(runbook, /Approve only the current chain head/i);
   assert.match(runbook, /Merge-boundary Checkpoints/);
   assert.match(runbook, /At every dependency merge boundary/i);
@@ -57,17 +57,16 @@ function run() {
   assert.match(docsReadme, /PRIORITY_STATUS_MATRIX\.md/);
   assert.match(docsReadme, /PR_MERGE_RUNBOOK\.md/);
   assert.match(contributing, /docs\/PR_MERGE_RUNBOOK\.md/);
-  assert.match(contributing, /\.github\/pull_request_template\.md/);
+  assert.match(contributing, /\.github\/PULL_REQUEST_TEMPLATE\.md/);
   assert.match(contributing, /process\/tooling\/release-impacting changes/i);
-  assert.match(contributing, /Dependency chain \(`base -> dependent`\)/);
-  assert.match(contributing, /Merge-boundary revalidation notes/);
+  assert.match(contributing, /Type of Change/);
+  assert.match(contributing, /Evidence/);
 
-  assert.match(prTemplate, /Priority ID/);
-  assert.match(prTemplate, /Dependency Chain \(base -> dependent\)/);
-  assert.match(prTemplate, /Chain-head PR\? \(yes\/no\)/);
-  assert.match(prTemplate, /Required Checks Evidence/);
-  assert.match(prTemplate, /Merge-boundary Revalidation Notes/);
-  assert.match(prTemplate, /Release-impact Notes/);
+  assert.match(prTemplate, /## Description/);
+  assert.match(prTemplate, /## Type of Change/);
+  assert.match(prTemplate, /## Testing/);
+  assert.match(prTemplate, /## Evidence/);
+  assert.match(prTemplate, /## Skills\/Tools Affected/);
 
   console.log('Ops docs validation passed.');
 }

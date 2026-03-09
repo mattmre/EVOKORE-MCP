@@ -12,7 +12,7 @@ function run() {
   const script = fs.readFileSync(scriptPath, 'utf8');
 
   const checkoutWithSubmodules = workflow.match(
-    /-\s*uses:\s*actions\/checkout@v3[\s\S]*?fetch-depth:\s*0[\s\S]*?submodules:\s*recursive/g
+    /-\s*uses:\s*actions\/checkout@v[34][\s\S]*?fetch-depth:\s*0[\s\S]*?submodules:\s*recursive/g
   ) || [];
   assert.ok(checkoutWithSubmodules.length >= 2, 'Expected checkout to use recursive submodules in both CI jobs.');
 

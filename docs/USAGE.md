@@ -102,16 +102,16 @@ Child server env values in `mcp.config.json` can reference placeholders like `${
 
 ### 3.1 PR governance metadata for process/tooling/release changes
 
-For process/tooling/release-impacting changes, use `.github/pull_request_template.md` and follow `docs/PR_MERGE_RUNBOOK.md`.
+For process/tooling/release-impacting changes, use `.github/PULL_REQUEST_TEMPLATE.md` and follow `docs/PR_MERGE_RUNBOOK.md`.
 
-Required metadata fields include:
+Required sections include:
 
-- Priority ID(s)
-- Dependency chain (`base -> dependent`)
-- Chain-head PR yes/no
-- Required checks evidence
-- Merge-boundary revalidation notes
-- Release-impact notes
+- Description
+- Type of Change
+- Changes Made
+- Skills/Tools Affected
+- Testing
+- Evidence
 
 ### 3.2 Windows command resolution behavior
 

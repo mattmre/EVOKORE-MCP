@@ -10,18 +10,13 @@ function run() {
 
   assert.match(workflow, /push:\s*\r?\n\s*branches:\s*\[\s*main\s*\]/);
   assert.match(workflow, /pull_request:\s*\r?\n\s*branches:\s*\[\s*main\s*\]/);
-  assert.match(
-    workflow,
-    /jobs:\s*\r?\n(?:[^\n]*\r?\n)*?\s{2,}test:\s*\r?\n(?:[^\n]*\r?\n)*?\s*-\s*name:\s*Run tests\s*\r?\n\s*run:\s*npm test\b/
-  );
+  assert.match(workflow, /\btest:\s*\r?\n\s*name:\s*Test Suite/);
+  assert.match(workflow, /name:\s*Run tests\s*\r?\n\s*run:\s*npm test\b/);
   assert.match(
     workflow,
     /-\s*name:\s*Validate PR metadata\s*\r?\n\s*if:\s*github\.event_name\s*==\s*['"]pull_request['"]\s*\r?\n\s*run:\s*node scripts\/validate-pr-metadata\.js/
   );
-  assert.match(
-    workflow,
-    /jobs:\s*\r?\n(?:[^\n]*\r?\n)*?\s{2,}windows-runtime:\s*\r?\n\s*runs-on:\s*windows-latest\b/
-  );
+  assert.match(workflow, /\bwindows-runtime:\s*\r?\n[^\n]*\r?\n\s*runs-on:\s*windows-latest\b/);
   assert.match(
     workflow,
     /\s*-\s*run:\s*node test-windows-exec-validation\.js\b/

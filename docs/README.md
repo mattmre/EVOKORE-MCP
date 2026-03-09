@@ -28,7 +28,7 @@ Use this page as the main portal for repository documentation.
 - [Release Flow](./RELEASE_FLOW.md)
 - [Submodule Workflow](./SUBMODULE_WORKFLOW.md)
 - [PR_MERGE_RUNBOOK.md](./PR_MERGE_RUNBOOK.md)
-- [PR Template](../.github/pull_request_template.md)
+- [PR Template](../.github/PULL_REQUEST_TEMPLATE.md)
 - [Release Notes v2.0.1](./RELEASE_NOTES_v2.0.1.md)
 
 ## Research & Continuity

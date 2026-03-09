@@ -30,14 +30,14 @@ To contribute a new skill or workflow:
       - `node test-npm-release-flow-validation.js`
 5. **Submit a Pull Request**: Open a PR against the main branch of this repository.
 
-For process/tooling/release-impacting changes (including docs/process updates such as `docs/PR_MERGE_RUNBOOK.md`, scripts/config/workflow changes, and release flow updates), fill all metadata in `.github/pull_request_template.md`:
+For process/tooling/release-impacting changes (including docs/process updates such as `docs/PR_MERGE_RUNBOOK.md`, scripts/config/workflow changes, and release flow updates), fill all sections in `.github/PULL_REQUEST_TEMPLATE.md`:
 
-- Priority ID(s)
-- Dependency chain (`base -> dependent`)
-- Chain-head PR yes/no
-- Required checks evidence
-- Merge-boundary revalidation notes
-- Release-impact notes
+- Description
+- Type of Change
+- Changes Made
+- Skills/Tools Affected
+- Testing
+- Evidence
 
 If your change touches submodule-managed content, follow [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md): commit inside the submodule first, then commit the updated pointer in this parent repo.
 

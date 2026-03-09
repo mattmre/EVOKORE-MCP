@@ -172,5 +172,5 @@ This repository uses a PR-first workflow for meaningful changes.
 
 1. Branch from `main`.
 2. Keep docs and code aligned when you change runtime behavior.
-3. For process/tooling/release-impacting changes, use `.github/pull_request_template.md` and follow [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md).
+3. For process/tooling/release-impacting changes, use `.github/PULL_REQUEST_TEMPLATE.md` and follow [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md).
 4. Re-check [docs/README.md](docs/README.md) before landing cross-cutting changes.

@@ -4,13 +4,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const REQUIRED_FIELDS = [
-  'Priority ID(s)',
-  'Dependency Chain (base -> dependent)',
-  'Chain-head PR? (yes/no)',
-  'Required Checks Evidence',
-  'Merge-boundary Revalidation Notes',
-  'Release-impact Notes'
+const REQUIRED_SECTIONS = [
+  'Description',
+  'Type of Change',
+  'Testing',
+  'Evidence'
 ];
 
 function escapeRegex(value) {
@@ -39,22 +37,22 @@ function readJsonFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function extractTemplateFields(templateContents) {
-  const fields = [];
-  const regex = /^\s*-\s+\*\*(.+?)\*\*:\s*(?:<!--.*-->)?\s*$/gm;
+function extractTemplateSections(templateContents) {
+  const sections = [];
+  const regex = /^##\s+(.+)$/gm;
   let match = regex.exec(templateContents);
 
   while (match) {
-    fields.push(match[1].trim());
+    sections.push(match[1].trim());
     match = regex.exec(templateContents);
   }
 
-  return fields;
+  return sections;
 }
 
-function extractFieldValue(body, fieldName) {
+function extractSectionContent(body, sectionName) {
   const pattern = new RegExp(
-    `^\\s*-\\s*\\*\\*${escapeRegex(fieldName)}\\*\\*:\\s*([\\s\\S]*?)(?=\\r?\\n\\s*-\\s*\\*\\*[^\\n]+\\*\\*:\\s*|$)`,
+    `^##\\s+${escapeRegex(sectionName)}\\s*\\r?\\n([\\s\\S]*?)(?=\\r?\\n##\\s|$)`,
     'm'
   );
   const match = body.match(pattern);
@@ -62,10 +60,6 @@ function extractFieldValue(body, fieldName) {
     return null;
   }
   return match[1].trim();
-}
-
-function normalize(value) {
-  return value.replace(/[`*_]/g, '').trim();
 }
 
 function isMissingOrPlaceholder(value) {
@@ -79,18 +73,6 @@ function isMissingOrPlaceholder(value) {
   }
 
   return /^(tbd|todo|n\/a|na|\?)$/i.test(withoutHtmlComments);
-}
-
-function validateDependencyChain(value) {
-  const normalized = normalize(value);
-  if (/^standalone$/i.test(normalized)) {
-    return true;
-  }
-  return /^#\d+(?:\s*->\s*#\d+)+$/.test(normalized);
-}
-
-function validateChainHead(value) {
-  return /^(yes|no)$/i.test(normalize(value));
 }
 
 function run() {
@@ -108,15 +90,15 @@ function run() {
     return;
   }
 
-  const templatePath = path.resolve(__dirname, '..', '.github', 'pull_request_template.md');
+  const templatePath = path.resolve(__dirname, '..', '.github', 'PULL_REQUEST_TEMPLATE.md');
   const templateContents = fs.readFileSync(templatePath, 'utf8');
-  const templateFields = extractTemplateFields(templateContents);
-  const missingInTemplate = REQUIRED_FIELDS.filter((field) => !templateFields.includes(field));
+  const templateSections = extractTemplateSections(templateContents);
+  const missingInTemplate = REQUIRED_SECTIONS.filter((section) => !templateSections.includes(section));
 
   if (missingInTemplate.length > 0) {
-    console.error('PR metadata validation failed: pull request template is missing expected metadata fields:');
-    for (const field of missingInTemplate) {
-      console.error(`- ${field}`);
+    console.error('PR metadata validation failed: pull request template is missing expected sections:');
+    for (const section of missingInTemplate) {
+      console.error(`- ${section}`);
     }
     process.exit(1);
   }
@@ -124,23 +106,15 @@ function run() {
   const prBody = String((event.pull_request && event.pull_request.body) || '');
   const issues = [];
 
-  for (const field of REQUIRED_FIELDS) {
-    const value = extractFieldValue(prBody, field);
-    if (value === null) {
-      issues.push(`Missing field: ${field}`);
+  for (const section of REQUIRED_SECTIONS) {
+    const content = extractSectionContent(prBody, section);
+    if (content === null) {
+      issues.push(`Missing section: ${section}`);
       continue;
     }
-    if (isMissingOrPlaceholder(value)) {
-      issues.push(`Field has placeholder or empty value: ${field}`);
+    if (isMissingOrPlaceholder(content)) {
+      issues.push(`Section has placeholder or empty value: ${section}`);
       continue;
-    }
-
-    if (field === 'Dependency Chain (base -> dependent)' && !validateDependencyChain(value)) {
-      issues.push(`Invalid dependency chain format for "${field}". Use "standalone" or "#123 -> #124".`);
-    }
-
-    if (field === 'Chain-head PR? (yes/no)' && !validateChainHead(value)) {
-      issues.push(`Invalid chain-head value for "${field}". Use "yes" or "no".`);
     }
   }
 

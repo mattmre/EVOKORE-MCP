@@ -5,7 +5,7 @@ Operator runbook for reliable merges and context-rot prevention.
 ## Pre-merge Checklist
 
 - [ ] PR scope matches approved plan
-- [ ] PR description is filled using `.github/pull_request_template.md`
+- [ ] PR description is filled using `.github/PULL_REQUEST_TEMPLATE.md`
 - [ ] PR metadata automation check (`scripts/validate-pr-metadata.js`) is passing for pull_request CI runs
 - [ ] Required tests pass locally/CI
 - [ ] Docs updated for user-facing behavior changes
@@ -28,7 +28,7 @@ If a PR spans multiple change types, run the union of required checks.
 ## Reviewer Responsibilities
 
 - Confirm PR scope and dependency assumptions are explicit in description.
-- Confirm PR metadata fields from `.github/pull_request_template.md` are complete.
+- Confirm PR metadata fields from `.github/PULL_REQUEST_TEMPLATE.md` are complete.
 - Verify required checks for each change type are attached in PR evidence.
 - Block approval if dependency base PR is not merged or branch is stale.
 - Approve only the current chain head; do not pre-approve non-head dependent PRs.
