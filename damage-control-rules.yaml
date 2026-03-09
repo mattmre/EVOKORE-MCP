@@ -23,7 +23,7 @@ dangerous_commands:
   - pattern: "TRUNCATE\\s+TABLE"
     reason: "TRUNCATE removes all data from table"
     ask: true
-  - pattern: ":(\\){0}){2,}|fork\\s*bomb"
+  - pattern: ":\\(\\)\\s*\\{|fork\\s*bomb"
     reason: "Fork bomb detected"
     ask: false
   - pattern: "npm\\s+publish"
