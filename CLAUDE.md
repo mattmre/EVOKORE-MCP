@@ -21,7 +21,12 @@
 - **Environment Validation:** When validating `.env` configurations, use the `test-dotenv-quiet-validation.js` script to ensure quiet parsing is enforced.
 - **Git Worktree Cleanup:** Abandoned agent worktrees can accumulate (e.g., 9 found previously). Run `git worktree list` and `git worktree remove <path>` aggressively when doing branch cleanups.
 
-- **Orchestration Conflicts:** When orchestrating multiple agents in parallel, ensure they do not commit shared ephemeral tracking logs (like `session-logs/*.md` or `next-session.md`) to their feature branches. Committing shared trackers on feature branches causes unresolvable git merge conflicts when sequentially squashing PRs. Trackers should be updated directly on `main` after all PRs are merged.\r\n\r\n## Claude Code Hooks
+- **Orchestration Conflicts:** When orchestrating multiple agents in parallel, ensure they do not commit shared ephemeral tracking logs (like `session-logs/*.md` or `next-session.md`) to their feature branches. Committing shared trackers on feature branches causes unresolvable git merge conflicts when sequentially squashing PRs. Trackers should be updated directly on `main` after all PRs are merged.
+- **Damage Control Regex:** The fork bomb detection regex in `damage-control-rules.yaml` must use `:\(\)\s*\{` not `:(\\){0}){2,}`. The latter evaluates to matching any colon character due to `{0}` making `)` match nothing. Always test regex patterns with `new RegExp(pattern).test(":")` to verify they don't match trivially.
+- **Commit Message Approach:** Use `.commit-msg.txt` file with `git commit -F .commit-msg.txt` instead of heredocs or inline `-m` flags, because the damage-control hook can misfire on complex command strings. Delete the file after commit.
+- **Agent33 Orchestration Framework:** Imported under `SKILLS/ORCHESTRATION FRAMEWORK/` with sub-skills: handoff-protocol (15 docs), policy-pack-v1 (14 docs), commands (11 orch-* skills), workflow-templates (8 DAG JSON), agent-archetypes (6 specs), tool-governance (8 specs), aep-framework (6 docs), improvement-cycles, coding-reference, schemas (3 JSON).
+
+## Claude Code Hooks
 
 Four hooks are wired in `.claude/settings.json`. All scripts follow fail-safe conventions (exit 0 on error, never crash Claude Code). State lives in `~/.evokore/sessions/` and logs in `~/.evokore/logs/`.
 
@@ -36,3 +41,4 @@ Four hooks are wired in `.claude/settings.json`. All scripts follow fail-safe co
   node scripts/tilldone.js --list --session <ID>
   node scripts/tilldone.js --clear --session <ID>
   ```
+- **Evidence Capture** (`scripts/evidence-capture.js`, PostToolUse): Auto-captures test results, file changes, and git operations as JSONL evidence to `~/.evokore/sessions/{session_id}-evidence.jsonl`. Sequential evidence IDs (E-001, E-002, etc.).
