@@ -1,3 +1,1 @@
-feat: add security-review skill and merge Agent33 patterns into existing skills (Phase 7)
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+feat: add PR/bug templates, promotion criteria, and coding reference (Phase 10)
