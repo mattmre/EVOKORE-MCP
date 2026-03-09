@@ -32,6 +32,11 @@
             "type": "command",
             "command": "node scripts/session-replay.js",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "node scripts/evidence-capture.js",
+            "timeout": 5000
           }
         ]
       }

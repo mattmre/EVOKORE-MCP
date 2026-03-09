@@ -160,6 +160,50 @@ process.stdin.on('end', () => {
       }
     }
 
+    // 5. Scope boundary warning — light heuristic based on session purpose
+    if (filePaths.length > 0) {
+      try {
+        const purposeDir = path.join(os.homedir(), '.evokore', 'sessions');
+        const purposeFile = path.join(purposeDir, `${sessionId}.json`);
+        if (fs.existsSync(purposeFile)) {
+          const purposeState = JSON.parse(fs.readFileSync(purposeFile, 'utf8'));
+          const purpose = (purposeState.purpose || '').toLowerCase();
+          if (purpose) {
+            // Extract project-like keywords from purpose (simple heuristic)
+            const projectHints = purpose.match(/\b[a-z][\w-]{2,}\b/g) || [];
+            // Check if any file paths reference completely different project directories
+            for (const fp of filePaths) {
+              const normalized = fp.toLowerCase().replace(/\\/g, '/');
+              // Only flag if the path looks like an absolute path in a different project
+              const projectDirMatch = normalized.match(/^[a-z]:\/[^/]+\/([^/]+)/i) ||
+                                      normalized.match(/^\/[^/]+\/[^/]+\/([^/]+)/);
+              if (projectDirMatch) {
+                const dirName = projectDirMatch[1].toLowerCase();
+                // If purpose mentions a specific project and this path is in a different one
+                const purposeMentionsProject = projectHints.some(hint =>
+                  hint.length > 3 && !['this', 'that', 'with', 'from', 'have', 'what', 'will', 'work', 'working'].includes(hint)
+                );
+                if (purposeMentionsProject) {
+                  const pathMatchesPurpose = projectHints.some(hint =>
+                    normalized.includes(hint) || dirName.includes(hint)
+                  );
+                  if (!pathMatchesPurpose) {
+                    const reason = `File "${fp}" appears outside session scope ("${purposeState.purpose.slice(0, 80)}")`;
+                    logViolation({ type: 'scope_boundary', tool: toolName, path: fp, reason });
+                    emit('ask', { reason, path: fp, type: 'scope_boundary' });
+                    console.log(JSON.stringify({ decision: 'ask', reason: `SCOPE WARNING: ${reason}` }));
+                    process.exit(0);
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // Scope check is best-effort — never block on failure
+      }
+    }
+
     // All checks passed
     emit('allow');
     process.exit(0);
