@@ -4,6 +4,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { rotateIfNeeded } = require('./log-rotation');
 
 const ALLOWED_STATUSES = new Set(['done', 'partial', 'missing', 'ops', 'manual']);
 const REQUIRED_TRACKER_SECTIONS = [
@@ -27,6 +28,7 @@ function appendEvent(result, details) {
   const logPath = path.join(logsDir, 'orchestration-tracker.jsonl');
 
   fs.mkdirSync(logsDir, { recursive: true });
+  try { rotateIfNeeded(logPath); } catch { /* best effort */ }
   const event = {
     ts: new Date().toISOString(),
     check: 'tracker-consistency',

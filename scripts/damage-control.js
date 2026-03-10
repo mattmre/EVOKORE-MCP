@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const YAML = require('yaml');
 const { writeHookEvent } = require('./hook-observability');
+const { rotateIfNeeded } = require('./log-rotation');
 
 const RULES_PATH = path.resolve(__dirname, '..', 'damage-control-rules.yaml');
 const LOGS_DIR = path.join(os.homedir(), '.evokore', 'logs');
@@ -20,6 +21,7 @@ function logViolation(entry) {
   try {
     ensureLogsDir();
     const logPath = path.join(LOGS_DIR, 'damage-control.log');
+    try { rotateIfNeeded(logPath); } catch { /* best effort */ }
     const line = `[${new Date().toISOString()}] ${JSON.stringify(entry)}\n`;
     fs.appendFileSync(logPath, line);
   } catch {

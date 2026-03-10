@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
+const { pruneOldSessions } = require('./log-rotation');
 
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
 
@@ -108,6 +109,8 @@ let input = '';
 process.stdin.on('data', (chunk) => input += chunk);
 process.stdin.on('end', () => {
   try {
+    try { pruneOldSessions(SESSIONS_DIR); } catch { /* best effort */ }
+
     const payload = JSON.parse(input);
     const sessionId = sanitizeId(payload.session_id);
     const toolName = payload.tool_name || '';
