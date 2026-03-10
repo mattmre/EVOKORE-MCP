@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { IncomingMessage } from "http";
 import fs from "fs";
 import path from "path";
 import os from "os";
@@ -28,6 +29,13 @@ interface ClientMessage {
   flush?: boolean;
 }
 
+interface HealthResponse {
+  type: "health";
+  status: "ok";
+  connections: number;
+  uptime: number;
+}
+
 // --- Config ---
 
 const PORT = parseInt(process.env.VOICE_SIDECAR_PORT || "8888", 10);
@@ -36,6 +44,16 @@ const PLAYBACK_DISABLED = process.env.VOICE_SIDECAR_DISABLE_PLAYBACK === "1";
 const ARTIFACT_DIR = process.env.VOICE_SIDECAR_ARTIFACT_DIR
   ? path.resolve(process.env.VOICE_SIDECAR_ARTIFACT_DIR)
   : null;
+const MAX_CONNECTIONS = parseInt(process.env.VOICE_SIDECAR_MAX_CONNECTIONS || "5", 10);
+const MAX_TEXT_LENGTH = 10000;
+const HEARTBEAT_INTERVAL_MS = 30000;
+const CONNECT_TIMEOUT_MS = 10000;
+const CONNECT_MAX_RETRIES = 2;
+const FLUSH_TIMEOUT_MS = 30000;
+const SHUTDOWN_DRAIN_MS = 2000;
+const MAX_PAYLOAD_BYTES = 1 * 1024 * 1024; // 1 MB
+
+const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
 function loadVoicesConfig(): VoicesFile {
   const raw = fs.readFileSync(VOICES_PATH, "utf-8");
@@ -66,6 +84,33 @@ function saveAudioArtifact(filePath: string): string | null {
   } catch (err: any) {
     console.error("[VoiceSidecar] Failed to save audio artifact:", err.message);
     return null;
+  }
+}
+
+// --- Startup Temp File Cleanup ---
+
+function cleanupStaleTempFiles(): void {
+  try {
+    const tmpDir = os.tmpdir();
+    const entries = fs.readdirSync(tmpDir);
+    let cleaned = 0;
+
+    for (const entry of entries) {
+      if (entry.startsWith("evokore-voice-") && entry.endsWith(".mp3")) {
+        try {
+          fs.unlinkSync(path.join(tmpDir, entry));
+          cleaned++;
+        } catch {
+          // File may be in use by another process
+        }
+      }
+    }
+
+    if (cleaned > 0) {
+      console.error(`[VoiceSidecar] Cleaned up ${cleaned} stale temp file(s)`);
+    }
+  } catch (err: any) {
+    console.error("[VoiceSidecar] Temp cleanup warning:", err.message);
   }
 }
 
@@ -144,13 +189,41 @@ class ElevenLabsStreamer {
     this.apiKey = apiKey;
   }
 
-  connect(): Promise<void> {
+  async connect(): Promise<void> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= CONNECT_MAX_RETRIES; attempt++) {
+      try {
+        await this.attemptConnect();
+        return;
+      } catch (err: any) {
+        lastError = err;
+        if (attempt < CONNECT_MAX_RETRIES) {
+          const delay = Math.pow(2, attempt) * 500; // 500ms, 1000ms
+          console.error(`[VoiceSidecar] ElevenLabs connect attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      }
+    }
+
+    throw lastError || new Error("ElevenLabs connection failed after retries");
+  }
+
+  private attemptConnect(): Promise<void> {
     return new Promise((resolve, reject) => {
       const url = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voice.voiceId}/stream-input?model_id=${this.voice.model}&output_format=${this.voice.outputFormat}`;
 
       this.ws = new WebSocket(url);
 
+      const connectTimer = setTimeout(() => {
+        if (this.ws) {
+          this.ws.terminate();
+        }
+        reject(new Error("ElevenLabs connection timed out"));
+      }, CONNECT_TIMEOUT_MS);
+
       this.ws.on("open", () => {
+        clearTimeout(connectTimer);
         // Send initial config message
         this.ws!.send(JSON.stringify({
           text: " ",
@@ -179,11 +252,13 @@ class ElevenLabsStreamer {
       });
 
       this.ws.on("error", (err) => {
+        clearTimeout(connectTimer);
         console.error("[VoiceSidecar] ElevenLabs WS error:", err.message);
         reject(err);
       });
 
       this.ws.on("close", () => {
+        clearTimeout(connectTimer);
         if (this.resolveFinished) {
           this.resolveFinished();
           this.resolveFinished = null;
@@ -203,10 +278,24 @@ class ElevenLabsStreamer {
 
   flush(): Promise<void> {
     return new Promise((resolve) => {
-      this.resolveFinished = resolve;
+      const flushTimer = setTimeout(() => {
+        console.error("[VoiceSidecar] Flush timed out, forcing resolution");
+        this.resolveFinished = null;
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.close();
+        }
+        resolve();
+      }, FLUSH_TIMEOUT_MS);
+
+      this.resolveFinished = () => {
+        clearTimeout(flushTimer);
+        resolve();
+      };
+
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         this.ws.send(JSON.stringify({ text: "" }));
       } else {
+        clearTimeout(flushTimer);
         resolve();
       }
     });
@@ -255,18 +344,55 @@ class ElevenLabsStreamer {
 // --- WebSocket Server ---
 
 function startServer(): void {
+  const startTime = Date.now();
   const apiKey = process.env.ELEVENLABS_API_KEY;
   if (!apiKey) {
     console.error("[VoiceSidecar] ELEVENLABS_API_KEY not set. Load via .env or export.");
     process.exit(1);
   }
 
-  const wss = new WebSocketServer({ port: PORT });
+  // Cleanup stale temp files from prior runs
+  cleanupStaleTempFiles();
 
-  console.error(`[VoiceSidecar] Listening on ws://localhost:${PORT}`);
+  const wss = new WebSocketServer({
+    port: PORT,
+    host: "127.0.0.1",
+    maxPayload: MAX_PAYLOAD_BYTES,
+    verifyClient: (info: { origin: string; secure: boolean; req: IncomingMessage }) => {
+      const origin = info.req.socket.remoteAddress || "";
+      return LOOPBACK_ADDRESSES.has(origin);
+    },
+  });
+
+  console.error(`[VoiceSidecar] Listening on ws://127.0.0.1:${PORT}`);
   console.error(`[VoiceSidecar] voices.json: ${VOICES_PATH}`);
 
-  wss.on("connection", async (client) => {
+  // --- Ping/pong heartbeat ---
+  const heartbeatInterval = setInterval(() => {
+    for (const client of wss.clients) {
+      if ((client as any).__alive === false) {
+        console.error("[VoiceSidecar] Terminating unresponsive client");
+        client.terminate();
+        continue;
+      }
+      (client as any).__alive = false;
+      client.ping();
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  wss.on("connection", async (client, req) => {
+    // --- Connection limit ---
+    if (wss.clients.size > MAX_CONNECTIONS) {
+      console.error(`[VoiceSidecar] Connection limit reached (${MAX_CONNECTIONS}), rejecting client`);
+      client.close(1013, "Maximum connections reached");
+      return;
+    }
+
+    (client as any).__alive = true;
+    client.on("pong", () => {
+      (client as any).__alive = true;
+    });
+
     let streamer: ElevenLabsStreamer | null = null;
     let currentPersona: string | undefined;
 
@@ -276,11 +402,37 @@ function startServer(): void {
       try {
         const msg: ClientMessage = JSON.parse(raw.toString());
 
+        // --- Health check ---
+        if (msg.text === "__health") {
+          const response: HealthResponse = {
+            type: "health",
+            status: "ok",
+            connections: wss.clients.size,
+            uptime: Math.floor((Date.now() - startTime) / 1000),
+          };
+          client.send(JSON.stringify(response));
+          return;
+        }
+
+        // --- Input validation ---
+        if (msg.text !== undefined && typeof msg.text !== "string") {
+          client.send(JSON.stringify({ error: "text must be a string" }));
+          return;
+        }
+        if (typeof msg.text === "string" && msg.text.length > MAX_TEXT_LENGTH) {
+          client.send(JSON.stringify({ error: `text exceeds maximum length of ${MAX_TEXT_LENGTH} characters` }));
+          return;
+        }
+        if (msg.persona !== undefined && typeof msg.persona !== "string") {
+          client.send(JSON.stringify({ error: "persona must be a string" }));
+          return;
+        }
+
         // Initialize streamer on first message with text
         if (!streamer && msg.text) {
           currentPersona = msg.persona;
           const voice = resolvePersona(msg.persona);
-          console.error(`[VoiceSidecar] Persona: ${msg.persona || "default"} → ${voice.voiceName}`);
+          console.error(`[VoiceSidecar] Persona: ${msg.persona || "default"} \u2192 ${voice.voiceName}`);
           streamer = new ElevenLabsStreamer(voice, apiKey);
           await streamer.connect();
         }
@@ -306,17 +458,27 @@ function startServer(): void {
     });
   });
 
-  // Graceful shutdown
-  process.on("SIGINT", () => {
+  // --- Graceful shutdown ---
+  function gracefulShutdown(): void {
     console.error("\n[VoiceSidecar] Shutting down...");
-    wss.close();
-    process.exit(0);
-  });
+    clearInterval(heartbeatInterval);
 
-  process.on("SIGTERM", () => {
-    wss.close();
-    process.exit(0);
-  });
+    // Close all clients with 1001 (Going Away)
+    for (const client of wss.clients) {
+      client.close(1001, "Server shutting down");
+    }
+
+    // Drain period then exit
+    setTimeout(() => {
+      wss.close(() => {
+        console.error("[VoiceSidecar] Shutdown complete");
+        process.exit(0);
+      });
+    }, SHUTDOWN_DRAIN_MS);
+  }
+
+  process.on("SIGINT", gracefulShutdown);
+  process.on("SIGTERM", gracefulShutdown);
 }
 
 // --- Load .env and start ---
