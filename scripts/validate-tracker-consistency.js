@@ -10,7 +10,7 @@ const REQUIRED_TRACKER_SECTIONS = [
   'Session Snapshot Template',
   'File Ownership Checklist',
   'Handoff Checklist',
-  'Agent Execution Log'
+  'Archived Logs'
 ];
 
 function expectedPriorityIds() {

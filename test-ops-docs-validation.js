@@ -30,7 +30,7 @@ function run() {
   assert.match(tracker, /context-rot prevention/i);
   assert.match(tracker, /Session Snapshot Template/);
   assert.match(tracker, /File Ownership Checklist/);
-  assert.match(tracker, /Initial Entry \(This Execution\)/);
+  assert.match(tracker, /Archived Logs/);
 
   assert.match(decisions, /context-rot prevention/i);
   assert.match(decisions, /Decision Entry Template/);
