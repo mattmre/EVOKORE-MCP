@@ -3,13 +3,9 @@
 /**
  * Skill Indexing Validation Tests
  *
- * Validates that SkillManager indexes skills correctly at the expected
- * 2-level depth (SKILLS/{category}/{skill}/SKILL.md) and that search,
- * resolve_workflow, and get_skill_help produce meaningful results.
- *
- * IMPORTANT: This test documents the CURRENT intentional behavior where
- * deeply nested skills (3+ levels) are NOT indexed. This is by design.
- * Any future change to recursive indexing should update these tests.
+ * Validates that SkillManager indexes skills correctly using recursive
+ * traversal (max depth 5) across SKILLS/{category}/.../{skill}/SKILL.md
+ * and that search, resolve_workflow, and get_skill_help produce meaningful results.
  */
 
 const assert = require('assert');
@@ -25,11 +21,11 @@ function test(name, fn) {
   try {
     fn();
     passed++;
-    console.log(`  PASS  ${name}`);
+    console.log('  PASS  ' + name);
   } catch (err) {
     failed++;
-    console.error(`  FAIL  ${name}`);
-    console.error(`        ${err.message}`);
+    console.error('  FAIL  ' + name);
+    console.error('        ' + err.message);
   }
 }
 
@@ -37,11 +33,11 @@ async function testAsync(name, fn) {
   try {
     await fn();
     passed++;
-    console.log(`  PASS  ${name}`);
+    console.log('  PASS  ' + name);
   } catch (err) {
     failed++;
-    console.error(`  FAIL  ${name}`);
-    console.error(`        ${err.message}`);
+    console.error('  FAIL  ' + name);
+    console.error('        ' + err.message);
   }
 }
 
@@ -56,33 +52,36 @@ const mockProxyManager = {
 };
 
 async function run() {
-  console.log('\n=== Skill Indexing Validation ===\n');
+  console.log('\n=== Skill Indexing Validation (Recursive) ===\n');
 
   const sm = new SkillManager(mockProxyManager);
+
+  // Performance gate: loadSkills must complete in reasonable time
+  const startTime = Date.now();
   await sm.loadSkills();
+  const loadTimeMs = Date.now() - startTime;
 
   // Expose internals for direct inspection.
-  // skillsCache and fuseIndex are private but accessible at runtime in JS.
   const cache = sm.skillsCache;
   const fuseIndex = sm.fuseIndex;
 
   // ----------------------------------------------------------------
-  // Section 1: Index count baseline
+  // Section 1: Index count baseline (recursive)
   // ----------------------------------------------------------------
   console.log('\n-- Index Count Baseline --');
 
   const indexedCount = cache.size;
-  console.log(`   Indexed skill count: ${indexedCount}`);
+  console.log('   Indexed skill count: ' + indexedCount);
+  console.log('   Load time: ' + loadTimeMs + 'ms');
 
-  test('indexes more than 30 skills', () => {
-    assert.ok(indexedCount > 30,
-      `Expected >30 indexed skills, got ${indexedCount}`);
+  test('indexes at least 100 skills (recursive traversal)', () => {
+    assert.ok(indexedCount >= 100,
+      'Expected >=100 indexed skills with recursive traversal, got ' + indexedCount);
   });
 
-  test('indexes fewer than 200 skills (confirms 2-level limit)', () => {
-    assert.ok(indexedCount < 200,
-      `Expected <200 indexed skills (2-level depth), got ${indexedCount}. ` +
-      'If this fails, loadSkills() may have changed to recursive traversal.');
+  test('performance gate: loadSkills completes in <60000ms', () => {
+    assert.ok(loadTimeMs < 60000,
+      'Expected loadSkills to complete in <60s, took ' + loadTimeMs + 'ms');
   });
 
   // ----------------------------------------------------------------
@@ -94,19 +93,20 @@ async function run() {
   for (const skill of cache.values()) {
     categories.add(skill.category);
   }
-  console.log(`   Categories found: ${[...categories].sort().join(', ')}`);
+  console.log('   Categories found: ' + [...categories].sort().join(', '));
 
   const expectedCategories = [
     'GENERAL CODING WORKFLOWS',
     'ORCHESTRATION FRAMEWORK',
     'DEVELOPER TOOLS',
-    'AUTOMATION AND PRODUCTIVITY'
+    'AUTOMATION AND PRODUCTIVITY',
+    'WSHOBSON PLUGINS'
   ];
 
   for (const cat of expectedCategories) {
-    test(`category "${cat}" is present`, () => {
+    test('category "' + cat + '" is present', () => {
       assert.ok(categories.has(cat),
-        `Expected category "${cat}" in indexed skills`);
+        'Expected category "' + cat + '" in indexed skills');
     });
   }
 
@@ -135,6 +135,11 @@ async function run() {
       query: 'security',
       expectAnyResults: true,
       description: '"security" returns at least one result'
+    },
+    {
+      query: 'python testing',
+      expectCategoryMatch: 'WSHOBSON PLUGINS',
+      description: '"python testing" returns WSHOBSON PLUGINS skills'
     }
   ];
 
@@ -143,22 +148,22 @@ async function run() {
       assert.ok(fuseIndex, 'Fuse index must be initialized');
       const results = fuseIndex.search(tc.query, { limit: 10 });
       assert.ok(results.length > 0,
-        `search_skills("${tc.query}") returned 0 results`);
+        'search_skills("' + tc.query + '") returned 0 results');
 
       if (tc.expectCategoryMatch) {
         const hasCategory = results.some(r =>
           r.item.category === tc.expectCategoryMatch);
         assert.ok(hasCategory,
-          `Expected at least one result in category "${tc.expectCategoryMatch}" ` +
-          `for query "${tc.query}". Got categories: ${results.map(r => r.item.category).join(', ')}`);
+          'Expected at least one result in category "' + tc.expectCategoryMatch +
+          '" for query "' + tc.query + '". Got categories: ' + results.map(r => r.item.category).join(', '));
       }
 
       if (tc.expectNameSubstring) {
         const hasName = results.some(r =>
           r.item.name.toLowerCase().includes(tc.expectNameSubstring));
         assert.ok(hasName,
-          `Expected at least one result with "${tc.expectNameSubstring}" in name ` +
-          `for query "${tc.query}". Got names: ${results.map(r => r.item.name).join(', ')}`);
+          'Expected at least one result with "' + tc.expectNameSubstring + '" in name ' +
+          'for query "' + tc.query + '". Got names: ' + results.map(r => r.item.name).join(', '));
       }
     });
   }
@@ -190,13 +195,13 @@ async function run() {
   console.log('\n-- get_skill_help Validation --');
 
   // Find a known skill name from the cache to test with
-  const knownSkillNames = [...cache.keys()].slice(0, 3);
-  console.log(`   Sample indexed skill names: ${knownSkillNames.join(', ')}`);
+  const knownSkillKeys = [...cache.keys()].slice(0, 3);
+  console.log('   Sample indexed skill keys: ' + knownSkillKeys.join(', '));
 
-  if (knownSkillNames.length > 0) {
-    const testSkillName = knownSkillNames[0];
-    await testAsync(`get_skill_help returns content for "${testSkillName}"`, async () => {
-      const result = await sm.handleToolCall('get_skill_help', { skill_name: testSkillName });
+  if (knownSkillKeys.length > 0) {
+    const testSkillKey = knownSkillKeys[0];
+    await testAsync('get_skill_help returns content for "' + testSkillKey + '"', async () => {
+      const result = await sm.handleToolCall('get_skill_help', { skill_name: testSkillKey });
       const text = result.content[0].text;
       assert.ok(text.includes('Skill Overview'),
         'Expected get_skill_help response to contain "Skill Overview"');
@@ -204,6 +209,16 @@ async function run() {
         'Expected get_skill_help response to contain "Internal Instructions"');
     });
   }
+
+  // Test bare name lookup (without category prefix)
+  await testAsync('get_skill_help supports bare name lookup', async () => {
+    const firstSkill = [...cache.values()][0];
+    if (!firstSkill) throw new Error('No skills indexed');
+    const result = await sm.handleToolCall('get_skill_help', { skill_name: firstSkill.name });
+    const text = result.content[0].text;
+    assert.ok(text.includes('Skill Overview'),
+      'Expected bare name lookup to return skill help');
+  });
 
   await testAsync('get_skill_help returns not-found for nonexistent skill', async () => {
     const result = await sm.handleToolCall('get_skill_help', { skill_name: 'zzz-nonexistent-skill-zzz' });
@@ -213,100 +228,135 @@ async function run() {
   });
 
   // ----------------------------------------------------------------
-  // Section 6: Depth limit documentation -- deeply nested skills NOT indexed
+  // Section 6: Recursive depth -- deeply nested skills ARE now indexed
   // ----------------------------------------------------------------
-  console.log('\n-- Depth Limit Documentation (2-level max) --');
+  console.log('\n-- Recursive Depth Validation --');
 
-  // Level 3 example: SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-tdd/SKILL.md
-  // This file exists on disk but should NOT appear in the index.
   const orchTddPath = path.resolve(__dirname, 'SKILLS', 'ORCHESTRATION FRAMEWORK',
     'commands', 'orch-tdd', 'SKILL.md');
   const orchTddExists = fs.existsSync(orchTddPath);
 
   test('orch-tdd/SKILL.md exists on disk at level 3', () => {
     assert.ok(orchTddExists,
-      `Expected ${orchTddPath} to exist on disk for this test to be meaningful`);
+      'Expected ' + orchTddPath + ' to exist on disk for this test to be meaningful');
   });
 
-  test('orch-tdd is NOT in the skills index (depth limit)', () => {
-    // The skill would be keyed by its frontmatter name or fallback "orch-tdd"
-    const hasOrchTdd = [...cache.keys()].some(k => k.includes('orch-tdd'));
-    assert.ok(!hasOrchTdd,
-      'orch-tdd should NOT be indexed (it is at level 3). ' +
-      'If this fails, loadSkills() depth behavior has changed.');
+  test('orch-tdd IS in the skills index (recursive traversal)', () => {
+    const hasOrchTdd = [...cache.keys()].some(k => k.includes('orch-tdd')) ||
+                       [...cache.values()].some(s => s.filePath.includes('orch-tdd'));
+    assert.ok(hasOrchTdd,
+      'orch-tdd should be indexed with recursive traversal');
   });
 
-  // Level 3 example: SKILLS/ORCHESTRATION FRAMEWORK/handoff-protocol/AUTONOMY_BUDGET.md
-  const autonomyPath = path.resolve(__dirname, 'SKILLS', 'ORCHESTRATION FRAMEWORK',
-    'handoff-protocol', 'AUTONOMY_BUDGET.md');
-  const autonomyExists = fs.existsSync(autonomyPath);
-
-  test('AUTONOMY_BUDGET.md exists on disk at level 3', () => {
-    assert.ok(autonomyExists,
-      `Expected ${autonomyPath} to exist for this test`);
+  // WSHOBSON PLUGINS reachability: skills at depth 3
+  test('WSHOBSON PLUGINS skills are reachable', () => {
+    const wshobsonSkills = [...cache.values()].filter(s =>
+      s.category === 'WSHOBSON PLUGINS');
+    assert.ok(wshobsonSkills.length > 20,
+      'Expected >20 WSHOBSON PLUGINS skills, got ' + wshobsonSkills.length);
   });
 
-  test('AUTONOMY_BUDGET is NOT in the skills index (depth limit)', () => {
-    const hasAutonomy = [...cache.keys()].some(k => k.includes('autonomy_budget'));
-    assert.ok(!hasAutonomy,
-      'AUTONOMY_BUDGET should NOT be indexed (it is at level 3).');
-  });
-
-  // Level 2 example: SKILLS/ORCHESTRATION FRAMEWORK/commands should BE indexed
-  // because it has a SKILL.md at its root
-  test('"commands" directory IS indexed at level 2', () => {
-    // The commands SKILL.md frontmatter name may differ from the dir name,
-    // so check both the key and the filePath of cached entries
+  test('"commands" directory IS indexed', () => {
     const commandsIndexed = [...cache.values()].some(s =>
       s.filePath.includes(path.join('ORCHESTRATION FRAMEWORK', 'commands', 'SKILL.md')));
     assert.ok(commandsIndexed,
-      'ORCHESTRATION FRAMEWORK/commands/SKILL.md should be indexed at level 2');
+      'ORCHESTRATION FRAMEWORK/commands/SKILL.md should be indexed');
   });
 
   // ----------------------------------------------------------------
-  // Section 7: SKILL.md format -- frontmatter structure
+  // Section 7: Composite key collision test
+  // ----------------------------------------------------------------
+  console.log('\n-- Composite Key Collision Test --');
+
+  test('no cache key collisions (composite keys include category)', () => {
+    const keys = [...cache.keys()];
+    const compositeKeys = keys.filter(k => k.includes('/'));
+    assert.ok(compositeKeys.length === keys.length,
+      'Expected all keys to be composite (category/name), but ' +
+      (keys.length - compositeKeys.length) + ' are bare names');
+  });
+
+  // ----------------------------------------------------------------
+  // Section 8: Directory exclusion test
+  // ----------------------------------------------------------------
+  console.log('\n-- Directory Exclusion Test --');
+
+  test('no skills indexed from node_modules directories', () => {
+    const hasNodeModules = [...cache.values()].some(s =>
+      s.filePath.includes('node_modules'));
+    assert.ok(!hasNodeModules,
+      'No skills should be indexed from node_modules directories');
+  });
+
+  test('no skills indexed from .git directories', () => {
+    const hasGit = [...cache.values()].some(s =>
+      s.filePath.includes(path.sep + '.git' + path.sep));
+    assert.ok(!hasGit,
+      'No skills should be indexed from .git directories');
+  });
+
+  // ----------------------------------------------------------------
+  // Section 9: Subcategory field validation
+  // ----------------------------------------------------------------
+  console.log('\n-- Subcategory Field Validation --');
+
+  test('all indexed skills have a subcategory field (may be empty)', () => {
+    for (const [key, skill] of cache) {
+      assert.ok(typeof skill.subcategory === 'string',
+        'Skill "' + key + '" is missing subcategory field');
+    }
+  });
+
+  test('some skills have non-empty subcategory', () => {
+    const withSubcat = [...cache.values()].filter(s => s.subcategory.length > 0);
+    assert.ok(withSubcat.length > 0,
+      'Expected at least some skills to have a non-empty subcategory');
+  });
+
+  // ----------------------------------------------------------------
+  // Section 10: SKILL.md format -- frontmatter structure
   // ----------------------------------------------------------------
   console.log('\n-- SKILL.md Format Validation --');
 
   test('all indexed skills have a name', () => {
     for (const [key, skill] of cache) {
       assert.ok(skill.name && skill.name.length > 0,
-        `Skill keyed as "${key}" has empty name`);
+        'Skill keyed as "' + key + '" has empty name');
     }
   });
 
   test('all indexed skills have a description', () => {
     for (const [key, skill] of cache) {
       assert.ok(skill.description && skill.description.length > 0,
-        `Skill "${key}" has empty description`);
+        'Skill "' + key + '" has empty description');
     }
   });
 
   test('all indexed skills have a category', () => {
     for (const [key, skill] of cache) {
       assert.ok(skill.category && skill.category.length > 0,
-        `Skill "${key}" has empty category`);
+        'Skill "' + key + '" has empty category');
     }
   });
 
   test('all indexed skills have non-empty content', () => {
     for (const [key, skill] of cache) {
       assert.ok(skill.content && skill.content.length > 0,
-        `Skill "${key}" has empty content`);
+        'Skill "' + key + '" has empty content');
     }
   });
 
   test('all indexed skills have a valid filePath', () => {
     for (const [key, skill] of cache) {
       assert.ok(fs.existsSync(skill.filePath),
-        `Skill "${key}" filePath does not exist: ${skill.filePath}`);
+        'Skill "' + key + '" filePath does not exist: ' + skill.filePath);
     }
   });
 
   // ----------------------------------------------------------------
   // Summary
   // ----------------------------------------------------------------
-  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
+  console.log('\n=== Results: ' + passed + ' passed, ' + failed + ' failed ===\n');
 
   if (failed > 0) {
     process.exit(1);
