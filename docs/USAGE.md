@@ -323,6 +323,12 @@ node scripts/sync-configs.js --apply --force
 
 **Supported CLIs:** Claude Code, Claude Desktop (Win/Mac/Linux), Cursor, Gemini CLI (prints manual command).
 
+**Prerequisite:** You must build the project before running sync, because the script validates that `dist/index.js` exists:
+
+```bash
+npm run build
+```
+
 The sync script:
 - Auto-detects installed CLIs
 - Uses DRY RUN by default (or `--apply` to write changes)
@@ -330,6 +336,21 @@ The sync script:
 - Rejects conflicting flag pairs (`--dry-run` + `--apply`, `--force` + `--preserve-existing`)
 - Only adds/updates the `evokore-mcp` server entry (never overwrites other servers)
 - Target specific CLIs: `node scripts/sync-configs.js claude-code cursor` (dry run) or `node scripts/sync-configs.js --apply claude-code cursor` (write)
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success (sync completed or dry-run previewed) |
+| 1 | Error (conflicting flags, unknown target, or missing `dist/index.js`) |
+
+**Troubleshooting:**
+
+- **"dist/index.js not found"**: Run `npm run build` (or `npx tsc`) before syncing. The sync script requires the compiled entry point to exist.
+- **Malformed target config**: If a CLI's config file contains invalid JSON, the sync script recovers gracefully by treating it as an empty config. The old file content will be replaced on `--apply`.
+- **Cursor falls back to project-level config**: If `~/.cursor/mcp.json` does not exist, the script writes to `<PROJECT_ROOT>/.cursor/mcp.json` instead. Create the user-level file first if you prefer global Cursor configuration.
+- **Gemini CLI shows "Not detected"**: The script checks for the `gemini` binary on PATH. Install Gemini CLI or run the printed `gemini mcp add` command manually.
+- **Config not updating on re-run**: By default, `--preserve-existing` is active. If you need to overwrite a stale `evokore-mcp` entry, use `--force`.
 
 ## 5. Hook Observability
 
