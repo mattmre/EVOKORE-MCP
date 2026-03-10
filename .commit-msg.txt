@@ -1,7 +1,10 @@
-docs: add session log and update CLAUDE.md for merge session
+fix: sync documentation links and fix orphaned references
 
-Session 2026-03-09-2: merged Agent33 PRs, fixed test breakages,
-cleaned up branches. Added learnings about regex backtracking,
-git lock workaround, and PR template format.
+- Update latest orchestration log link to most recent session
+- Add orphaned docs (VOICE_CLI_RESEARCH, AGENT33_*) to portal
+- Rename ALL SKILLS CRIB SHEET.md to ALL_SKILLS_CRIB_SHEET.md
+- Add mcp-repos-research-plan.md to research README listing
+- Clarify legacy path mapping as historical references only
+- Add documentation audit research artifact
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
