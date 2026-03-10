@@ -15,10 +15,20 @@ export interface SkillMetadata {
   content: string;
 }
 
+export interface SkillIndexStats {
+  totalSkills: number;
+  categories: string[];
+  loadTimeMs: number;
+  fuseIndexSizeKb: number;
+  lastSearchMs: number;
+}
+
 export class SkillManager {
   private skillsCache: Map<string, SkillMetadata> = new Map();
   private fuseIndex: Fuse<SkillMetadata> | null = null;
   private proxyManager: ProxyManager;
+  private _loadTimeMs: number = 0;
+  private _lastSearchMs: number = 0;
 
   constructor(proxyManager: ProxyManager) {
     this.proxyManager = proxyManager;
@@ -26,15 +36,17 @@ export class SkillManager {
 
   async loadSkills() {
     this.skillsCache.clear();
+    const loadStart = Date.now();
     try {
+      const scanStart = Date.now();
       const categories = await fs.readdir(SKILLS_DIR).catch(() => []);
-      
+
       for (const category of categories) {
         const categoryPath = path.join(SKILLS_DIR, category);
         const stat = await fs.stat(categoryPath).catch(() => null);
-        
+
         if (!stat || !stat.isDirectory()) continue;
-        
+
         const skills = await fs.readdir(categoryPath).catch(() => []);
         for (const skillDir of skills) {
           const itemPath = path.join(categoryPath, skillDir);
@@ -64,15 +76,20 @@ export class SkillManager {
           }
         }
       }
-      
+      const dirScanMs = Date.now() - scanStart;
+
+      const fuseStart = Date.now();
       this.fuseIndex = new Fuse(Array.from(this.skillsCache.values()), {
         keys: ["name", "description", "category", "content"],
         threshold: 0.4,
         ignoreLocation: true
       });
+      const fuseMs = Date.now() - fuseStart;
 
-      console.error(`[EVOKORE] Indexed ${this.skillsCache.size} skills for Dynamic Retrieval.`);
+      this._loadTimeMs = Date.now() - loadStart;
+      console.error(`[EVOKORE] Skill indexing: ${dirScanMs}ms scan, ${fuseMs}ms index, ${this.skillsCache.size} skills`);
     } catch (e) {
+      this._loadTimeMs = Date.now() - loadStart;
       console.error("[EVOKORE] Error loading skills directory:", e);
     }
   }
@@ -93,6 +110,32 @@ export class SkillManager {
     } catch (e) {
       return null;
     }
+  }
+
+  getStats(): SkillIndexStats {
+    const categories = new Set<string>();
+    for (const skill of this.skillsCache.values()) {
+      categories.add(skill.category);
+    }
+
+    // Approximate Fuse index size by serializing to JSON
+    let fuseIndexSizeKb = 0;
+    try {
+      if (this.fuseIndex) {
+        const serialized = JSON.stringify(this.fuseIndex);
+        fuseIndexSizeKb = Math.round((Buffer.byteLength(serialized, "utf-8") / 1024) * 100) / 100;
+      }
+    } catch {
+      // If serialization fails, leave as 0
+    }
+
+    return {
+      totalSkills: this.skillsCache.size,
+      categories: Array.from(categories).sort(),
+      loadTimeMs: this._loadTimeMs,
+      fuseIndexSizeKb,
+      lastSearchMs: this._lastSearchMs
+    };
   }
 
   getTools(): Tool[] {
@@ -181,7 +224,7 @@ export class SkillManager {
         } catch (e) {
             projectContext = "No package.json found or could not be read.";
         }
-        
+
         return {
             content: [{
                 type: "text",
@@ -198,10 +241,10 @@ Please use this to generate a Gold Standard README.md and /docs directory for ${
         const skillName = args.skill_name as string;
         const targetDir = args.target_dir as string;
         const description = args.description as string;
-        
+
         const skillPath = path.join(targetDir, skillName);
         const skillMdPath = path.join(skillPath, "SKILL.md");
-        
+
         const skillTemplate = `---
 name: ${skillName}
 description: ${description}
@@ -215,12 +258,12 @@ This skill provides guidance for ${description}.
 
 (Add instructions here)
 `;
-        
+
         try {
             // Actively harness the proxied child server to write files
             // For directories, we might not have a proxy tool, so we rely on write_file creating parents or just instruct the AI
             await this.proxyManager.callProxiedTool("fs_write_file", { path: skillMdPath, content: skillTemplate });
-            
+
             return {
                 content: [{
                     type: "text",
@@ -238,9 +281,9 @@ This skill provides guidance for ${description}.
     if (name === "resolve_workflow") {
         if (!this.fuseIndex) await this.loadSkills();
         const objective = (args.objective as string || "");
-        
+
         const results = this.fuseIndex!.search(objective, { limit: 3 });
-        
+
         if (results.length === 0) {
             return { content: [{ type: "text", text: `No specific workflows found for '${objective}'. Proceed using your general knowledge.` }] };
         }
@@ -255,13 +298,19 @@ This skill provides guidance for ${description}.
     if (name === "search_skills") {
         if (!this.fuseIndex) await this.loadSkills();
         const query = (args.query as string || "").toLowerCase();
+        const searchStart = Date.now();
         const results = this.fuseIndex!.search(query, { limit: 15 }).map(r => r.item);
+        this._lastSearchMs = Date.now() - searchStart;
+
+        if (this._lastSearchMs > 50) {
+          console.error(`[EVOKORE] Slow skill search: "${query}" took ${this._lastSearchMs}ms`);
+        }
 
         return {
-          content: [{ 
-            type: "text", 
-            text: results.length > 0 
-                ? results.map(r => `- **${r.name}** [${r.category}]: ${r.description}`).join("\n") 
+          content: [{
+            type: "text",
+            text: results.length > 0
+                ? results.map(r => `- **${r.name}** [${r.category}]: ${r.description}`).join("\n")
                 : "No skills found matching that query."
           }]
         };
@@ -270,7 +319,7 @@ This skill provides guidance for ${description}.
     if (name === "get_skill_help") {
         if (!this.fuseIndex) await this.loadSkills();
         const skillName = (args.skill_name as string || "").toLowerCase();
-        
+
         let skill = this.skillsCache.get(skillName);
         if (!skill && this.fuseIndex) {
             const matches = this.fuseIndex.search(skillName, { limit: 1 });
@@ -300,7 +349,7 @@ This skill provides guidance for ${description}.
   readResource(uriStr: string) {
       const url = new URL(uriStr);
       const skillName = url.pathname.replace(/^\//, '').toLowerCase();
-      
+
       const skill = Array.from(this.skillsCache.values()).find(s => s.name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase() === skillName || s.name.toLowerCase() === skillName);
 
       if (!skill) throw new McpError(ErrorCode.InvalidParams, `Skill not found: ${skillName}`);

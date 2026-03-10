@@ -187,6 +187,8 @@ class EvokoreMCPServer {
         // Load all subsystems sequentially
         await this.securityManager.loadPermissions();
         await this.skillManager.loadSkills();
+        const skillStats = this.skillManager.getStats();
+        console.error(`[EVOKORE] Skill stats: ${skillStats.totalSkills} skills, ${skillStats.categories.length} categories, loaded in ${skillStats.loadTimeMs}ms, index ~${skillStats.fuseIndexSizeKb}KB`);
         await this.proxyManager.loadServers();
         this.rebuildToolCatalog();
         const transport = new stdio_js_1.StdioServerTransport();

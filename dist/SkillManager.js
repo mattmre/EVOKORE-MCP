@@ -14,12 +14,16 @@ class SkillManager {
     skillsCache = new Map();
     fuseIndex = null;
     proxyManager;
+    _loadTimeMs = 0;
+    _lastSearchMs = 0;
     constructor(proxyManager) {
         this.proxyManager = proxyManager;
     }
     async loadSkills() {
         this.skillsCache.clear();
+        const loadStart = Date.now();
         try {
+            const scanStart = Date.now();
             const categories = await promises_1.default.readdir(SKILLS_DIR).catch(() => []);
             for (const category of categories) {
                 const categoryPath = path_1.default.join(SKILLS_DIR, category);
@@ -55,14 +59,19 @@ class SkillManager {
                     }
                 }
             }
+            const dirScanMs = Date.now() - scanStart;
+            const fuseStart = Date.now();
             this.fuseIndex = new fuse_js_1.default(Array.from(this.skillsCache.values()), {
                 keys: ["name", "description", "category", "content"],
                 threshold: 0.4,
                 ignoreLocation: true
             });
-            console.error(`[EVOKORE] Indexed ${this.skillsCache.size} skills for Dynamic Retrieval.`);
+            const fuseMs = Date.now() - fuseStart;
+            this._loadTimeMs = Date.now() - loadStart;
+            console.error(`[EVOKORE] Skill indexing: ${dirScanMs}ms scan, ${fuseMs}ms index, ${this.skillsCache.size} skills`);
         }
         catch (e) {
+            this._loadTimeMs = Date.now() - loadStart;
             console.error("[EVOKORE] Error loading skills directory:", e);
         }
     }
@@ -83,6 +92,30 @@ class SkillManager {
         catch (e) {
             return null;
         }
+    }
+    getStats() {
+        const categories = new Set();
+        for (const skill of this.skillsCache.values()) {
+            categories.add(skill.category);
+        }
+        // Approximate Fuse index size by serializing to JSON
+        let fuseIndexSizeKb = 0;
+        try {
+            if (this.fuseIndex) {
+                const serialized = JSON.stringify(this.fuseIndex);
+                fuseIndexSizeKb = Math.round((Buffer.byteLength(serialized, "utf-8") / 1024) * 100) / 100;
+            }
+        }
+        catch {
+            // If serialization fails, leave as 0
+        }
+        return {
+            totalSkills: this.skillsCache.size,
+            categories: Array.from(categories).sort(),
+            loadTimeMs: this._loadTimeMs,
+            fuseIndexSizeKb,
+            lastSearchMs: this._lastSearchMs
+        };
     }
     getTools() {
         return [
@@ -235,7 +268,12 @@ This skill provides guidance for ${description}.
             if (!this.fuseIndex)
                 await this.loadSkills();
             const query = (args.query || "").toLowerCase();
+            const searchStart = Date.now();
             const results = this.fuseIndex.search(query, { limit: 15 }).map(r => r.item);
+            this._lastSearchMs = Date.now() - searchStart;
+            if (this._lastSearchMs > 50) {
+                console.error(`[EVOKORE] Slow skill search: "${query}" took ${this._lastSearchMs}ms`);
+            }
             return {
                 content: [{
                         type: "text",
