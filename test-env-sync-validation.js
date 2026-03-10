@@ -58,9 +58,51 @@ function run() {
   // --- New: Validate .gitignore has no BOM ---
   assert.ok(
     !gitignore.startsWith('\uFEFF'),
-    '.gitignore must not have a UTF-16 BOM prefix'
+    '.gitignore must not have a UTF-8 BOM prefix'
   );
-  console.log('  Validated .gitignore has clean UTF-8 encoding (no BOM).');
+
+  // --- New: Validate .gitignore has no UTF-16LE encoding corruption ---
+  const gitignoreRaw = fs.readFileSync(gitignorePath);
+  const hasUtf16Null = gitignoreRaw.some((byte, i) => byte === 0x00 && i > 0);
+  assert.ok(
+    !hasUtf16Null,
+    '.gitignore contains null bytes — likely UTF-16LE corruption. Rewrite as clean UTF-8.'
+  );
+  console.log('  Validated .gitignore has clean UTF-8 encoding (no BOM, no UTF-16LE).');
+
+  // --- New: Reverse-drift test — ensure all process.env references in src/ appear in .env.example ---
+  const srcDir = path.resolve(__dirname, 'src');
+  const srcFiles = fs.readdirSync(srcDir).filter(f => f.endsWith('.ts') || f.endsWith('.js'));
+  const envRefRegex = /process\.env\.(\w+)/g;
+  const envRefBracketRegex = /process\.env\[['"](\w+)['"]\]/g;
+  const referencedVars = new Set();
+
+  for (const file of srcFiles) {
+    const content = fs.readFileSync(path.join(srcDir, file), 'utf8');
+    let m;
+    while ((m = envRefRegex.exec(content)) !== null) {
+      referencedVars.add(m[1]);
+    }
+    while ((m = envRefBracketRegex.exec(content)) !== null) {
+      referencedVars.add(m[1]);
+    }
+  }
+
+  // Exclude dynamic/generic env access patterns (e.g., varName from a loop)
+  const genericVars = new Set(['NODE_ENV', 'PATH', 'HOME', 'USERPROFILE']);
+  const missingFromExample = [];
+  for (const varName of referencedVars) {
+    if (genericVars.has(varName)) continue;
+    const varPattern = new RegExp('(?:^|\\n)#?\\s*' + varName + '=');
+    if (!varPattern.test(envExample)) {
+      missingFromExample.push(varName);
+    }
+  }
+  assert.strictEqual(
+    missingFromExample.length, 0,
+    `src/ references env vars not documented in .env.example: ${missingFromExample.join(', ')}`
+  );
+  console.log(`  Reverse-drift check passed: ${referencedVars.size} env var(s) from src/ all present in .env.example.`);
 
   console.log('Environment sync validation passed.');
 }

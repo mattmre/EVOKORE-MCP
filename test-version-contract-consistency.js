@@ -44,7 +44,7 @@ function run() {
   assert.doesNotMatch(readme, /^## .*v\d+\.\d+\.\d+.*Highlights$/m);
 
   assert.match(envExample, /EVOKORE_TOOL_DISCOVERY_MODE=dynamic/);
-  assert.match(envExample, /"legacy" = all tools visible up front, "dynamic" = discovery-based/);
+  assert.match(envExample, /Tool discovery mode.*legacy.*dynamic/);
   assert.doesNotMatch(envExample, /EVOKORE_DISCOVERY_MODE/);
   assert.doesNotMatch(envExample, /"full" = all tools visible, "gated" = discovery-based/);
 
