@@ -18,8 +18,14 @@ function run() {
   assert.match(observabilitySrc, /MAX_ROTATED_FILES/, 'hook-observability.js must define MAX_ROTATED_FILES');
   assert.match(observabilitySrc, /5\s*\*\s*1024\s*\*\s*1024/, 'MAX_LOG_SIZE must be 5 MB');
   assert.match(observabilitySrc, /rotateIfNeeded/, 'hook-observability.js must implement rotateIfNeeded');
-  assert.match(observabilitySrc, /renameSync/, 'rotation must use synchronous fs.renameSync');
-  assert.match(observabilitySrc, /\.statSync/, 'rotation must check file size with statSync');
+  // Rotation logic may live in hook-observability.js directly or be delegated to log-rotation.js
+  const logRotationPath = path.resolve(__dirname, 'scripts', 'log-rotation.js');
+  const rotationSrc = fs.existsSync(logRotationPath)
+    ? fs.readFileSync(logRotationPath, 'utf8')
+    : observabilitySrc;
+  const combinedSrc = observabilitySrc + rotationSrc;
+  assert.match(combinedSrc, /renameSync/, 'rotation must use synchronous fs.renameSync');
+  assert.match(combinedSrc, /\.statSync/, 'rotation must check file size with statSync');
 
   // Verify rotateIfNeeded is called before write
   const writeBody = observabilitySrc.slice(observabilitySrc.indexOf('function writeHookEvent'));

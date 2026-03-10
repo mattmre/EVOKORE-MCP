@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+const { rotateIfNeeded: sharedRotate } = require('./log-rotation');
+
 const HOOK_LOGS_DIR = path.join(os.homedir(), '.evokore', 'logs');
 const HOOK_LOG_PATH = path.join(HOOK_LOGS_DIR, 'hooks.jsonl');
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -17,32 +19,11 @@ function sanitizeId(id) {
 /**
  * Rotate hooks.jsonl when it exceeds MAX_LOG_SIZE.
  * Keeps up to MAX_ROTATED_FILES rotated copies (.1, .2, .3).
- * Uses synchronous fs operations since this runs in a hook context.
+ * Delegates to the shared log-rotation module.
  */
 function rotateIfNeeded() {
   try {
-    if (!fs.existsSync(HOOK_LOG_PATH)) return;
-
-    const stat = fs.statSync(HOOK_LOG_PATH);
-    if (stat.size < MAX_LOG_SIZE) return;
-
-    // Remove the oldest target first so sparse rotation sequences don't retain stale files.
-    const oldest = `${HOOK_LOG_PATH}.${MAX_ROTATED_FILES}`;
-    if (fs.existsSync(oldest)) {
-      fs.unlinkSync(oldest);
-    }
-
-    // Shift existing rotated files: .2 -> .3, .1 -> .2
-    for (let i = MAX_ROTATED_FILES - 1; i >= 1; i--) {
-      const older = `${HOOK_LOG_PATH}.${i}`;
-      const newer = `${HOOK_LOG_PATH}.${i + 1}`;
-      if (fs.existsSync(older)) {
-        fs.renameSync(older, newer);
-      }
-    }
-
-    // Rotate current file to .1
-    fs.renameSync(HOOK_LOG_PATH, `${HOOK_LOG_PATH}.1`);
+    sharedRotate(HOOK_LOG_PATH, { maxBytes: MAX_LOG_SIZE, maxRotations: MAX_ROTATED_FILES });
   } catch {
     // Never throw from observability path
   }
