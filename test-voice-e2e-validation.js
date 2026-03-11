@@ -8,10 +8,10 @@ const { WebSocketServer } = require('ws');
 
 const HOOK_PATH = path.resolve(__dirname, 'scripts', 'voice-hook.js');
 
-function runHook(port, payload) {
+function runHook(port, payload, extraEnv = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [HOOK_PATH], {
-      env: { ...process.env, VOICE_SIDECAR_PORT: String(port) },
+      env: { ...process.env, VOICE_SIDECAR_PORT: String(port), ...extraEnv },
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -78,6 +78,41 @@ async function run() {
 
   assert.strictEqual(hookResult.code, 0, 'voice-hook should exit successfully when sidecar is present');
   assert.deepStrictEqual(received, { text: input.response.text, flush: true });
+
+  // Case 3: Explicit hook persona env should be forwarded.
+  const personaServer = new WebSocketServer({ port: 0 });
+  await new Promise((resolve) => personaServer.once('listening', resolve));
+  const personaPort = personaServer.address().port;
+  const personaMessagePromise = waitForMessage(personaServer, 2000);
+
+  const personaResult = await runHook(
+    personaPort,
+    { response: { text: 'Persona via env.' } },
+    { VOICE_SIDECAR_PERSONA: 'orchestrator', VOICE_SIDECAR_HOST: '127.0.0.1' }
+  );
+  const personaReceived = await personaMessagePromise;
+
+  await new Promise((resolve) => personaServer.close(resolve));
+
+  assert.strictEqual(personaResult.code, 0, 'voice-hook should exit successfully with explicit persona env');
+  assert.deepStrictEqual(personaReceived, { text: 'Persona via env.', persona: 'orchestrator', flush: true });
+
+  // Case 4: Payload metadata persona should be forwarded when env is unset.
+  const payloadPersonaServer = new WebSocketServer({ port: 0 });
+  await new Promise((resolve) => payloadPersonaServer.once('listening', resolve));
+  const payloadPersonaPort = payloadPersonaServer.address().port;
+  const payloadPersonaPromise = waitForMessage(payloadPersonaServer, 2000);
+
+  const payloadPersonaResult = await runHook(payloadPersonaPort, {
+    response: { text: 'Persona via payload.' },
+    metadata: { persona: 'tester' }
+  });
+  const payloadPersonaReceived = await payloadPersonaPromise;
+
+  await new Promise((resolve) => payloadPersonaServer.close(resolve));
+
+  assert.strictEqual(payloadPersonaResult.code, 0, 'voice-hook should exit successfully with payload persona');
+  assert.deepStrictEqual(payloadPersonaReceived, { text: 'Persona via payload.', persona: 'tester', flush: true });
 
   console.log('Voice hook e2e validation passed.');
 }

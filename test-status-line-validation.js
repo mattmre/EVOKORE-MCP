@@ -4,6 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const { runNodeScript, makeSessionId } = require('./tests/helpers/hook-test-helper');
 const { getSessionPaths, writeSessionState, resolveCanonicalRepoRoot } = require('./scripts/session-continuity');
@@ -19,6 +20,11 @@ function run() {
 
   const activeWorktree = path.resolve(__dirname);
   const workspaceRoot = resolveCanonicalRepoRoot(activeWorktree);
+  const activeBranch = execFileSync('git', ['branch', '--show-current'], {
+    cwd: activeWorktree,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore']
+  }).trim();
   const memoryDir = path.join(os.tmpdir(), `evokore-memory-${Date.now()}`);
   fs.mkdirSync(memoryDir, { recursive: true });
 
@@ -61,7 +67,7 @@ function run() {
 
   assert.strictEqual(liveResult.status, 0);
   assert.match(liveResult.cleanStdout, /EVOKORE/i);
-  assert.match(liveResult.cleanStdout, /roadmap\/t21-status-line/i);
+  assert.match(liveResult.cleanStdout, new RegExp(activeBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
   assert.match(liveResult.cleanStdout, /purpose Ship live status line display/i);
   assert.match(liveResult.cleanStdout, /tasks 1\/2 open/i);
   assert.match(liveResult.cleanStdout, /continuity healthy 0r\/0e/i);
@@ -70,9 +76,12 @@ function run() {
   cleanup(livePaths.sessionStatePath);
   cleanup(livePaths.tasksPath);
 
+  const isolatedWorkspace = path.join(os.tmpdir(), `evokore-status-fallback-${Date.now()}`);
+  fs.mkdirSync(isolatedWorkspace, { recursive: true });
+
   fs.writeFileSync(path.join(memoryDir, 'project-state.md'), `# Project State
 
-- Repo path: \`${workspaceRoot}\`
+- Repo path: \`${isolatedWorkspace}\`
 - Repo name: \`EVOKORE-MCP\`
 - Branch: \`memory-fallback\`
 - HEAD: \`deadbee\`
@@ -85,7 +94,7 @@ function run() {
   const fallbackResult = runNodeScript(
     'scripts/status.js',
     {
-      workspace: { current_dir: activeWorktree }
+      workspace: { current_dir: isolatedWorkspace }
     },
     {
       env: {
@@ -97,6 +106,7 @@ function run() {
   assert.strictEqual(fallbackResult.status, 0);
   assert.match(fallbackResult.cleanStdout, /purpose Memory fallback purpose/i);
 
+  cleanup(isolatedWorkspace);
   cleanup(memoryDir);
   console.log('Status-line validation passed.');
 }

@@ -218,7 +218,7 @@ Use the right setup path for your goal:
 |---|---|
 | Use ElevenLabs as proxied MCP tools | configure optional `elevenlabs` child server in `mcp.config.json` |
 | Add direct voice conversations in Claude Code | register VoiceMode separately and set `OPENAI_API_KEY` |
-| Auto-speak Claude responses through a hook | run `npm run voice` and configure `scripts/voice-hook.js` |
+| Auto-speak Claude responses through a hook | run `npm run voice`, configure `scripts/voice-hook.js`, and optionally set `VOICE_SIDECAR_PERSONA` for non-default personas |
 
 See [VOICE_AND_HOOKS.md](./VOICE_AND_HOOKS.md) for the full split between those systems.
 
