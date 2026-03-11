@@ -10,6 +10,18 @@ const sessionsDir = path.join(os.homedir(), '.evokore', 'sessions');
 const logsDir = path.join(os.homedir(), '.evokore', 'logs');
 const cacheDir = path.join(os.homedir(), '.evokore', 'cache');
 const hooksLogPath = path.join(logsDir, 'hooks.jsonl');
+const CANONICAL_HOOKS = {
+  damageControl: 'scripts/hooks/damage-control.js',
+  purposeGate: 'scripts/hooks/purpose-gate.js',
+  sessionReplay: 'scripts/hooks/session-replay.js',
+  tilldone: 'scripts/hooks/tilldone.js'
+};
+const LEGACY_ENTRYPOINTS = {
+  damageControl: 'scripts/damage-control.js',
+  purposeGate: 'scripts/purpose-gate.js',
+  sessionReplay: 'scripts/session-replay.js',
+  tilldone: 'scripts/tilldone.js'
+};
 
 function cleanupFile(filePath) {
   if (fs.existsSync(filePath)) {
@@ -21,21 +33,21 @@ function run() {
   console.log('Running hook test suite...');
   cleanupFile(hooksLogPath);
 
-  const damageResult = runNodeScript('scripts/damage-control.js', {
+  const damageResult = runNodeScript(CANONICAL_HOOKS.damageControl, {
     tool_name: 'Bash',
     tool_input: { command: 'rm -rf /tmp/test-folder' }
   });
   assert.strictEqual(damageResult.status, 2, 'damage-control should block dangerous command');
   assert.match(damageResult.cleanStderr, /DAMAGE CONTROL BLOCKED/i);
 
-  const damageAskResult = runNodeScript('scripts/damage-control.js', {
+  const damageAskResult = runNodeScript(CANONICAL_HOOKS.damageControl, {
     tool_name: 'Bash',
     tool_input: { command: 'git push origin main --force' }
   });
   assert.strictEqual(damageAskResult.status, 0, 'damage-control ask should return status 0');
   assert.match(damageAskResult.cleanStdout, /"decision":"ask"/i);
 
-  const damageAllowResult = runNodeScript('scripts/damage-control.js', {
+  const damageAllowResult = runNodeScript(CANONICAL_HOOKS.damageControl, {
     tool_name: 'Bash',
     tool_input: { command: 'echo safe' }
   });
@@ -45,21 +57,21 @@ function run() {
   const purposeStateFile = path.join(sessionsDir, `${purposeSession}.json`);
   cleanupFile(purposeStateFile);
 
-  const purposeFirst = runNodeScript('scripts/purpose-gate.js', {
+  const purposeFirst = runNodeScript(CANONICAL_HOOKS.purposeGate, {
     session_id: purposeSession,
     user_message: 'hello'
   });
   assert.strictEqual(purposeFirst.status, 0);
   assert.match(purposeFirst.cleanStdout, /new session/i);
 
-  const purposeSecond = runNodeScript('scripts/purpose-gate.js', {
+  const purposeSecond = runNodeScript(CANONICAL_HOOKS.purposeGate, {
     session_id: purposeSession,
     user_message: 'Implement hook tests'
   });
   assert.strictEqual(purposeSecond.status, 0);
   assert.match(purposeSecond.cleanStdout, /Session purpose recorded/i);
 
-  const purposeThird = runNodeScript('scripts/purpose-gate.js', {
+  const purposeThird = runNodeScript(CANONICAL_HOOKS.purposeGate, {
     session_id: purposeSession,
     user_message: 'Continue this session'
   });
@@ -77,7 +89,7 @@ function run() {
   fs.writeFileSync(weatherCacheFile, '72F');
 
   const purposeStatusFirst = runNodeScript(
-    'scripts/purpose-gate.js',
+    CANONICAL_HOOKS.purposeGate,
     {
       session_id: statusSession,
       user_message: 'hello with status'
@@ -98,7 +110,7 @@ function run() {
   const replayLogPath = path.join(sessionsDir, `${replaySession}-replay.jsonl`);
   cleanupFile(replayLogPath);
 
-  const replayResult = runNodeScript('scripts/session-replay.js', {
+  const replayResult = runNodeScript(CANONICAL_HOOKS.sessionReplay, {
     session_id: replaySession,
     tool_name: 'Bash',
     tool_input: { command: 'echo hello' }
@@ -114,7 +126,7 @@ function run() {
   fs.mkdirSync(sessionsDir, { recursive: true });
   fs.writeFileSync(tilldoneTaskPath, JSON.stringify([{ text: 'Open task', done: false }], null, 2));
 
-  const tilldoneResult = runNodeScript('scripts/tilldone.js', {
+  const tilldoneResult = runNodeScript(CANONICAL_HOOKS.tilldone, {
     session_id: tilldoneSession
   });
   assert.strictEqual(tilldoneResult.status, 2, 'tilldone should block stop with incomplete tasks');
@@ -122,7 +134,7 @@ function run() {
   cleanupFile(tilldoneTaskPath);
 
   const tilldoneAutoResult = runNodeScript(
-    'scripts/tilldone.js',
+    CANONICAL_HOOKS.tilldone,
     null,
     {
       args: ['--list', '--session', 'auto'],
@@ -130,6 +142,40 @@ function run() {
     }
   );
   assert.strictEqual(tilldoneAutoResult.status, 0, '--session auto should resolve from env');
+
+  const legacyDamageAllow = runNodeScript(LEGACY_ENTRYPOINTS.damageControl, {
+    tool_name: 'Bash',
+    tool_input: { command: 'echo legacy-safe' }
+  });
+  assert.strictEqual(legacyDamageAllow.status, 0, 'legacy damage-control entrypoint should remain compatible');
+
+  const legacyPurposeSession = makeSessionId('hook-purpose-legacy');
+  const legacyPurposeStateFile = path.join(sessionsDir, `${legacyPurposeSession}.json`);
+  cleanupFile(legacyPurposeStateFile);
+  const legacyPurposeResult = runNodeScript(LEGACY_ENTRYPOINTS.purposeGate, {
+    session_id: legacyPurposeSession,
+    user_message: 'legacy entrypoint check'
+  });
+  assert.strictEqual(legacyPurposeResult.status, 0, 'legacy purpose-gate entrypoint should remain compatible');
+  cleanupFile(legacyPurposeStateFile);
+
+  const legacyReplaySession = makeSessionId('hook-replay-legacy');
+  const legacyReplayLogPath = path.join(sessionsDir, `${legacyReplaySession}-replay.jsonl`);
+  cleanupFile(legacyReplayLogPath);
+  const legacyReplayResult = runNodeScript(LEGACY_ENTRYPOINTS.sessionReplay, {
+    session_id: legacyReplaySession,
+    tool_name: 'Read',
+    tool_input: { file_path: 'README.md' }
+  });
+  assert.strictEqual(legacyReplayResult.status, 0, 'legacy session-replay entrypoint should remain compatible');
+  cleanupFile(legacyReplayLogPath);
+
+  const legacyTilldoneResult = runNodeScript(
+    LEGACY_ENTRYPOINTS.tilldone,
+    null,
+    { args: ['--list', '--session', makeSessionId('hook-tilldone-legacy')] }
+  );
+  assert.strictEqual(legacyTilldoneResult.status, 0, 'legacy tilldone entrypoint should preserve CLI mode');
 
   assert.ok(fs.existsSync(hooksLogPath), 'hook observability should create hooks.jsonl');
   const hookEvents = fs.readFileSync(hooksLogPath, 'utf8')

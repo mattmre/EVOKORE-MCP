@@ -6,6 +6,13 @@ const os = require('os');
 const path = require('path');
 const { runNodeScript, makeSessionId } = require('./tests/helpers/hook-test-helper');
 
+const CANONICAL_HOOKS = {
+  damageControl: 'scripts/hooks/damage-control.js',
+  purposeGate: 'scripts/hooks/purpose-gate.js',
+  sessionReplay: 'scripts/hooks/session-replay.js',
+  tilldone: 'scripts/hooks/tilldone.js'
+};
+
 function run() {
   console.log('Starting hook E2E validation...');
   const logsDir = path.join(os.homedir(), '.evokore', 'logs');
@@ -21,12 +28,12 @@ function run() {
   const postToolCommand = hooks.PostToolUse && hooks.PostToolUse[0] && hooks.PostToolUse[0].hooks[0] && hooks.PostToolUse[0].hooks[0].command;
   const stopCommand = hooks.Stop && hooks.Stop[0] && hooks.Stop[0].hooks[0] && hooks.Stop[0].hooks[0].command;
 
-  assert.strictEqual(preToolCommand, 'node scripts/damage-control.js');
-  assert.strictEqual(promptCommand, 'node scripts/purpose-gate.js');
-  assert.strictEqual(postToolCommand, 'node scripts/session-replay.js');
-  assert.strictEqual(stopCommand, 'node scripts/tilldone.js');
+  assert.strictEqual(preToolCommand, 'node scripts/hooks/damage-control.js');
+  assert.strictEqual(promptCommand, 'node scripts/hooks/purpose-gate.js');
+  assert.strictEqual(postToolCommand, 'node scripts/hooks/session-replay.js');
+  assert.strictEqual(stopCommand, 'node scripts/hooks/tilldone.js');
 
-  const safeDamageResult = runNodeScript('scripts/damage-control.js', {
+  const safeDamageResult = runNodeScript(CANONICAL_HOOKS.damageControl, {
     tool_name: 'Bash',
     tool_input: { command: 'echo safe' }
   });
@@ -36,18 +43,18 @@ function run() {
 
   const purposeSession = makeSessionId('hook-e2e-purpose');
   const purposeStateFile = path.join(sessionsDir, `${purposeSession}.json`);
-  const purposeInitResult = runNodeScript('scripts/purpose-gate.js', {
+  const purposeInitResult = runNodeScript(CANONICAL_HOOKS.purposeGate, {
     session_id: purposeSession,
     user_message: 'Test hook flow'
   });
   assert.strictEqual(purposeInitResult.status, 0);
   assert.match(purposeInitResult.cleanStdout, /EVOKORE Purpose Gate/i);
-  const purposeRecordedResult = runNodeScript('scripts/purpose-gate.js', {
+  const purposeRecordedResult = runNodeScript(CANONICAL_HOOKS.purposeGate, {
     session_id: purposeSession,
     user_message: 'Validate E2E hook flow'
   });
   assert.strictEqual(purposeRecordedResult.status, 0);
-  const purposeReminderResult = runNodeScript('scripts/purpose-gate.js', {
+  const purposeReminderResult = runNodeScript(CANONICAL_HOOKS.purposeGate, {
     session_id: purposeSession,
     user_message: 'Proceed'
   });
@@ -56,7 +63,7 @@ function run() {
 
   const replaySession = makeSessionId('hook-e2e-replay');
   const replayPath = path.join(sessionsDir, `${replaySession}-replay.jsonl`);
-  const replayResult = runNodeScript('scripts/session-replay.js', {
+  const replayResult = runNodeScript(CANONICAL_HOOKS.sessionReplay, {
     session_id: replaySession,
     tool_name: 'Read',
     tool_input: { file_path: 'README.md' }
@@ -67,11 +74,11 @@ function run() {
   const tilldoneSession = makeSessionId('hook-e2e-tilldone');
   const tilldoneTaskPath = path.join(sessionsDir, `${tilldoneSession}-tasks.json`);
   if (fs.existsSync(tilldoneTaskPath)) fs.rmSync(tilldoneTaskPath, { force: true });
-  const tilldoneResult = runNodeScript('scripts/tilldone.js', { session_id: tilldoneSession });
+  const tilldoneResult = runNodeScript(CANONICAL_HOOKS.tilldone, { session_id: tilldoneSession });
   assert.strictEqual(tilldoneResult.status, 0);
 
   const tilldoneCliResult = runNodeScript(
-    'scripts/tilldone.js',
+    CANONICAL_HOOKS.tilldone,
     null,
     { args: ['--list', '--session', tilldoneSession] }
   );

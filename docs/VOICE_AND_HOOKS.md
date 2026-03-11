@@ -160,10 +160,14 @@ Use this for:
 | Script | Purpose | State/log location |
 |---|---|---|
 | `scripts/voice-hook.js` | forwards response text to VoiceSidecar | no durable state by itself |
-| `scripts/damage-control.js` | tool-use guardrail hook | observability in `~/.evokore/logs/hooks.jsonl` |
-| `scripts/purpose-gate.js` | purpose capture/reminder hook | observability in `~/.evokore/logs/hooks.jsonl` |
-| `scripts/session-replay.js` | append-only replay log writer | `~/.evokore/sessions/*-replay.jsonl` |
-| `scripts/tilldone.js` | session task tracking in CLI and hook modes | `~/.evokore/sessions/*-tasks.json` |
+| `scripts/hooks/damage-control.js` | canonical tool-use guardrail hook entrypoint | observability in `~/.evokore/logs/hooks.jsonl` |
+| `scripts/hooks/purpose-gate.js` | canonical purpose capture/reminder hook entrypoint | observability in `~/.evokore/logs/hooks.jsonl` |
+| `scripts/hooks/session-replay.js` | canonical append-only replay log entrypoint | `~/.evokore/sessions/*-replay.jsonl` |
+| `scripts/hooks/tilldone.js` | canonical session task hook entrypoint | `~/.evokore/sessions/*-tasks.json` |
+| `scripts/damage-control.js` | legacy-compatible damage-control entrypoint | delegates to the same runtime behavior |
+| `scripts/purpose-gate.js` | legacy-compatible purpose-gate entrypoint | delegates to the same runtime behavior |
+| `scripts/session-replay.js` | legacy-compatible replay entrypoint | delegates to the same runtime behavior |
+| `scripts/tilldone.js` | legacy-compatible TillDone CLI/hook entrypoint | delegates to the same runtime behavior |
 | `scripts/status.js` | terminal status line helper | no primary durable state |
 | `scripts/hook-log-view.js` | viewer for hook observability logs | reads `~/.evokore/logs/hooks.jsonl` |
 | `scripts/session-replay-view.js` | viewer for replay logs | reads `~/.evokore/sessions/*-replay.jsonl` |
