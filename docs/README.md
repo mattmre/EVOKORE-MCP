@@ -17,7 +17,9 @@ Use this page as the main portal for repository documentation.
 - [TOOLS_AND_DISCOVERY.md](./TOOLS_AND_DISCOVERY.md)
 - [VOICE_AND_HOOKS.md](./VOICE_AND_HOOKS.md)
 - [CLI Integration Notes](./CLI_INTEGRATION.md)
+- [Voice CLI Research](./VOICE_CLI_RESEARCH.md)
 - [Skills Overview](./SKILLS_OVERVIEW.md)
+- [All Skills Crib Sheet](./ALL_SKILLS_CRIB_SHEET.md)
 - [V2 Phase 2 Architecture Design](./V2_PHASE2_ARCHITECTURE_DESIGN.md)
 - [V2 Architecture Plan](./V2_ARCHITECTURE_PLAN.md)
 - [V2 Multi-Agent Workflows](./V2_MULTI_AGENT_WORKFLOWS.md)
@@ -41,7 +43,9 @@ Use this page as the main portal for repository documentation.
 - [Ecosystem Sprint Results](./research/ecosystem-sprint-results.md)
 - [Session Logs](./session-logs/)
 - [next-session.md](../next-session.md)
-- [Latest Orchestration Log (2026-03-06, Phase 3 Stack Landing)](./session-logs/session-2026-03-06-phase-3-stack-landing.md)
+- [Latest Orchestration Log (2026-03-10, Stabilization Recovery)](./session-logs/session-2026-03-10-stabilization-recovery.md)
+- [AGENT33 Migration Plan](./AGENT33_MIGRATION_PLAN.md) *(historical)*
+- [AGENT33 Improvement Instructions](./AGENT33_IMPROVEMENT_INSTRUCTIONS.md)
 
 ## Validation & Governance
 
@@ -81,6 +85,8 @@ Important validation anchors:
 5. [RESEARCH_AND_HANDOFFS.md](./RESEARCH_AND_HANDOFFS.md)
 
 ## Legacy path mapping
+
+> **Note:** These are historical references only. The canonical paths below should be used for all new links.
 
 - legacy `/docs/architecture.md` -> `./V2_ARCHITECTURE_PLAN.md`
 - legacy `/docs/workflows.md` -> `./V2_MULTI_AGENT_WORKFLOWS.md`
