@@ -1,0 +1,109 @@
+'use strict';
+
+const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const { runNodeScript, makeSessionId } = require('./tests/helpers/hook-test-helper');
+const { getSessionPaths, writeSessionState, resolveCanonicalRepoRoot } = require('./scripts/session-continuity');
+
+function cleanup(filePath) {
+  if (filePath && fs.existsSync(filePath)) {
+    fs.rmSync(filePath, { force: true, recursive: true });
+  }
+}
+
+function run() {
+  console.log('Running status-line validation...');
+
+  const activeWorktree = path.resolve(__dirname);
+  const workspaceRoot = resolveCanonicalRepoRoot(activeWorktree);
+  const memoryDir = path.join(os.tmpdir(), `evokore-memory-${Date.now()}`);
+  fs.mkdirSync(memoryDir, { recursive: true });
+
+  const liveSessionId = makeSessionId('status-live');
+  const livePaths = getSessionPaths(liveSessionId);
+  cleanup(livePaths.sessionStatePath);
+  cleanup(livePaths.tasksPath);
+  fs.writeFileSync(livePaths.tasksPath, JSON.stringify([
+    { text: 'Ship T21', done: false },
+    { text: 'Update docs', done: true }
+  ], null, 2));
+
+  writeSessionState(liveSessionId, {
+    workspaceRoot,
+    canonicalRepoRoot: workspaceRoot,
+    repoName: path.basename(workspaceRoot),
+    purpose: 'Ship live status line display',
+    purposeSetAt: new Date().toISOString(),
+    set_at: new Date().toISOString(),
+    status: 'active',
+    lastActivityAt: new Date().toISOString()
+  });
+
+  const liveResult = runNodeScript(
+    'scripts/status.js',
+    {
+      session_id: liveSessionId,
+      workspace: { current_dir: activeWorktree },
+      context_window: {
+        current_usage: { input_tokens: 42000, output_tokens: 2000 },
+        context_window_size: 100000
+      }
+    },
+    {
+      env: {
+        EVOKORE_CLAUDE_MEMORY_DIR: memoryDir
+      }
+    }
+  );
+
+  assert.strictEqual(liveResult.status, 0);
+  assert.match(liveResult.cleanStdout, /EVOKORE/i);
+  assert.match(liveResult.cleanStdout, /roadmap\/t21-status-line/i);
+  assert.match(liveResult.cleanStdout, /purpose Ship live status line display/i);
+  assert.match(liveResult.cleanStdout, /tasks 1\/2 open/i);
+  assert.match(liveResult.cleanStdout, /continuity healthy 0r\/0e/i);
+  assert.match(liveResult.cleanStdout, /ctx 44%/i);
+
+  cleanup(livePaths.sessionStatePath);
+  cleanup(livePaths.tasksPath);
+
+  fs.writeFileSync(path.join(memoryDir, 'project-state.md'), `# Project State
+
+- Repo path: \`${workspaceRoot}\`
+- Repo name: \`EVOKORE-MCP\`
+- Branch: \`memory-fallback\`
+- HEAD: \`deadbee\`
+- Dirty working tree: no
+- Latest session purpose: Memory fallback purpose
+- Latest session activity: 2026-03-11T00:00:00.000Z
+- Last evidence item: none
+`);
+
+  const fallbackResult = runNodeScript(
+    'scripts/status.js',
+    {
+      workspace: { current_dir: activeWorktree }
+    },
+    {
+      env: {
+        EVOKORE_CLAUDE_MEMORY_DIR: memoryDir
+      }
+    }
+  );
+
+  assert.strictEqual(fallbackResult.status, 0);
+  assert.match(fallbackResult.cleanStdout, /purpose Memory fallback purpose/i);
+
+  cleanup(memoryDir);
+  console.log('Status-line validation passed.');
+}
+
+try {
+  run();
+} catch (error) {
+  console.error('Status-line validation failed:', error);
+  process.exit(1);
+}

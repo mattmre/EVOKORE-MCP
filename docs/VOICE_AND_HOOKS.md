@@ -170,7 +170,7 @@ Use this for:
 | `scripts/purpose-gate.js` | legacy-compatible purpose-gate entrypoint | delegates to the same runtime behavior |
 | `scripts/session-replay.js` | legacy-compatible replay entrypoint | delegates to the same runtime behavior |
 | `scripts/tilldone.js` | legacy-compatible TillDone CLI/hook entrypoint | delegates to the same runtime behavior |
-| `scripts/status.js` | terminal status line helper | no primary durable state |
+| `scripts/status.js` | terminal status line helper backed by continuity + memory state | reads `~/.evokore/sessions/*.json`, git state, and Claude memory fallback |
 | `scripts/hook-log-view.js` | viewer for hook observability logs | reads `~/.evokore/logs/hooks.jsonl` |
 | `scripts/session-replay-view.js` | viewer for replay logs | reads `~/.evokore/sessions/*-replay.jsonl` |
 
@@ -213,6 +213,8 @@ This manifest is updated by `purpose-gate`, `session-replay`, `evidence-capture`
 - latest tool/evidence/task metadata
 - artifact paths for replay, evidence, and task files
 - derived counters for replay entries, evidence entries, and incomplete tasks
+
+`scripts/status.js` now uses this manifest as its primary runtime source. If the current repo has no live manifest, it falls back to the managed Claude memory snapshot from `project-state.md`.
 
 ## Replay and TillDone workflows
 
