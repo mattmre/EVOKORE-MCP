@@ -6,7 +6,34 @@ const os = require('os');
 const { execSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const ENTRY_POINT = path.join(PROJECT_ROOT, 'dist', 'index.js');
+
+function resolveCanonicalProjectRoot() {
+  const overrideRoot = process.env.EVOKORE_SYNC_PROJECT_ROOT;
+  if (overrideRoot) {
+    return path.resolve(overrideRoot);
+  }
+
+  try {
+    const commonDirRaw = execSync('git rev-parse --git-common-dir', {
+      cwd: PROJECT_ROOT,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString().trim();
+
+    if (commonDirRaw) {
+      const resolvedCommonDir = path.resolve(PROJECT_ROOT, commonDirRaw);
+      if (path.basename(resolvedCommonDir).toLowerCase() === '.git') {
+        return path.dirname(resolvedCommonDir);
+      }
+    }
+  } catch {
+    // Fall back to the current project root outside of git worktree contexts.
+  }
+
+  return PROJECT_ROOT;
+}
+
+const CANONICAL_PROJECT_ROOT = resolveCanonicalProjectRoot();
+const ENTRY_POINT = path.join(CANONICAL_PROJECT_ROOT, 'dist', 'index.js');
 const HAS_DRY_RUN_FLAG = process.argv.includes('--dry-run');
 const HAS_APPLY_FLAG = process.argv.includes('--apply');
 const HAS_FORCE_FLAG = process.argv.includes('--force');
@@ -132,6 +159,9 @@ function writeJsonSafe(filePath, data) {
 
 function main() {
   console.log('EVOKORE-MCP Config Sync');
+  if (CANONICAL_PROJECT_ROOT !== PROJECT_ROOT) {
+    console.log(`Sync root: ${CANONICAL_PROJECT_ROOT}`);
+  }
   console.log(`Entry point: ${ENTRY_POINT}`);
   if (DRY_RUN) console.log('Mode: DRY RUN (no files will be written)\n');
   else console.log('Mode: APPLY (changes will be written)\n');

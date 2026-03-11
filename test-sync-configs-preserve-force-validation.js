@@ -4,12 +4,31 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 
 const syncScriptPath = path.resolve(__dirname, 'scripts', 'sync-configs.js');
+function resolveCanonicalProjectRoot() {
+  try {
+    const commonDirRaw = execSync('git rev-parse --git-common-dir', {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString().trim();
+    if (commonDirRaw) {
+      const resolvedCommonDir = path.resolve(__dirname, commonDirRaw);
+      if (path.basename(resolvedCommonDir).toLowerCase() === '.git') {
+        return path.dirname(resolvedCommonDir);
+      }
+    }
+  } catch {
+    // Fall back to the current project root outside git worktrees.
+  }
+
+  return path.resolve(__dirname);
+}
+
 const forcedEntry = {
   command: 'node',
-  args: [path.resolve(__dirname, 'dist', 'index.js')],
+  args: [path.join(resolveCanonicalProjectRoot(), 'dist', 'index.js')],
 };
 
 function getClaudeDesktopSetup(tempRoot) {

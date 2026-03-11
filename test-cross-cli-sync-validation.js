@@ -4,11 +4,30 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname);
 const syncScriptPath = path.join(PROJECT_ROOT, 'scripts', 'sync-configs.js');
-const expectedEntryPoint = path.join(PROJECT_ROOT, 'dist', 'index.js');
+function resolveCanonicalProjectRoot() {
+  try {
+    const commonDirRaw = execSync('git rev-parse --git-common-dir', {
+      cwd: PROJECT_ROOT,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString().trim();
+    if (commonDirRaw) {
+      const resolvedCommonDir = path.resolve(PROJECT_ROOT, commonDirRaw);
+      if (path.basename(resolvedCommonDir).toLowerCase() === '.git') {
+        return path.dirname(resolvedCommonDir);
+      }
+    }
+  } catch {
+    // Fall back to the current project root outside git worktrees.
+  }
+
+  return PROJECT_ROOT;
+}
+
+const expectedEntryPoint = path.join(resolveCanonicalProjectRoot(), 'dist', 'index.js');
 const expectedEntry = {
   command: 'node',
   args: [expectedEntryPoint],

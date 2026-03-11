@@ -18,7 +18,8 @@ function run() {
   const gitignore = fs.readFileSync(gitignorePath, 'utf8');
 
   // --- Existing assertions ---
-  assert.match(syncScript, /const ENTRY_POINT = path\.join\(PROJECT_ROOT, 'dist', 'index\.js'\);/);
+  assert.match(syncScript, /const CANONICAL_PROJECT_ROOT = resolveCanonicalProjectRoot\(\);/);
+  assert.match(syncScript, /const ENTRY_POINT = path\.join\(CANONICAL_PROJECT_ROOT, 'dist', 'index\.js'\);/);
   assert.match(syncScript, /args: \[ENTRY_POINT\]/);
   assert.ok(proxySource.includes('const ENV_PLACEHOLDER_REGEX = /\\$\\{(\\w+)\\}/g;'), 'ProxyManager env placeholder regex should be present');
   assert.match(proxySource, /const resolvedEnv = this\.resolveServerEnv\(serverId, serverConfig\.env\);/);
