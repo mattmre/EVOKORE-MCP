@@ -1,4 +1,5 @@
 .env
+.commit-msg.txt
 node_modules/
 .orchestrator/
 mcp-research-tmp/

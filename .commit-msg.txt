@@ -1,10 +1,4 @@
-fix: sync documentation links and fix orphaned references
+fix: stop tracking commit helper file
 
-- Update latest orchestration log link to most recent session
-- Add orphaned docs (VOICE_CLI_RESEARCH, AGENT33_*) to portal
-- Rename ALL SKILLS CRIB SHEET.md to ALL_SKILLS_CRIB_SHEET.md
-- Add mcp-repos-research-plan.md to research README listing
-- Clarify legacy path mapping as historical references only
-- Add documentation audit research artifact
-
-Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+- remove accidentally committed .commit-msg.txt from the repository
+- ignore .commit-msg.txt so future helper-file usage stays local
