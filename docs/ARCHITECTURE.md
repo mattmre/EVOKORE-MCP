@@ -41,6 +41,7 @@ These are always part of the EVOKORE runtime:
 4. `search_skills`
 5. `get_skill_help`
 6. `discover_tools`
+7. `proxy_server_status`
 
 Native tools are always visible, even in `dynamic` mode.
 
@@ -155,6 +156,7 @@ Notable current behavior:
 - `uv` and `uvx` must already resolve on PATH
 - unresolved `${VAR}` placeholders fail fast for that child server
 - a proxied tool can be on cooldown after repeated/bad upstream failures
+- the in-memory child-server registry can now be inspected through the native `proxy_server_status` tool
 
 ### `src/ToolCatalogIndex.ts`
 

@@ -70,10 +70,7 @@ async function run() {
     resolveChanged = resolve;
     rejectChanged = reject;
   });
-
-  const timeout = setTimeout(() => {
-    rejectChanged(new Error("Timed out waiting for tools/list_changed refresh."));
-  }, 5000);
+  let timeout;
 
   const connection = await connectClient((error, tools) => {
     if (error) {
@@ -100,11 +97,16 @@ async function run() {
     });
 
     assert(!discovery.isError, "discover_tools should succeed before list_changed notification.");
+    timeout = setTimeout(() => {
+      rejectChanged(new Error("Timed out waiting for tools/list_changed refresh."));
+    }, 5000);
 
     const changedToolNames = await changed;
     assert(changedToolNames.includes("mocksvc_search_docs"), "tools/list_changed refresh should include the activated proxied tool.");
   } finally {
-    clearTimeout(timeout);
+    if (timeout) {
+      clearTimeout(timeout);
+    }
     await closeClient(connection);
     if (fs.existsSync(tempConfigPath)) {
       fs.unlinkSync(tempConfigPath);

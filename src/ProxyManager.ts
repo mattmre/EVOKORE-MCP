@@ -22,6 +22,7 @@ export interface ServerState {
   connectionType: 'stdio' | 'sse';
   errorCount: number;
   lastPing: number;
+  registeredToolCount: number;
 }
 
 export class ProxyManager {
@@ -121,7 +122,8 @@ export class ProxyManager {
             status: 'booting',
             connectionType: 'stdio',
             errorCount: 0,
-            lastPing: Date.now()
+            lastPing: Date.now(),
+            registeredToolCount: 0
           });
 
           const cmd = resolveCommandForPlatform(serverConfig.command);
@@ -192,6 +194,10 @@ export class ProxyManager {
             registeredCount++;
           }
 
+          if (serverState) {
+            serverState.registeredToolCount = registeredCount;
+          }
+
           const duplicateSuffix = skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicate(s) skipped)` : "";
           console.error(`[EVOKORE] Proxied ${registeredCount} tools from '${serverId}'${duplicateSuffix}`);
           if (skippedDuplicates > 0) {
@@ -219,6 +225,13 @@ export class ProxyManager {
 
   getProxiedTools(): Tool[] {
     return this.cachedTools;
+  }
+
+  getServerStatusSnapshot(serverId?: string): ServerState[] {
+    return Array.from(this.serverRegistry.values())
+      .filter((state) => !serverId || state.id === serverId)
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((state) => ({ ...state }));
   }
 
   canHandle(toolName: string): boolean {

@@ -14,12 +14,14 @@ These tools are defined by EVOKORE itself:
 - `search_skills`
 - `get_skill_help`
 - `discover_tools`
+- `proxy_server_status`
 
 Properties:
 
 - always available
 - always visible
 - not subject to proxy prefixing
+- includes an operator-facing registry inspection tool for aggregated child servers
 
 ### Proxied child-server tools
 

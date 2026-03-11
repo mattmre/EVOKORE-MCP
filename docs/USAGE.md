@@ -41,6 +41,7 @@ Once connected, your AI assistant will automatically have access to the followin
 - **`search_skills`**: Ask the AI to find a specific workflow. The search index now uses skill names, descriptions, directory taxonomy, tags, and selected frontmatter metadata. (e.g., *"Search the MCP for React styling skills."*)
 - **`get_skill_help`**: If you want to know what a specific skill does, ask the AI to explain it. (e.g., *"What does the 'arch-aep-runner' skill do? Show me some examples."*)
 - **`discover_tools`**: Search the merged EVOKORE catalog of native and proxied tools. In `dynamic` mode, matching proxied tools become visible for the current session.
+- **`proxy_server_status`**: Inspect the aggregated child-server registry, including server status, connection type, error counts, registered tool counts, and last-seen timestamps.
 
 When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructions to the LLM, enabling the LLM to understand exactly what the skill is capable of and explain it to you in plain English.
 
