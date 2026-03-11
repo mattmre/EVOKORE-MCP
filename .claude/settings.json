@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/damage-control.js",
+            "command": "node scripts/hooks/damage-control.js",
             "timeout": 10000
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/purpose-gate.js",
+            "command": "node scripts/hooks/purpose-gate.js",
             "timeout": 5000
           }
         ]
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/session-replay.js",
+            "command": "node scripts/hooks/session-replay.js",
             "timeout": 5000
           },
           {
@@ -47,7 +47,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/tilldone.js",
+            "command": "node scripts/hooks/tilldone.js",
             "timeout": 5000
           }
         ]
