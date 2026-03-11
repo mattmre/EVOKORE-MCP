@@ -8,6 +8,7 @@ const { runNodeScript, makeSessionId } = require('./tests/helpers/hook-test-help
 
 const sessionsDir = path.join(os.homedir(), '.evokore', 'sessions');
 const logsDir = path.join(os.homedir(), '.evokore', 'logs');
+const cacheDir = path.join(os.homedir(), '.evokore', 'cache');
 const hooksLogPath = path.join(logsDir, 'hooks.jsonl');
 
 function cleanupFile(filePath) {
@@ -65,6 +66,33 @@ function run() {
   assert.strictEqual(purposeThird.status, 0);
   assert.match(purposeThird.cleanStdout, /Session purpose:/i);
   cleanupFile(purposeStateFile);
+
+  const statusSession = makeSessionId('hook-purpose-status');
+  const statusStateFile = path.join(sessionsDir, `${statusSession}.json`);
+  const locationCacheFile = path.join(cacheDir, 'location.json');
+  const weatherCacheFile = path.join(cacheDir, 'weather.json');
+  cleanupFile(statusStateFile);
+  fs.mkdirSync(cacheDir, { recursive: true });
+  fs.writeFileSync(locationCacheFile, JSON.stringify({ city: 'Testville', regionName: 'TS' }));
+  fs.writeFileSync(weatherCacheFile, '72F');
+
+  const purposeStatusFirst = runNodeScript(
+    'scripts/purpose-gate.js',
+    {
+      session_id: statusSession,
+      user_message: 'hello with status'
+    },
+    {
+      env: { EVOKORE_STATUS_HOOK: 'true' }
+    }
+  );
+  assert.strictEqual(purposeStatusFirst.status, 0);
+  assert.match(purposeStatusFirst.cleanStdout, /\[EVOKORE Status\]/i);
+  assert.match(purposeStatusFirst.cleanStdout, /Testville, TS/i);
+  assert.match(purposeStatusFirst.cleanStdout, /72F/i);
+  cleanupFile(statusStateFile);
+  cleanupFile(locationCacheFile);
+  cleanupFile(weatherCacheFile);
 
   const replaySession = makeSessionId('hook-replay');
   const replayLogPath = path.join(sessionsDir, `${replaySession}-replay.jsonl`);
