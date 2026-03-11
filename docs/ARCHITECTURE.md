@@ -122,6 +122,7 @@ Notable current behavior:
 - prompts are intentionally disabled in favor of tool-based retrieval
 - default dynamic-session key falls back to `__stdio_default_session__`
 - tool-list change notifications are best-effort, not required for correctness
+- dynamic activation state is bounded in memory and stale session state is reset/pruned opportunistically
 
 ### `src/SkillManager.ts`
 

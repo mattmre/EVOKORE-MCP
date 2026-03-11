@@ -85,6 +85,13 @@ EVOKORE_TOOL_DISCOVERY_MODE=dynamic
 
 In `dynamic` mode, EVOKORE uses a session-scoped activation set.
 
+Current lifecycle notes:
+
+- stdio runtime traffic falls back to one default session key: `__stdio_default_session__`
+- session-aware transports can provide real `sessionId` values and get isolated activation sets
+- activation state is kept in memory only
+- idle activation state is pruned opportunistically, and the in-memory session map stays bounded
+
 Lifecycle:
 
 1. session starts with only native tools visible
@@ -207,6 +214,15 @@ Choose `dynamic` when:
 - tool-list size matters
 - your operators know to use `discover_tools`
 - your workflows are task-focused and can activate tools intentionally
+
+### Session semantics caveat
+
+For the current stdio runtime, dynamic discovery is effectively connection-scoped through the default session key.
+
+That means:
+
+- one long-lived stdio session accumulates its own discovery activations
+- activation isolation becomes meaningfully multi-session only when the transport supplies distinct `sessionId` values
 
 ## Related docs
 
