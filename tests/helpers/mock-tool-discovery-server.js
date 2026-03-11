@@ -40,6 +40,13 @@ const tools = [
       },
       required: ["value"]
     }
+  },
+  {
+    name: "ops_ping",
+    description: "Tool with an object schema but no declared properties.",
+    inputSchema: {
+      type: "object"
+    }
   }
 ];
 
@@ -65,6 +72,10 @@ async function run() {
       case "hidden_exact":
         return {
           content: [{ type: "text", text: `hidden_exact:${args.value}` }]
+        };
+      case "ops_ping":
+        return {
+          content: [{ type: "text", text: "ops_ping:ok" }]
         };
       default:
         throw new McpError(ErrorCode.MethodNotFound, `Unknown mock tool: ${request.params.name}`);
