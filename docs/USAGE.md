@@ -64,6 +64,8 @@ In `dynamic` mode:
 
 Hidden proxied tools remain callable by exact prefixed name for compatibility, even when they are not currently listed.
 
+For the current stdio runtime, EVOKORE uses a default session key when the transport does not provide a real `sessionId`. In practice, that means one long-lived stdio connection behaves like one discovery session. Session isolation becomes multi-session only on transports that attach distinct session IDs.
+
 ### 2.2 Benchmarking tool discovery
 
 Use the benchmark script to capture a deterministic JSON snapshot of the discovery/listing contract:

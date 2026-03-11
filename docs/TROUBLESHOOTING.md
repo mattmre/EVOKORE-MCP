@@ -168,7 +168,17 @@ Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
 - Re-run `tools/list` if your client does not refresh automatically after `tools/list_changed`.
 - If needed, call a proxied tool directly by exact name; hidden/unlisted proxied tools remain callable for compatibility.
 
-## 15. Discovery Benchmark Artifact Was Not Saved
+## 15. Dynamic Discovery Does Not Look Session-Isolated
+**Symptoms:** Tool activations appear to persist across a long-running stdio session, or you expected separate activation sets without seeing them.
+
+**Cause:** The current EVOKORE runtime is stdio-first. When the transport does not provide a session ID, EVOKORE uses the default key `__stdio_default_session__`, so discovery state is effectively connection-scoped.
+
+**Solution:**
+- Treat one stdio connection as one discovery session.
+- Restart or reconnect the client if you want a clean activation set in stdio mode.
+- For true multi-session isolation, use a transport/runtime that provides distinct session IDs.
+
+## 16. Discovery Benchmark Artifact Was Not Saved
 **Symptoms:** `npm run benchmark:tool-discovery` prints JSON, but you expected a file artifact too.
 
 **Cause:** File capture is opt-in. By default, the benchmark writes JSON to stdout only.
