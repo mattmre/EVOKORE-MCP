@@ -3,10 +3,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
-
-const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
+const { writeSessionState, SESSIONS_DIR } = require('./session-continuity');
 
 const RESET = '\x1b[0m';
 const C = {
@@ -114,6 +112,11 @@ if (process.argv.length > 2) {
     const tasks = loadTasks(sessionId);
     tasks.push({ text, done: false, added: new Date().toISOString() });
     saveTasks(sessionId, tasks);
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastTaskAction: 'add',
+      lastActivityAt: new Date().toISOString()
+    });
     emitCli('cli_action', { action: 'add', session_id: sessionId });
     console.log(`${C.EMERALD}Added:${RESET} ${text}`);
     formatTaskList(tasks, false);
@@ -127,6 +130,11 @@ if (process.argv.length > 2) {
     }
     tasks[num - 1].done = !tasks[num - 1].done;
     saveTasks(sessionId, tasks);
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastTaskAction: 'toggle',
+      lastActivityAt: new Date().toISOString()
+    });
     emitCli('cli_action', { action: 'toggle', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--done')) {
@@ -139,14 +147,29 @@ if (process.argv.length > 2) {
     }
     tasks[num - 1].done = true;
     saveTasks(sessionId, tasks);
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastTaskAction: 'done',
+      lastActivityAt: new Date().toISOString()
+    });
     emitCli('cli_action', { action: 'done', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--list')) {
     const tasks = loadTasks(sessionId);
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastTaskAction: 'list',
+      lastActivityAt: new Date().toISOString()
+    });
     emitCli('cli_action', { action: 'list', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--clear')) {
     saveTasks(sessionId, []);
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastTaskAction: 'clear',
+      lastActivityAt: new Date().toISOString()
+    });
     emitCli('cli_action', { action: 'clear', session_id: sessionId });
     console.log(`${C.ORANGE}Tasks cleared for session ${sessionId}${RESET}`);
   } else {
@@ -170,6 +193,12 @@ process.stdin.on('end', () => {
     const incomplete = tasks.filter(t => !t.done);
 
     if (incomplete.length > 0) {
+      writeSessionState(sessionId, {
+        status: 'active',
+        lastStopCheckAt: new Date().toISOString(),
+        lastStopCheckResult: 'blocked',
+        lastActivityAt: new Date().toISOString()
+      });
       writeHookEvent({
         hook: 'tilldone',
         mode: 'hook',
@@ -184,6 +213,12 @@ process.stdin.on('end', () => {
       process.exit(2);
     }
 
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastStopCheckAt: new Date().toISOString(),
+      lastStopCheckResult: 'clear',
+      lastActivityAt: new Date().toISOString()
+    });
     writeHookEvent({
       hook: 'tilldone',
       mode: 'hook',

@@ -198,6 +198,22 @@ Common fields:
 - `session_id`
 - hook-specific metadata
 
+## Session continuity manifest
+
+The canonical runtime continuity record now lives at:
+
+```text
+~/.evokore/sessions/<session>.json
+```
+
+This manifest is updated by `purpose-gate`, `session-replay`, `evidence-capture`, and `tilldone`. It ties the session together by recording:
+
+- purpose and purpose timestamps
+- lifecycle timestamps such as `createdAt`, `updatedAt`, and `lastActivityAt`
+- latest tool/evidence/task metadata
+- artifact paths for replay, evidence, and task files
+- derived counters for replay entries, evidence entries, and incomplete tasks
+
 ## Replay and TillDone workflows
 
 ### Session replay
@@ -217,6 +233,7 @@ npm run replay
 Stored files:
 
 ```text
+~/.evokore/sessions/<session>.json
 ~/.evokore/sessions/<session>-replay.jsonl
 ```
 
@@ -239,6 +256,7 @@ Hook mode behavior:
 Stored files:
 
 ```text
+~/.evokore/sessions/<session>.json
 ~/.evokore/sessions/<session>-tasks.json
 ```
 

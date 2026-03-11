@@ -150,7 +150,9 @@ Runtime support artifacts include:
 | Path | Purpose |
 |---|---|
 | `~/.evokore/logs/hooks.jsonl` | hook observability stream |
+| `~/.evokore/sessions/{sessionId}.json` | canonical session continuity manifest with purpose, lifecycle metadata, artifact paths, and derived counters |
 | `~/.evokore/sessions/*-replay.jsonl` | session replay summaries |
+| `~/.evokore/sessions/*-evidence.jsonl` | evidence capture stream for significant tool/file/git activity |
 | `~/.evokore/sessions/*-tasks.json` | TillDone task state |
 
 These are operational continuity aids rather than repo-historical documentation.

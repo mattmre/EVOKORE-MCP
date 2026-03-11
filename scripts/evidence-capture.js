@@ -11,11 +11,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { pruneOldSessions } = require('./log-rotation');
-
-const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
+const { writeSessionState, SESSIONS_DIR } = require('./session-continuity');
 
 // Patterns that indicate a test run in a Bash command
 const TEST_PATTERNS = [
@@ -145,6 +143,14 @@ process.stdin.on('end', () => {
     };
 
     fs.appendFileSync(evidencePath, JSON.stringify(entry) + '\n');
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastToolName: toolName,
+      lastEvidenceAt: entry.ts,
+      lastEvidenceId: evidenceId,
+      lastEvidenceType: classification.type,
+      lastActivityAt: entry.ts
+    });
 
     writeHookEvent({
       hook: 'evidence-capture',

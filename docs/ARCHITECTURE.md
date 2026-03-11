@@ -274,10 +274,14 @@ sequenceDiagram
 | `mcp.config.json` | Child server registry and per-server env |
 | `permissions.yml` | Proxied tool policy |
 | `voices.json` | VoiceSidecar default voice + personas |
+| `~/.evokore/sessions/{sessionId}.json` | Canonical session continuity manifest (purpose, lifecycle metadata, artifact pointers, derived counters) |
 | `~/.evokore/logs/hooks.jsonl` | Hook observability JSONL log |
 | `~/.evokore/logs/hooks.jsonl.1` - `.3` | Rotated observability logs |
 | `~/.evokore/sessions/*-replay.jsonl` | Session replay event logs |
+| `~/.evokore/sessions/*-evidence.jsonl` | Captured verification/file/git evidence entries |
 | `~/.evokore/sessions/*-tasks.json` | TillDone task state |
+| `~/.evokore/cache/location.json` | Cached geolocation for status surfaces |
+| `~/.evokore/cache/weather.json` | Cached weather for status surfaces |
 
 ## Historical design references
 
