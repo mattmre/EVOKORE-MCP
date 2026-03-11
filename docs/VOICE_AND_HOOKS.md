@@ -163,7 +163,9 @@ Use this for:
 | `scripts/hooks/damage-control.js` | canonical tool-use guardrail hook entrypoint | observability in `~/.evokore/logs/hooks.jsonl` |
 | `scripts/hooks/purpose-gate.js` | canonical purpose capture/reminder hook entrypoint | observability in `~/.evokore/logs/hooks.jsonl` |
 | `scripts/hooks/session-replay.js` | canonical append-only replay log entrypoint | `~/.evokore/sessions/*-replay.jsonl` |
+| `scripts/hooks/evidence-capture.js` | canonical evidence capture hook entrypoint | `~/.evokore/sessions/*-evidence.jsonl` |
 | `scripts/hooks/tilldone.js` | canonical session task hook entrypoint | `~/.evokore/sessions/*-tasks.json` |
+| `scripts/hooks/fail-safe-loader.js` | shared bootstrap guard for active hook entrypoints | bootstrap fail-safe events in `~/.evokore/logs/hooks.jsonl` |
 | `scripts/damage-control.js` | legacy-compatible damage-control entrypoint | delegates to the same runtime behavior |
 | `scripts/purpose-gate.js` | legacy-compatible purpose-gate entrypoint | delegates to the same runtime behavior |
 | `scripts/session-replay.js` | legacy-compatible replay entrypoint | delegates to the same runtime behavior |
