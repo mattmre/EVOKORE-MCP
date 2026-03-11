@@ -326,6 +326,16 @@ export class SkillManager {
           },
           required: ["query"]
         }
+      },
+      {
+        name: "proxy_server_status",
+        description: "Inspect the aggregated child-server registry, including server status, tool counts, and recent health metadata.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            server_id: { type: "string", description: "Optional specific child server id to inspect." }
+          }
+        }
       }
     ];
   }
@@ -443,6 +453,33 @@ export class SkillManager {
         const subcatLine = skill.subcategory ? "\n**Subcategory:** " + skill.subcategory : "";
         const helpText = "### Skill Overview: " + skill.name + "\n**Category:** " + skill.category + subcatLine + "\n**Description:** " + skill.description + "\n\n---\n\n### Internal Instructions:\n" + skill.content;
         return { content: [{ type: "text", text: helpText }] };
+    }
+
+    if (name === "proxy_server_status") {
+        const requestedServerId = typeof args.server_id === "string" ? args.server_id.trim() : "";
+        const states = this.proxyManager.getServerStatusSnapshot(requestedServerId || undefined);
+
+        if (states.length === 0) {
+            return {
+                content: [{
+                    type: "text",
+                    text: requestedServerId
+                        ? "No proxied child server found for '" + requestedServerId + "'."
+                        : "No proxied child servers are currently registered."
+                }],
+                isError: Boolean(requestedServerId)
+            };
+        }
+
+        return {
+            content: [{
+                type: "text",
+                text: JSON.stringify({
+                    totalServers: states.length,
+                    servers: states
+                }, null, 2)
+            }]
+        };
     }
 
     throw new McpError(ErrorCode.MethodNotFound, "Unknown tool: " + name);

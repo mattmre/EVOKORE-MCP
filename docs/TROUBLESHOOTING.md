@@ -86,6 +86,8 @@ Then restart Claude Code and retry `converse`.
 **Cause:** Two registrations produced the same prefixed name (`${serverId}_${tool.name}`).
 **Solution:** EVOKORE keeps the first tool registration and skips duplicates by design. Rename one upstream tool or adjust server IDs if you need both tools exposed.
 
+If you want a live registry snapshot after startup, call `proxy_server_status`.
+
 ## 9. Child Server Fails with Unresolved Env Placeholder
 **Symptoms:** Startup logs include an error like `Unresolved env placeholder(s) for child server 'elevenlabs' key 'ELEVENLABS_API_KEY': ${ELEVENLABS_API_KEY}` followed by `Failed to boot child server ...`.
 **Cause:** A `${VAR_NAME}` placeholder in `mcp.config.json` referenced an environment variable that is not set in the process launching EVOKORE.
