@@ -1,4 +1,0 @@
-fix: stop tracking commit helper file
-
-- remove accidentally committed .commit-msg.txt from the repository
-- ignore .commit-msg.txt so future helper-file usage stays local
