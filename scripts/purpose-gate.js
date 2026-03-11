@@ -3,17 +3,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
-
-const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
-const CACHE_DIR = path.join(os.homedir(), '.evokore', 'cache');
-
-function ensureDir() {
-  if (!fs.existsSync(SESSIONS_DIR)) {
-    fs.mkdirSync(SESSIONS_DIR, { recursive: true });
-  }
-}
+const { readSessionState, writeSessionState, SESSIONS_DIR, CACHE_DIR } = require('./session-continuity');
 
 /**
  * Build a compact status line from cached data only (no network calls).
@@ -77,21 +68,20 @@ process.stdin.on('end', () => {
     const payload = JSON.parse(input);
     const sessionId = sanitizeId(payload.session_id);
     const userMessage = payload.user_message || payload.tool_input?.user_message || '';
-
-    ensureDir();
-    const stateFile = path.join(SESSIONS_DIR, `${sessionId}.json`);
-
-    let state = null;
-    if (fs.existsSync(stateFile)) {
-      try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); } catch { state = null; }
-    }
+    const hasExistingState = fs.existsSync(path.join(SESSIONS_DIR, `${sessionId}.json`));
+    const state = readSessionState(sessionId);
 
     // Build optional status line (cache-only, no network)
     const statusLine = getStatusLine();
 
-    if (!state) {
+    if (!state || !hasExistingState) {
       // First prompt — ask for purpose
-      fs.writeFileSync(stateFile, JSON.stringify({ purpose: null, created: new Date().toISOString() }));
+      writeSessionState(sessionId, {
+        purpose: null,
+        status: 'awaiting-purpose',
+        lastPromptAt: new Date().toISOString(),
+        lastActivityAt: new Date().toISOString()
+      });
       writeHookEvent({
         hook: 'purpose-gate',
         event: 'state_initialized',
@@ -109,9 +99,15 @@ process.stdin.on('end', () => {
     } else if (state.purpose === null) {
       // Second prompt — save purpose
       const purpose = userMessage.slice(0, 500);
-      state.purpose = purpose;
-      state.set_at = new Date().toISOString();
-      fs.writeFileSync(stateFile, JSON.stringify(state));
+      const purposeSetAt = new Date().toISOString();
+      writeSessionState(sessionId, {
+        purpose,
+        set_at: purposeSetAt,
+        purposeSetAt,
+        status: 'active',
+        lastPromptAt: purposeSetAt,
+        lastActivityAt: purposeSetAt
+      });
       writeHookEvent({
         hook: 'purpose-gate',
         event: 'purpose_recorded',
@@ -126,6 +122,11 @@ process.stdin.on('end', () => {
       console.log(JSON.stringify(result));
     } else {
       // Subsequent prompts — remind of purpose
+      writeSessionState(sessionId, {
+        status: 'active',
+        lastPromptAt: new Date().toISOString(),
+        lastActivityAt: new Date().toISOString()
+      });
       writeHookEvent({
         hook: 'purpose-gate',
         event: 'purpose_reminder',

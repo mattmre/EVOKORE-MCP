@@ -3,11 +3,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { pruneOldSessions } = require('./log-rotation');
-
-const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
+const { writeSessionState, SESSIONS_DIR } = require('./session-continuity');
 
 function summarize(toolName, toolInput) {
   if (!toolInput) return '';
@@ -56,6 +54,12 @@ process.stdin.on('end', () => {
 
     const logPath = path.join(SESSIONS_DIR, `${sessionId}-replay.jsonl`);
     fs.appendFileSync(logPath, JSON.stringify(entry) + '\n');
+    writeSessionState(sessionId, {
+      status: 'active',
+      lastToolName: toolName,
+      lastReplayAt: entry.ts,
+      lastActivityAt: entry.ts
+    });
     writeHookEvent({
       hook: 'session-replay',
       event: 'replay_entry_written',
