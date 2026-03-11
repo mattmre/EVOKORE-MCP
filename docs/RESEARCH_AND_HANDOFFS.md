@@ -170,6 +170,13 @@ Continuity is enforced with dedicated checks, including:
 - `node test-ops-docs-validation.js`
 - `node test-docs-canonical-links.js`
 - `node test-pr-metadata-validation.js`
+- `node test-repo-state-audit-validation.js`
+
+Before starting a new multi-slice implementation session, run:
+
+- `npm run repo:audit`
+
+This gives a live repo-state view for branch divergence, worktree pressure, stale local/remote branch candidates, open PR heads, and control-plane drift in `CLAUDE.md`, `next-session.md`, and the root planning files.
 
 ## Recommended handoff practice
 
