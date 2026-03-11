@@ -2,15 +2,16 @@
 
 EVOKORE-MCP isn't just an MCP Server-‗it also ships with natively integrated UI hooks designed to make your AI CLI experience (like Gemini CLI or Claude Code) significantly more powerful and transparent.
 
-## 🍨 The Interactive Status Line
+## The Interactive Status Line
 
-When you connect EVOKORE-MCP to your AI Assistant, you can optionally enable the **EVOKORE Status Line**. 
+When you connect EVOKORE-MCP to your AI assistant, you can optionally enable the **EVOKORE Status Line**.
 
-Every time the AI finishes a thought or a tool execution, this hook intercepts the internal JSON payload and renders a beautiful, color-coded ASCII status bar at the bottom of your terminal showing:
-- **Location**: Your current working directory.
-- **Model Identity**: The exact LLM model currently loaded.
-- **Skill Count**: A live count of the MCP Agent Skills currently indexed in your library.
-- **Context Window Health**: A dynamic, color-coded progress bar showing exactly how many tokens you have consumed.
+Every time the AI finishes a thought or a tool execution, this hook reads the runtime payload plus EVOKORE's local continuity state and renders a compact operator summary showing:
+- **Branch and worktree pressure**: active branch plus whether this worktree is clean or carrying changes
+- **Session purpose**: pulled from `~/.evokore/sessions/{sessionId}.json`, with Claude-memory fallback when no repo-scoped manifest is available
+- **Task pressure**: incomplete vs total TillDone tasks
+- **Continuity health**: whether the session manifest is healthy, stale, degraded, or still awaiting purpose
+- **Context usage**: current context-window percentage when the client provides it
 
 ---
 
@@ -66,6 +67,21 @@ function copilot-evokore {
     node "/absolute/path/to/EVOKORE-MCP/scripts/status.js"
 }
 ```
+
+---
+
+## Data Sources
+
+The status line is continuity-first rather than network-first.
+
+Primary sources:
+
+- `~/.evokore/sessions/{sessionId}.json` for purpose, task counters, replay/evidence counts, and lifecycle health
+- current git worktree state for branch and dirty status
+- Claude memory `project-state.md` as a fallback when no repo-scoped live session manifest is available
+- client payload context-window fields when the AI CLI provides them
+
+The status line does not depend on live location or weather requests anymore. That keeps it deterministic and aligned with the current operator workflow.
 
 ---
 

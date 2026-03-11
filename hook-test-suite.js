@@ -8,7 +8,6 @@ const { runNodeScript, makeSessionId } = require('./tests/helpers/hook-test-help
 
 const sessionsDir = path.join(os.homedir(), '.evokore', 'sessions');
 const logsDir = path.join(os.homedir(), '.evokore', 'logs');
-const cacheDir = path.join(os.homedir(), '.evokore', 'cache');
 const hooksLogPath = path.join(logsDir, 'hooks.jsonl');
 const CANONICAL_HOOKS = {
   damageControl: 'scripts/hooks/damage-control.js',
@@ -81,12 +80,11 @@ function run() {
 
   const statusSession = makeSessionId('hook-purpose-status');
   const statusStateFile = path.join(sessionsDir, `${statusSession}.json`);
-  const locationCacheFile = path.join(cacheDir, 'location.json');
-  const weatherCacheFile = path.join(cacheDir, 'weather.json');
+  const statusTaskFile = path.join(sessionsDir, `${statusSession}-tasks.json`);
   cleanupFile(statusStateFile);
-  fs.mkdirSync(cacheDir, { recursive: true });
-  fs.writeFileSync(locationCacheFile, JSON.stringify({ city: 'Testville', regionName: 'TS' }));
-  fs.writeFileSync(weatherCacheFile, '72F');
+  cleanupFile(statusTaskFile);
+  fs.mkdirSync(sessionsDir, { recursive: true });
+  fs.writeFileSync(statusTaskFile, JSON.stringify([{ text: 'Open task', done: false }], null, 2));
 
   const purposeStatusFirst = runNodeScript(
     CANONICAL_HOOKS.purposeGate,
@@ -100,11 +98,10 @@ function run() {
   );
   assert.strictEqual(purposeStatusFirst.status, 0);
   assert.match(purposeStatusFirst.cleanStdout, /\[EVOKORE Status\]/i);
-  assert.match(purposeStatusFirst.cleanStdout, /Testville, TS/i);
-  assert.match(purposeStatusFirst.cleanStdout, /72F/i);
+  assert.match(purposeStatusFirst.cleanStdout, /tasks 1\/1 open/i);
+  assert.match(purposeStatusFirst.cleanStdout, /continuity awaiting-purpose/i);
   cleanupFile(statusStateFile);
-  cleanupFile(locationCacheFile);
-  cleanupFile(weatherCacheFile);
+  cleanupFile(statusTaskFile);
 
   const replaySession = makeSessionId('hook-replay');
   const replayLogPath = path.join(sessionsDir, `${replaySession}-replay.jsonl`);

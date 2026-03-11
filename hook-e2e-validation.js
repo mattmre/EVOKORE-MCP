@@ -23,6 +23,7 @@ function run() {
   const settingsPath = path.resolve(__dirname, '.claude', 'settings.json');
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
   const hooks = settings.hooks || {};
+  const statusLine = settings.statusLine || {};
 
   const preToolCommand = hooks.PreToolUse && hooks.PreToolUse[0] && hooks.PreToolUse[0].hooks[0] && hooks.PreToolUse[0].hooks[0].command;
   const promptCommand = hooks.UserPromptSubmit && hooks.UserPromptSubmit[0] && hooks.UserPromptSubmit[0].hooks[0] && hooks.UserPromptSubmit[0].hooks[0].command;
@@ -30,6 +31,7 @@ function run() {
   const evidenceCommand = hooks.PostToolUse && hooks.PostToolUse[0] && hooks.PostToolUse[0].hooks[1] && hooks.PostToolUse[0].hooks[1].command;
   const stopCommand = hooks.Stop && hooks.Stop[0] && hooks.Stop[0].hooks[0] && hooks.Stop[0].hooks[0].command;
 
+  assert.strictEqual(statusLine.command, 'node scripts/status.js');
   assert.strictEqual(preToolCommand, 'node scripts/hooks/damage-control.js');
   assert.strictEqual(promptCommand, 'node scripts/hooks/purpose-gate.js');
   assert.strictEqual(postToolCommand, 'node scripts/hooks/session-replay.js');
