@@ -153,7 +153,7 @@ async function run() {
 
   try {
     const wsUrl = `ws://127.0.0.1:${port}`;
-    await waitForLogMatch(child, () => stderr, new RegExp(`Listening on ws://localhost:${port}`), 10000).catch(() => undefined);
+    await waitForLogMatch(child, () => stderr, new RegExp(`Listening on ws://127\\.0\\.0\\.1:${port}`), 10000).catch(() => undefined);
     await waitForSocketReady(wsUrl, 12000);
 
     const ws = await openSocket(wsUrl, 3000);
