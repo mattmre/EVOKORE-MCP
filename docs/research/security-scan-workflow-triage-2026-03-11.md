@@ -16,15 +16,14 @@ The repository was using an older `aquasecurity/trivy-action@0.28.0` path that i
 
 ## Remediation
 
-- Added explicit `aquasecurity/setup-trivy@v0.2.2` steps in all four jobs.
-- Pinned Trivy to `v0.68.1`.
-- Upgraded all scan steps to `aquasecurity/trivy-action@0.33.1`.
-- Added `skip-setup-trivy: true` so the action reuses the explicit setup rather than invoking its own internal bootstrap.
+- First attempted an explicit `setup-trivy@v0.2.2` + newer `trivy-action` path. That still failed inside the bootstrap step after version resolution.
+- Replaced the bootstrap-dependent action path entirely with containerized `aquasec/trivy:0.68.1` CLI invocations.
+- Mounted the workspace and `~/.cache/trivy` into the container for deterministic execution and cache reuse.
 - Upgraded SARIF upload to `github/codeql-action/upload-sarif@v4`.
 - Added `test-security-scan-workflow-validation.js` and wired it into `npm test`.
 
 ## Expected Outcome
 
 - Shared security jobs should either produce real findings from the repository or pass cleanly.
-- The SARIF upload step should stop failing due to a missing output file caused by upstream Trivy setup failure.
+- The SARIF upload step should stop failing due to a missing output file caused by upstream bootstrap failure.
 - Future regressions in action versions or workflow shape should be caught by the new validation test.
