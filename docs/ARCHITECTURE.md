@@ -45,6 +45,13 @@ These are always part of the EVOKORE runtime:
 
 Native tools are always visible, even in `dynamic` mode.
 
+`resolve_workflow` and `search_skills` now share the same semantic resolution layer:
+
+- weighted Fuse.js search over skill metadata
+- alias and hint extraction from frontmatter/path structure
+- fallback query expansion for ambiguous natural-language objectives
+- reranking that favors actionable root skills over deep reference leaves
+
 ### Proxied tools
 
 Proxied tools are fetched from child MCP servers declared in `mcp.config.json`.

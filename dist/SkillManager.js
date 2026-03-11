@@ -15,6 +15,10 @@ const SKIP_DIRS = new Set([
     ".claude", "themes", "assets", "scripts"
 ]);
 const MAX_DEPTH = 5;
+const SEARCH_STOP_WORDS = new Set([
+    "a", "an", "and", "as", "at", "by", "for", "from", "i", "in", "into", "it",
+    "me", "my", "new", "of", "on", "or", "please", "the", "to", "up", "we", "with"
+]);
 class SkillManager {
     skillsCache = new Map();
     fuseIndex = null;
@@ -64,17 +68,21 @@ class SkillManager {
             const fuseStart = Date.now();
             this.fuseIndex = new fuse_js_1.default(Array.from(this.skillsCache.values()), {
                 keys: [
-                    { name: "name", weight: 0.28 },
-                    { name: "description", weight: 0.24 },
+                    { name: "name", weight: 0.22 },
+                    { name: "description", weight: 0.18 },
                     { name: "category", weight: 0.05 },
                     { name: "subcategory", weight: 0.05 },
                     { name: "declaredCategory", weight: 0.04 },
                     { name: "tags", weight: 0.08 },
+                    { name: "aliases", weight: 0.12 },
+                    { name: "resolutionHints", weight: 0.08 },
                     { name: "metadataText", weight: 0.06 },
-                    { name: "content", weight: 0.2 }
+                    { name: "searchableText", weight: 0.07 },
+                    { name: "content", weight: 0.05 }
                 ],
                 threshold: 0.4,
-                ignoreLocation: true
+                ignoreLocation: true,
+                includeScore: true
             });
             const fuseMs = Date.now() - fuseStart;
             this._loadTimeMs = Date.now() - loadStart;
@@ -141,6 +149,8 @@ class SkillManager {
             const frontmatter = yaml_1.default.parse(match[1]);
             const metadata = this.normalizeMetadata(frontmatter?.metadata);
             const tags = this.collectTags(frontmatter, metadata);
+            const aliases = this.collectAliases(frontmatter, metadata, fallbackName, subcategory, filePath);
+            const resolutionHints = this.collectResolutionHints(frontmatter, content, metadata);
             return {
                 name: frontmatter?.name || fallbackName,
                 description: frontmatter?.description || "No description provided.",
@@ -148,8 +158,12 @@ class SkillManager {
                 subcategory,
                 declaredCategory: frontmatter?.category || category,
                 tags,
+                aliases,
+                resolutionHints,
                 metadata,
                 metadataText: this.buildMetadataText(metadata, tags),
+                searchableText: this.buildSearchableText(frontmatter?.name || fallbackName, frontmatter?.description || "No description provided.", category, subcategory, frontmatter?.category || category, tags, aliases, resolutionHints, this.buildMetadataText(metadata, tags), filePath),
+                pathDepth: subcategory ? subcategory.split("/").filter(Boolean).length : 0,
                 filePath,
                 content: match[2].trim()
             };
@@ -183,6 +197,65 @@ class SkillManager {
         addTags(metadata?.tags);
         return Array.from(collected);
     }
+    collectAliases(frontmatter, metadata, fallbackName, subcategory, filePath) {
+        const collected = new Set();
+        const addAlias = (value) => {
+            if (Array.isArray(value)) {
+                for (const entry of value) {
+                    addAlias(entry);
+                }
+                return;
+            }
+            if (typeof value === "string" && value.trim()) {
+                collected.add(value.trim());
+            }
+        };
+        addAlias(frontmatter?.alias);
+        addAlias(frontmatter?.aliases);
+        addAlias(metadata?.alias);
+        addAlias(metadata?.aliases);
+        addAlias(metadata?.original_command);
+        addAlias(fallbackName);
+        for (const segment of subcategory.split("/").filter(Boolean)) {
+            addAlias(segment);
+        }
+        const relativePath = path_1.default.relative(SKILLS_DIR, filePath);
+        for (const segment of relativePath.split(path_1.default.sep)) {
+            const cleaned = segment.replace(/\.md$/i, "").trim();
+            if (cleaned && cleaned !== "SKILL") {
+                addAlias(cleaned);
+            }
+        }
+        return Array.from(collected);
+    }
+    collectResolutionHints(frontmatter, rawContent, metadata) {
+        const hints = new Set();
+        const description = String(frontmatter?.description || "");
+        const body = rawContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "");
+        const candidates = [
+            description,
+            String(frontmatter?.summary || ""),
+            String(metadata?.summary || ""),
+            body.slice(0, 2500)
+        ].filter(Boolean);
+        const extractMatches = (text, regex) => {
+            const matches = text.matchAll(regex);
+            for (const match of matches) {
+                const value = match[1]?.trim();
+                if (value) {
+                    hints.add(value.replace(/\s+/g, " "));
+                }
+            }
+        };
+        for (const candidate of candidates) {
+            extractMatches(candidate, /Use when\s+([^.\n]+)/gi);
+            extractMatches(candidate, /This skill should be used when\s+([^.\n]+)/gi);
+            extractMatches(candidate, /Perfect for\s+([^.\n]+)/gi);
+            extractMatches(candidate, /Triggers:\s*([^.\n]+)/gi);
+            extractMatches(candidate, /Use this skill when\s+([^.\n]+)/gi);
+        }
+        return Array.from(hints);
+    }
     buildMetadataText(metadata, tags) {
         const fragments = [];
         const visit = (value, keyPath = "") => {
@@ -212,6 +285,126 @@ class SkillManager {
             fragments.push(tag);
         }
         return fragments.join(" ");
+    }
+    buildSearchableText(name, description, category, subcategory, declaredCategory, tags, aliases, resolutionHints, metadataText, filePath) {
+        return [
+            name,
+            description,
+            category,
+            subcategory,
+            declaredCategory,
+            metadataText,
+            ...tags,
+            ...aliases,
+            ...resolutionHints,
+            path_1.default.relative(SKILLS_DIR, filePath)
+        ].filter(Boolean).join(" ");
+    }
+    tokenizeSearchQuery(query) {
+        return query
+            .toLowerCase()
+            .split(/[^a-z0-9]+/i)
+            .map((token) => token.trim())
+            .filter((token) => token.length > 1 && !SEARCH_STOP_WORDS.has(token));
+    }
+    buildFallbackSearchVariants(query) {
+        const normalizedQuery = query.trim().toLowerCase();
+        const tokens = this.tokenizeSearchQuery(query);
+        const variants = new Set();
+        if (tokens.length > 0) {
+            variants.add(tokens.join(" "));
+        }
+        for (const token of tokens) {
+            variants.add(token);
+        }
+        for (let index = 0; index < tokens.length - 1; index += 1) {
+            variants.add(tokens.slice(index, index + 2).join(" "));
+        }
+        return Array.from(variants);
+    }
+    resolveSearchReasons(skill, tokens) {
+        const reasons = new Set();
+        const fields = [
+            { label: "name", values: [skill.name] },
+            { label: "aliases", values: skill.aliases },
+            { label: "tags", values: skill.tags },
+            { label: "hints", values: skill.resolutionHints },
+            { label: "category", values: [skill.category, skill.declaredCategory, skill.subcategory] }
+        ];
+        for (const token of tokens) {
+            for (const field of fields) {
+                const matched = field.values.find((value) => value && value.toLowerCase().includes(token));
+                if (matched) {
+                    reasons.add(`${field.label}: ${matched}`);
+                }
+            }
+        }
+        if (reasons.size === 0 && skill.description) {
+            reasons.add(`description: ${skill.description}`);
+        }
+        return Array.from(reasons).slice(0, 3);
+    }
+    searchSkills(query, limit) {
+        if (!this.fuseIndex) {
+            return [];
+        }
+        const normalizedQuery = query.trim().toLowerCase();
+        const tokens = this.tokenizeSearchQuery(query);
+        const candidateMap = new Map();
+        const upsertCandidate = (skill, baseScore) => {
+            const key = `${skill.category}/${skill.name}`.toLowerCase();
+            const existing = candidateMap.get(key);
+            const reasons = this.resolveSearchReasons(skill, tokens);
+            if (!existing || baseScore < existing.score) {
+                candidateMap.set(key, { skill, score: baseScore, reasons });
+            }
+        };
+        const searchVariants = new Set();
+        if (normalizedQuery) {
+            searchVariants.add(normalizedQuery);
+        }
+        for (const variant of searchVariants) {
+            for (const result of this.fuseIndex.search(variant, { limit: Math.max(limit * 4, 12) })) {
+                upsertCandidate(result.item, typeof result.score === "number" ? result.score : 1);
+            }
+        }
+        const shouldExpand = candidateMap.size === 0 ||
+            (tokens.length > 1 && Array.from(candidateMap.values()).every((match) => this.resolveSearchReasons(match.skill, tokens).length === 0));
+        if (shouldExpand) {
+            for (const variant of this.buildFallbackSearchVariants(query)) {
+                if (!variant || searchVariants.has(variant)) {
+                    continue;
+                }
+                for (const result of this.fuseIndex.search(variant, { limit: Math.max(limit * 2, 8) })) {
+                    upsertCandidate(result.item, typeof result.score === "number" ? result.score : 1);
+                }
+            }
+        }
+        else if (tokens.length > 1) {
+            const tokenVariant = tokens.join(" ");
+            if (tokenVariant && !searchVariants.has(tokenVariant)) {
+                for (const result of this.fuseIndex.search(tokenVariant, { limit: Math.max(limit * 2, 8) })) {
+                    upsertCandidate(result.item, typeof result.score === "number" ? result.score : 1);
+                }
+            }
+        }
+        const scoredMatches = Array.from(candidateMap.values()).map((match) => {
+            const searchableText = match.skill.searchableText.toLowerCase();
+            const matchedTokens = tokens.filter((token) => searchableText.includes(token));
+            const overlapRatio = tokens.length > 0 ? matchedTokens.length / tokens.length : 0;
+            const exactAliasMatch = match.skill.aliases.some((alias) => alias.toLowerCase() === query.trim().toLowerCase());
+            const rootSkillBoost = match.skill.pathDepth === 0 ? 0.08 : 0;
+            const referencePenalty = match.skill.subcategory.toLowerCase().includes("reference") ? 0.12 : 0;
+            const overlapBoost = overlapRatio * 0.22;
+            const aliasBoost = exactAliasMatch ? 0.18 : 0;
+            return {
+                ...match,
+                score: match.score - overlapBoost - aliasBoost - rootSkillBoost + referencePenalty
+            };
+        });
+        return scoredMatches
+            .sort((left, right) => left.score - right.score)
+            .slice(0, limit);
     }
     getTools() {
         return [
@@ -342,13 +535,16 @@ class SkillManager {
             if (!this.fuseIndex)
                 await this.loadSkills();
             const objective = (args.objective || "");
-            const results = this.fuseIndex.search(objective, { limit: 3 });
+            const results = this.searchSkills(objective, 3);
             if (results.length === 0) {
                 return { content: [{ type: "text", text: "No specific workflows found for '" + objective + "'. Proceed using your general knowledge." }] };
             }
             const injectedWorkflows = results.map(r => {
-                const subcatLabel = r.item.subcategory ? " > " + r.item.subcategory : "";
-                return "--- WORKFLOW: " + r.item.name + " [" + r.item.category + subcatLabel + "] ---\nDescription: " + r.item.description + "\n\n<activated_skill name=\"" + r.item.name + "\">\n" + r.item.content + "\n</activated_skill>\n";
+                const subcatLabel = r.skill.subcategory ? " > " + r.skill.subcategory : "";
+                const whyMatched = r.reasons.length > 0
+                    ? "Why matched: " + r.reasons.join("; ")
+                    : "Why matched: description/content similarity";
+                return "--- WORKFLOW: " + r.skill.name + " [" + r.skill.category + subcatLabel + "] ---\nDescription: " + r.skill.description + "\n" + whyMatched + "\n\n<activated_skill name=\"" + r.skill.name + "\" category=\"" + r.skill.category + "\">\n" + r.skill.content + "\n</activated_skill>\n";
             }).join("\n\n");
             return { content: [{ type: "text", text: "EVOKORE-MCP injected highly relevant workflows. Please adopt these instructions:\n\n" + injectedWorkflows }] };
         }
@@ -357,7 +553,7 @@ class SkillManager {
                 await this.loadSkills();
             const query = (args.query || "").toLowerCase();
             const searchStart = Date.now();
-            const results = this.fuseIndex.search(query, { limit: 15 }).map(r => r.item);
+            const results = this.searchSkills(query, 15);
             this._lastSearchMs = Date.now() - searchStart;
             if (this._lastSearchMs > 250) {
                 console.error(`[EVOKORE] Slow skill search: "${query}" took ${this._lastSearchMs}ms`);
@@ -367,8 +563,9 @@ class SkillManager {
                         type: "text",
                         text: results.length > 0
                             ? results.map(r => {
-                                const subcatLabel = r.subcategory ? " > " + r.subcategory : "";
-                                return "- **" + r.name + "** [" + r.category + subcatLabel + "]: " + r.description;
+                                const subcatLabel = r.skill.subcategory ? " > " + r.skill.subcategory : "";
+                                const reasonSuffix = r.reasons.length > 0 ? " | matched on " + r.reasons.join(", ") : "";
+                                return "- **" + r.skill.name + "** [" + r.skill.category + subcatLabel + "]: " + r.skill.description + reasonSuffix;
                             }).join("\n")
                             : "No skills found matching that query."
                     }]

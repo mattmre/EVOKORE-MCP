@@ -48,3 +48,7 @@ EVOKORE-MCP currently indexes over 300 specialized Agent Skills and coding workf
 If you need a specific skill, ask your AI assistant to use the `search_skills` tool:
 *"Do you have a skill for PostgreSQL database design?"*
 The AI will execute the search tool, find the best-matching skill, read it into context, and apply the workflow to your request.
+
+For broader natural-language intents, use `resolve_workflow`:
+*"I need to wrap up this session and leave a clean handoff."*
+EVOKORE will semantically rank the best workflow matches, explain why they matched, and inject the top skills directly into the response.

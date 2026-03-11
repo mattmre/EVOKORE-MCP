@@ -38,7 +38,7 @@ Add the following to your `claude_desktop_config.json`:
 
 Once connected, your AI assistant will automatically have access to the following tools:
 
-- **`search_skills`**: Ask the AI to find a specific workflow. The search index now uses skill names, descriptions, directory taxonomy, tags, and selected frontmatter metadata. (e.g., *"Search the MCP for React styling skills."*)
+- **`search_skills`**: Ask the AI to find a specific workflow. The search index now uses skill names, descriptions, directory taxonomy, tags, selected frontmatter metadata, and semantic hint extraction so natural-language objectives like "wrap up session handoff" resolve more reliably. (e.g., *"Search the MCP for React styling skills."*)
 - **`get_skill_help`**: If you want to know what a specific skill does, ask the AI to explain it. (e.g., *"What does the 'arch-aep-runner' skill do? Show me some examples."*)
 - **`discover_tools`**: Search the merged EVOKORE catalog of native and proxied tools. In `dynamic` mode, matching proxied tools become visible for the current session.
 - **`proxy_server_status`**: Inspect the aggregated child-server registry, including server status, connection type, error counts, registered tool counts, and last-seen timestamps.
@@ -99,6 +99,8 @@ For tools configured as `require_approval`, EVOKORE returns a security-intercept
 
 EVOKORE-MCP exposes skills through tools like `search_skills`, `get_skill_help`, and `resolve_workflow`.
 *"Adopt the `session-wrap` workflow."* -> The AI can discover the skill and load its canonical instructions through these tools before executing the workflow.
+
+`resolve_workflow` also explains why a workflow matched, which helps operators verify that the injected skill aligns with the requested objective.
 
 When EVOKORE proxies child MCP servers, tool names use the prefixed tool name format `${serverId}_${tool.name}`. If the same prefixed name appears more than once, EVOKORE keeps the first registration, skips later duplicates, and logs a warning.
 
