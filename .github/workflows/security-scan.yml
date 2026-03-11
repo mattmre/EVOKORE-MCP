@@ -23,14 +23,16 @@ jobs:
           restore-keys: trivy-db-
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln
-          severity: CRITICAL,HIGH
-          exit-code: "1"
-          format: table
+        run: |
+          docker run --rm \
+            -v "${PWD}:/workspace" \
+            -v "${HOME}/.cache/trivy:/root/.cache/trivy" \
+            aquasec/trivy:0.68.1 \
+            fs \
+            --scanners vuln \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            /workspace
 
   trivy-config:
     name: IaC Misconfiguration Scan
@@ -46,13 +48,15 @@ jobs:
           restore-keys: trivy-db-
 
       - name: Run Trivy config scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: config
-          scan-ref: .
-          severity: CRITICAL,HIGH,MEDIUM
-          exit-code: "0"
-          format: table
+        run: |
+          docker run --rm \
+            -v "${PWD}:/workspace" \
+            -v "${HOME}/.cache/trivy:/root/.cache/trivy" \
+            aquasec/trivy:0.68.1 \
+            config \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --exit-code 0 \
+            /workspace
 
   trivy-secrets:
     name: Secret Leak Detection
@@ -68,14 +72,16 @@ jobs:
           restore-keys: trivy-db-
 
       - name: Run Trivy secret scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: secret
-          severity: CRITICAL,HIGH,MEDIUM
-          exit-code: "1"
-          format: table
+        run: |
+          docker run --rm \
+            -v "${PWD}:/workspace" \
+            -v "${HOME}/.cache/trivy:/root/.cache/trivy" \
+            aquasec/trivy:0.68.1 \
+            fs \
+            --scanners secret \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --exit-code 1 \
+            /workspace
 
   trivy-sarif:
     name: Trivy SARIF Upload
@@ -96,18 +102,21 @@ jobs:
         run: mkdir -p results
 
       - name: Run Trivy scan (SARIF output)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          scanners: vuln,secret
-          severity: CRITICAL,HIGH,MEDIUM
-          exit-code: "0"
-          format: sarif
-          output: results/trivy-results.sarif
+        run: |
+          docker run --rm \
+            -v "${PWD}:/workspace" \
+            -v "${HOME}/.cache/trivy:/root/.cache/trivy" \
+            aquasec/trivy:0.68.1 \
+            fs \
+            --scanners vuln,secret \
+            --severity CRITICAL,HIGH,MEDIUM \
+            --exit-code 0 \
+            --format sarif \
+            --output /workspace/results/trivy-results.sarif \
+            /workspace
 
       - name: Upload Trivy SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: results/trivy-results.sarif
