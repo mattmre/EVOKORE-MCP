@@ -64,11 +64,14 @@ class SkillManager {
             const fuseStart = Date.now();
             this.fuseIndex = new fuse_js_1.default(Array.from(this.skillsCache.values()), {
                 keys: [
-                    { name: "name", weight: 0.3 },
-                    { name: "description", weight: 0.3 },
+                    { name: "name", weight: 0.28 },
+                    { name: "description", weight: 0.24 },
                     { name: "category", weight: 0.05 },
                     { name: "subcategory", weight: 0.05 },
-                    { name: "content", weight: 0.3 }
+                    { name: "declaredCategory", weight: 0.04 },
+                    { name: "tags", weight: 0.08 },
+                    { name: "metadataText", weight: 0.06 },
+                    { name: "content", weight: 0.2 }
                 ],
                 threshold: 0.4,
                 ignoreLocation: true
@@ -136,11 +139,17 @@ class SkillManager {
             return null;
         try {
             const frontmatter = yaml_1.default.parse(match[1]);
+            const metadata = this.normalizeMetadata(frontmatter?.metadata);
+            const tags = this.collectTags(frontmatter, metadata);
             return {
-                name: frontmatter.name || fallbackName,
-                description: frontmatter.description || "No description provided.",
+                name: frontmatter?.name || fallbackName,
+                description: frontmatter?.description || "No description provided.",
                 category,
                 subcategory,
+                declaredCategory: frontmatter?.category || category,
+                tags,
+                metadata,
+                metadataText: this.buildMetadataText(metadata, tags),
                 filePath,
                 content: match[2].trim()
             };
@@ -148,6 +157,61 @@ class SkillManager {
         catch (e) {
             return null;
         }
+    }
+    normalizeMetadata(value) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return {};
+        }
+        return value;
+    }
+    collectTags(frontmatter, metadata) {
+        const collected = new Set();
+        const addTags = (value) => {
+            if (Array.isArray(value)) {
+                for (const entry of value) {
+                    if (typeof entry === "string" && entry.trim()) {
+                        collected.add(entry.trim());
+                    }
+                }
+                return;
+            }
+            if (typeof value === "string" && value.trim()) {
+                collected.add(value.trim());
+            }
+        };
+        addTags(frontmatter?.tags);
+        addTags(metadata?.tags);
+        return Array.from(collected);
+    }
+    buildMetadataText(metadata, tags) {
+        const fragments = [];
+        const visit = (value, keyPath = "") => {
+            if (Array.isArray(value)) {
+                for (const entry of value) {
+                    visit(entry, keyPath);
+                }
+                return;
+            }
+            if (value && typeof value === "object") {
+                for (const [key, nestedValue] of Object.entries(value)) {
+                    const nextKeyPath = keyPath ? `${keyPath}.${key}` : key;
+                    fragments.push(nextKeyPath);
+                    visit(nestedValue, nextKeyPath);
+                }
+                return;
+            }
+            if (value !== null && value !== undefined) {
+                if (keyPath) {
+                    fragments.push(`${keyPath} ${String(value)}`);
+                }
+                fragments.push(String(value));
+            }
+        };
+        visit(metadata);
+        for (const tag of tags) {
+            fragments.push(tag);
+        }
+        return fragments.join(" ");
     }
     getTools() {
         return [

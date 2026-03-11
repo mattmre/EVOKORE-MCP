@@ -38,7 +38,7 @@ Add the following to your `claude_desktop_config.json`:
 
 Once connected, your AI assistant will automatically have access to the following tools:
 
-- **`search_skills`**: Ask the AI to find a specific workflow. (e.g., *"Search the MCP for React styling skills."*)
+- **`search_skills`**: Ask the AI to find a specific workflow. The search index now uses skill names, descriptions, directory taxonomy, tags, and selected frontmatter metadata. (e.g., *"Search the MCP for React styling skills."*)
 - **`get_skill_help`**: If you want to know what a specific skill does, ask the AI to explain it. (e.g., *"What does the 'arch-aep-runner' skill do? Show me some examples."*)
 - **`discover_tools`**: Search the merged EVOKORE catalog of native and proxied tools. In `dynamic` mode, matching proxied tools become visible for the current session.
 
