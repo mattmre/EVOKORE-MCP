@@ -28,6 +28,16 @@ function runCommandBestEffort(command, args, opts = {}) {
   }
 }
 
+function resolvePreferredGitRef(refs, resolver) {
+  for (const ref of refs) {
+    const resolved = resolver(ref);
+    if (resolved) {
+      return { ref, sha: resolved };
+    }
+  }
+  throw new Error(`Unable to resolve any preferred git ref: ${refs.join(', ')}`);
+}
+
 function parseTrack(track) {
   const value = String(track || '').trim();
   const cleaned = value.replace(/^\[|\]$/g, '');
@@ -155,9 +165,12 @@ function collectAudit(opts = {}) {
   const repoRoot = runCommand('git', ['rev-parse', '--show-toplevel'], { cwd });
   const currentBranch = runCommand('git', ['branch', '--show-current'], { cwd }) || 'detached';
   const currentHead = runCommand('git', ['rev-parse', 'HEAD'], { cwd });
-  const mainHead = runCommand('git', ['rev-parse', 'main'], { cwd });
-  const originMainHead = runCommandBestEffort('git', ['rev-parse', 'origin/main'], { cwd });
-  const [behindMain, aheadMain] = runCommand('git', ['rev-list', '--left-right', '--count', 'main...HEAD'], { cwd })
+  const mainRef = resolvePreferredGitRef(
+    ['main', 'origin/main', 'refs/remotes/origin/main'],
+    (ref) => runCommandBestEffort('git', ['rev-parse', '--verify', ref], { cwd })
+  );
+  const originMainHead = runCommandBestEffort('git', ['rev-parse', '--verify', 'origin/main'], { cwd }) || mainRef.sha;
+  const [behindMain, aheadMain] = runCommand('git', ['rev-list', '--left-right', '--count', `${mainRef.ref}...HEAD`], { cwd })
     .split(/\s+/)
     .map((value) => Number(value));
 
@@ -213,7 +226,8 @@ function collectAudit(opts = {}) {
     repoRoot,
     currentBranch,
     currentHead,
-    mainHead,
+    mainHead: mainRef.sha,
+    mainRefName: mainRef.ref,
     originMainHead,
     divergenceFromMain: {
       behind: behindMain,
@@ -298,5 +312,6 @@ module.exports = {
   parseStatus,
   parseTrack,
   parseWorktreePorcelain,
+  resolvePreferredGitRef,
   renderHuman,
 };

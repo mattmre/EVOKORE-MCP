@@ -29,6 +29,15 @@ check('parseTrack handles ahead/behind counts', () => {
   assert.strictEqual(parsed.behind, 5);
 });
 
+check('resolvePreferredGitRef falls back when the first ref is missing', () => {
+  const resolved = audit.resolvePreferredGitRef(
+    ['main', 'origin/main'],
+    (ref) => (ref === 'origin/main' ? 'abc123' : null)
+  );
+
+  assert.deepStrictEqual(resolved, { ref: 'origin/main', sha: 'abc123' });
+});
+
 check('parseWorktreePorcelain parses multiple worktrees', () => {
   const parsed = audit.parseWorktreePorcelain([
     'worktree /repo',
@@ -81,6 +90,7 @@ check('collectAudit returns current repo report shape', () => {
   assert.ok(Array.isArray(report.localBranches));
   assert.ok(Array.isArray(report.warnings));
   assert.ok(report.divergenceFromMain);
+  assert.ok(report.mainRefName);
   assert.strictEqual(typeof report.divergenceFromMain.behind, 'number');
   assert.strictEqual(typeof report.divergenceFromMain.ahead, 'number');
 });
