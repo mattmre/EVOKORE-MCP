@@ -73,6 +73,8 @@ function copilot-evokore {
 
 EVOKORE-MCP includes a config sync script (`scripts/sync-configs.js`) that automatically registers the `evokore-mcp` server entry in each supported CLI's configuration file. This eliminates manual JSON editing across multiple tools.
 
+When the script runs from a disposable git worktree, it resolves the MCP entry from the canonical shared repo root instead of the worktree path. This keeps synced CLI configs pointed at the durable runtime entrypoint.
+
 ### Quick Start
 
 ```bash
@@ -97,6 +99,8 @@ You can also target specific CLIs by passing them as positional arguments:
 ```bash
 node scripts/sync-configs.js --apply claude-code cursor
 ```
+
+If you need to override the detected canonical repo root, set `EVOKORE_SYNC_PROJECT_ROOT=/absolute/path/to/EVOKORE-MCP` before running the script.
 
 ### Entry Modes
 

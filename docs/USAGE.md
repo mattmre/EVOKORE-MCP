@@ -341,6 +341,7 @@ The sync script:
 - Preserves existing `evokore-mcp` entries by default (or `--force` to overwrite)
 - Rejects conflicting flag pairs (`--dry-run` + `--apply`, `--force` + `--preserve-existing`)
 - Only adds/updates the `evokore-mcp` server entry (never overwrites other servers)
+- Resolves `dist/index.js` from the canonical repo root when run inside disposable git worktrees
 - Target specific CLIs: `node scripts/sync-configs.js claude-code cursor` (dry run) or `node scripts/sync-configs.js --apply claude-code cursor` (write)
 
 **Exit codes:**
@@ -357,6 +358,7 @@ The sync script:
 - **Cursor falls back to project-level config**: If `~/.cursor/mcp.json` does not exist, the script writes to `<PROJECT_ROOT>/.cursor/mcp.json` instead. Create the user-level file first if you prefer global Cursor configuration.
 - **Gemini CLI shows "Not detected"**: The script checks for the `gemini` binary on PATH. Install Gemini CLI or run the printed `gemini mcp add` command manually.
 - **Config not updating on re-run**: By default, `--preserve-existing` is active. If you need to overwrite a stale `evokore-mcp` entry, use `--force`.
+- **Need to pin a different repo root**: Set `EVOKORE_SYNC_PROJECT_ROOT=/absolute/path/to/EVOKORE-MCP` before running the sync script.
 
 ## 5. Hook Observability
 

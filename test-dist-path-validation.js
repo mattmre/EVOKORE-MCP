@@ -4,7 +4,26 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { spawnSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
+
+function resolveCanonicalProjectRoot() {
+  try {
+    const commonDirRaw = execSync('git rev-parse --git-common-dir', {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).toString().trim();
+    if (commonDirRaw) {
+      const resolvedCommonDir = path.resolve(__dirname, commonDirRaw);
+      if (path.basename(resolvedCommonDir).toLowerCase() === '.git') {
+        return path.dirname(resolvedCommonDir);
+      }
+    }
+  } catch {
+    // Fall back to the current project root outside git worktrees.
+  }
+
+  return path.resolve(__dirname);
+}
 
 function run() {
   const usagePath = path.resolve(__dirname, 'docs', 'USAGE.md');
@@ -49,7 +68,7 @@ function run() {
     assert.strictEqual(result.status, 0, `Expected exit code 0, got ${result.status}\n${result.stderr}`);
 
     const output = `${result.stdout}\n${result.stderr}`;
-    const expectedDistPath = path.resolve(__dirname, 'dist', 'index.js');
+    const expectedDistPath = path.join(resolveCanonicalProjectRoot(), 'dist', 'index.js');
     const unexpectedSrcPath = path.resolve(__dirname, 'src', 'index.js');
 
     assert.ok(output.includes(expectedDistPath), `Expected output to include dist entry path: ${expectedDistPath}`);
