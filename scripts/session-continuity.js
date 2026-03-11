@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { execFileSync } = require('child_process');
 const { sanitizeId } = require('./hook-observability');
 
 const EVOKORE_HOME = path.join(os.homedir(), '.evokore');
@@ -18,6 +19,24 @@ function ensureRuntimeDirs() {
       fs.mkdirSync(dirPath, { recursive: true });
     }
   }
+}
+
+function resolveCanonicalRepoRoot(startDir = process.cwd()) {
+  const cwd = path.resolve(startDir);
+  try {
+    const gitCommonDir = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+    const resolvedGitCommonDir = path.resolve(cwd, gitCommonDir);
+    if (path.basename(resolvedGitCommonDir).toLowerCase() === '.git') {
+      return path.dirname(resolvedGitCommonDir);
+    }
+  } catch {
+    // best effort only
+  }
+  return cwd;
 }
 
 function getSessionPaths(sessionId) {
@@ -81,10 +100,17 @@ function buildBaseState(sessionId, existingState) {
   const now = new Date().toISOString();
   const paths = getSessionPaths(sessionId);
   const taskStats = countTaskStats(paths.tasksPath);
+  const workspaceRoot = existingState && existingState.workspaceRoot ? existingState.workspaceRoot : process.cwd();
+  const canonicalRepoRoot = existingState && existingState.canonicalRepoRoot
+    ? existingState.canonicalRepoRoot
+    : resolveCanonicalRepoRoot(workspaceRoot);
 
   return {
     continuityVersion: CONTINUITY_VERSION,
     sessionId: paths.sessionId,
+    workspaceRoot,
+    canonicalRepoRoot,
+    repoName: existingState && existingState.repoName ? existingState.repoName : path.basename(workspaceRoot),
     purpose: existingState && existingState.purpose !== undefined ? existingState.purpose : null,
     created: existingState && existingState.created ? existingState.created : now,
     createdAt: existingState && existingState.createdAt ? existingState.createdAt : (existingState && existingState.created ? existingState.created : now),
@@ -167,5 +193,6 @@ module.exports = {
   ensureRuntimeDirs,
   getSessionPaths,
   readSessionState,
-  writeSessionState
+  writeSessionState,
+  resolveCanonicalRepoRoot
 };

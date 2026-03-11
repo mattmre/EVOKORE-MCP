@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { pruneOldSessions } = require('./log-rotation');
-const { writeSessionState, SESSIONS_DIR } = require('./session-continuity');
+const { writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
 
 // Patterns that indicate a test run in a Bash command
 const TEST_PATTERNS = [
@@ -144,6 +144,9 @@ process.stdin.on('end', () => {
 
     fs.appendFileSync(evidencePath, JSON.stringify(entry) + '\n');
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastToolName: toolName,
       lastEvidenceAt: entry.ts,

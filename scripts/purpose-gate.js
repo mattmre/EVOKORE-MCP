@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
-const { readSessionState, writeSessionState, SESSIONS_DIR, CACHE_DIR } = require('./session-continuity');
+const { readSessionState, writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR, CACHE_DIR } = require('./session-continuity');
 
 /**
  * Build a compact status line from cached data only (no network calls).
@@ -77,6 +77,9 @@ process.stdin.on('end', () => {
     if (!state || !hasExistingState) {
       // First prompt — ask for purpose
       writeSessionState(sessionId, {
+        workspaceRoot: process.cwd(),
+        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+        repoName: path.basename(process.cwd()),
         purpose: null,
         status: 'awaiting-purpose',
         lastPromptAt: new Date().toISOString(),
@@ -101,6 +104,9 @@ process.stdin.on('end', () => {
       const purpose = userMessage.slice(0, 500);
       const purposeSetAt = new Date().toISOString();
       writeSessionState(sessionId, {
+        workspaceRoot: process.cwd(),
+        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+        repoName: path.basename(process.cwd()),
         purpose,
         set_at: purposeSetAt,
         purposeSetAt,
@@ -123,6 +129,9 @@ process.stdin.on('end', () => {
     } else {
       // Subsequent prompts — remind of purpose
       writeSessionState(sessionId, {
+        workspaceRoot: process.cwd(),
+        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+        repoName: path.basename(process.cwd()),
         status: 'active',
         lastPromptAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString()
