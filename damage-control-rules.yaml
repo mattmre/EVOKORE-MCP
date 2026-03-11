@@ -1,77 +1,173 @@
 # EVOKORE-MCP Damage Control Rules
 # Used by scripts/damage-control.js (PreToolUse hook)
+#
+# Rule IDs:
+#   DC-01..DC-14: Baseline protections
+#   DC-15..DC-30: Post-roadmap expansion covering reverse shells,
+#                 encoded payloads, exfiltration, and repo guardrails
 
 dangerous_commands:
-  - pattern: "rm\\s+(-[a-zA-Z]*f[a-zA-Z]*\\s+|--force\\s+).*(/|\\\\)"
-    reason: "Recursive forced deletion detected"
+  - id: DC-01
+    pattern: 'rm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|--force\s+).*(/|\\)'
+    reason: 'Recursive forced deletion detected'
     ask: false
-  - pattern: "rm\\s+-[a-zA-Z]*r[a-zA-Z]*\\s+(~|/|\\$HOME|C:\\\\)"
-    reason: "Recursive deletion of home/root directory"
+  - id: DC-02
+    pattern: 'rm\s+-[a-zA-Z]*r[a-zA-Z]*\s+(~|/|\$HOME|C:\\)'
+    reason: 'Recursive deletion of home/root directory'
     ask: false
-  - pattern: "git\\s+push\\s+.*--force"
-    reason: "Force push can overwrite remote history"
+  - id: DC-03
+    pattern: 'git\s+push\s+.*--force'
+    reason: 'Force push can overwrite remote history'
     ask: true
-  - pattern: "git\\s+reset\\s+--hard"
-    reason: "Hard reset discards uncommitted changes"
+  - id: DC-04
+    pattern: 'git\s+reset\s+--hard'
+    reason: 'Hard reset discards uncommitted changes'
     ask: true
-  - pattern: "git\\s+clean\\s+-[a-zA-Z]*f"
-    reason: "git clean -f permanently deletes untracked files"
+  - id: DC-05
+    pattern: 'git\s+clean\s+-[a-zA-Z]*f'
+    reason: 'git clean -f permanently deletes untracked files'
     ask: true
-  - pattern: "DROP\\s+(TABLE|DATABASE|SCHEMA)"
-    reason: "SQL DROP is destructive and irreversible"
+  - id: DC-06
+    pattern: 'DROP\s+(TABLE|DATABASE|SCHEMA)'
+    reason: 'SQL DROP is destructive and irreversible'
     ask: false
-  - pattern: "TRUNCATE\\s+TABLE"
-    reason: "TRUNCATE removes all data from table"
+  - id: DC-07
+    pattern: 'TRUNCATE\s+TABLE'
+    reason: 'TRUNCATE removes all data from table'
     ask: true
-  - pattern: ":\\(\\)\\s*\\{|fork\\s*bomb"
-    reason: "Fork bomb detected"
+  - id: DC-08
+    pattern: ':\(\)\s*\{|fork\s*bomb'
+    reason: 'Fork bomb detected'
     ask: false
-  - pattern: "npm\\s+publish"
-    reason: "Publishing to npm registry"
+  - id: DC-09
+    pattern: 'npm\s+publish'
+    reason: 'Publishing to npm registry'
     ask: true
-  - pattern: "curl\\s+.*\\|\\s*(bash|sh|zsh)"
-    reason: "Piping remote script to shell"
+  - id: DC-10
+    pattern: 'curl\s+.*\|\s*(bash|sh|zsh)'
+    reason: 'Piping remote script to shell'
     ask: false
-  - pattern: "chmod\\s+777"
-    reason: "Setting world-writable permissions"
+  - id: DC-11
+    pattern: 'chmod\s+777'
+    reason: 'Setting world-writable permissions'
     ask: true
-  - pattern: "mkfs|format\\s+[A-Z]:"
-    reason: "Filesystem format command detected"
+  - id: DC-12
+    pattern: 'mkfs|format\s+[A-Z]:'
+    reason: 'Filesystem format command detected'
     ask: false
-  - pattern: ">(\\s*/dev/sd|\\\\\\\\\\.\\\\.PhysicalDrive)"
-    reason: "Direct write to disk device"
+  - id: DC-13
+    pattern: '>(\s*/dev/sd|\\\\\.\\\\PhysicalDrive)'
+    reason: 'Direct write to disk device'
     ask: false
-  - pattern: "shutdown|reboot|init\\s+[06]"
-    reason: "System shutdown/reboot command"
+  - id: DC-14
+    pattern: '(?:^|&&|;|\|)\s*(?:shutdown|reboot|init\s+[06])\b'
+    reason: 'System shutdown/reboot command'
+    ask: true
+  - id: DC-15
+    pattern: '/dev/(tcp|udp)/'
+    reason: 'Reverse shell via /dev/tcp or /dev/udp'
+    ask: false
+  - id: DC-16
+    pattern: '\bnc\b.*\s-[a-zA-Z]*e'
+    reason: 'Netcat with -e flag (remote code execution)'
+    ask: false
+  - id: DC-17
+    pattern: 'base64\s+(-d|--decode).*\|\s*(bash|sh|zsh|dash)'
+    reason: 'Decoded payload piped to shell'
+    ask: false
+  - id: DC-18
+    pattern: '(wget|curl)\s.*(-o|-O)\s+\S+.*&&.*(bash|sh|chmod\s+\+x|\.\/)'
+    reason: 'Download-and-execute pattern'
+    ask: false
+  - id: DC-19
+    pattern: ';\s*(rm\s|del\s|format\s+[A-Z]:|mkfs|dd\s+.*of=)'
+    reason: 'Semicolon-chained destructive command'
+    ask: false
+  - id: DC-20
+    pattern: '\|\s*xargs\s+.*\brm\b'
+    reason: 'Piped deletion via xargs'
+    ask: true
+  - id: DC-21
+    pattern: '\bsudo\b'
+    reason: 'Privilege escalation via sudo'
+    ask: true
+  - id: DC-22
+    pattern: '^\s*(printenv|env)\s*$'
+    reason: 'Full environment variable dump'
+    ask: true
+  - id: DC-23
+    pattern: 'docker\s+run\s+.*(--privileged|--pid=host|/var/run/docker\.sock)'
+    reason: 'Docker container escape vector'
+    ask: true
+  - id: DC-24
+    pattern: '\bln\s+.*-[sf]*s.*(\.(env|ssh)|credentials|secrets|id_rsa|id_ed25519|\.gnupg)'
+    reason: 'Symlink to sensitive file or directory'
+    ask: false
+  - id: DC-25
+    pattern: '(\bnc\b.*\s-[a-zA-Z]*l|python[23]?\s.*http\.server)'
+    reason: 'Network listener (nc -l or python http.server)'
+    ask: true
+  - id: DC-27
+    pattern: '\bsource\s+<\(|(?:^|\s)\.\s+<\('
+    reason: 'Source from process substitution'
+    ask: false
+  - id: DC-28
+    pattern: '(curl|wget)\s.*(-d\s+@|--data-binary\s+@|--post-file)'
+    reason: 'HTTP POST with local file data'
+    ask: true
+  - id: DC-29
+    pattern: '\bdd\b.*\bof='
+    reason: 'dd write operation'
+    ask: true
+  - id: DC-30
+    pattern: 'git\s+config\s+.*credential'
+    reason: 'Git credential configuration manipulation'
     ask: true
 
 zero_access_paths:
-  - ".env"
-  - ".env.local"
-  - ".env.production"
-  - ".ssh/"
-  - "credentials.json"
-  - "id_rsa"
-  - "id_ed25519"
-  - ".gnupg/"
-  - ".aws/credentials"
-  - "secrets.yaml"
-  - "secrets.json"
+  - '.env'
+  - '.env.local'
+  - '.env.production'
+  - '.ssh/'
+  - 'credentials.json'
+  - 'id_rsa'
+  - 'id_ed25519'
+  - '.gnupg/'
+  - '.aws/credentials'
+  - 'secrets.yaml'
+  - 'secrets.json'
+  - '.env.staging'
+  - '.env.development'
+  - '.env.test'
+  - '.npmrc'
+  - '.pypirc'
+  - '.netrc'
+  - '.docker/config.json'
+  - '.kube/config'
+  - '.gcloud/'
+  - '.azure/'
+  - 'token.json'
+  - 'auth.json'
 
 read_only_paths:
-  - "node_modules/"
-  - "dist/"
-  - ".git/"
-  - "package-lock.json"
-  - "yarn.lock"
-  - "pnpm-lock.yaml"
-  - "bun.lockb"
+  - 'node_modules/'
+  - 'dist/'
+  - '.git/'
+  - 'package-lock.json'
+  - 'yarn.lock'
+  - 'pnpm-lock.yaml'
+  - 'bun.lockb'
 
 no_delete_paths:
-  - "permissions.yml"
-  - "mcp.config.json"
-  - "CLAUDE.md"
-  - "package.json"
-  - "tsconfig.json"
-  - "damage-control-rules.yaml"
-  - ".claude/settings.json"
+  - 'permissions.yml'
+  - 'mcp.config.json'
+  - 'CLAUDE.md'
+  - 'package.json'
+  - 'tsconfig.json'
+  - 'damage-control-rules.yaml'
+  - '.claude/settings.json'
+  - '.github/'
+  - '.gitignore'
+  - '.gitmodules'
+  - 'README.md'
+  - 'LICENSE'

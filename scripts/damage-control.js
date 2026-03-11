@@ -38,17 +38,55 @@ function extractPaths(toolName, toolInput) {
   if (toolInput.file_path) paths.push(normalizePath(toolInput.file_path));
   if (toolInput.path) paths.push(normalizePath(toolInput.path));
   if (toolName === 'Bash' && toolInput.command) {
-    // Extract paths from command — simple heuristic
+    // Extract paths from command using layered heuristics so path-based
+    // protections still work when users rely on shell redirection or
+    // bare filenames instead of fully quoted paths.
     const cmd = toolInput.command;
-    const pathMatches = cmd.match(/(?:["']([^"']+)["']|(\S+\.\w+))/g) || [];
-    pathMatches.forEach(m => {
+
+    const quotedMatches = cmd.match(/(?:["'][^"']+["'])/g) || [];
+    quotedMatches.forEach((m) => {
       const cleaned = m.replace(/^["']|["']$/g, '');
       if (cleaned.includes('/') || cleaned.includes('\\') || cleaned.includes('.')) {
         paths.push(normalizePath(cleaned));
       }
     });
+
+    const unquotedPathRe = /(?:^|\s)(\/\S+|~\/\S+|\$HOME\/\S+|\.\.\/\S+|\.\/\S+)/g;
+    let match;
+    while ((match = unquotedPathRe.exec(cmd)) !== null) {
+      paths.push(normalizePath(match[1]));
+    }
+
+    const redirectRe = /(?:>>?|<)\s*["']?([^"'\s|;&]+)["']?/g;
+    while ((match = redirectRe.exec(cmd)) !== null) {
+      const target = match[1];
+      if (target.includes('/') || target.includes('\\') || target.includes('.')) {
+        paths.push(normalizePath(target));
+      }
+    }
+
+    const bareFileRe = /(?:^|\s)(\S+\.\w+)(?=\s|$)/g;
+    while ((match = bareFileRe.exec(cmd)) !== null) {
+      const cleaned = match[1];
+      if (!cleaned.startsWith('-') && (cleaned.includes('/') || cleaned.includes('\\') || cleaned.includes('.'))) {
+        paths.push(normalizePath(cleaned));
+      }
+    }
+
+    const deleteArgRe = /\b(?:rm|del|unlink)\s+(?:-\S+\s+)*([^|;&<>"'\s]+)/g;
+    while ((match = deleteArgRe.exec(cmd)) !== null) {
+      const arg = match[1];
+      if (arg && !arg.startsWith('-')) {
+        paths.push(normalizePath(arg));
+      }
+    }
+
+    const dotfileRe = /(?:^|\s)(\.[a-zA-Z][\w.-]*\/?)/g;
+    while ((match = dotfileRe.exec(cmd)) !== null) {
+      paths.push(normalizePath(match[1]));
+    }
   }
-  return paths;
+  return [...new Set(paths)];
 }
 
 function checkPathList(filePaths, ruleList) {
