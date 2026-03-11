@@ -162,13 +162,19 @@ Run the standalone sidecar and forward response text to it with the included hoo
    {
      "hooks": {
        "Stop": [
-         { "command": "node /path/to/EVOKORE-MCP/scripts/voice-hook.js" }
+         {
+           "command": "node /path/to/EVOKORE-MCP/scripts/voice-hook.js",
+           "env": {
+             "VOICE_SIDECAR_PERSONA": "orchestrator"
+           }
+         }
        ]
      }
    }
    ```
 
-5. When Claude completes a response, the hook sends text to `ws://localhost:8888`.
+   Or set `VOICE_SIDECAR_PERSONA=orchestrator` in the shell that launches Claude Code if you want the bundled hook to use a non-default voice persona without editing the payload shape.
+5. When Claude completes a response, the hook sends text to `ws://127.0.0.1:8888`.
 6. The sidecar resolves the persona config from `voices.json`, synthesizes speech, and plays audio unless playback is disabled.
 
 ### Useful flags
@@ -176,12 +182,16 @@ Run the standalone sidecar and forward response text to it with the included hoo
 ```bash
 VOICE_SIDECAR_DISABLE_PLAYBACK=1
 VOICE_SIDECAR_ARTIFACT_DIR=artifacts/voice-sidecar
+VOICE_SIDECAR_PERSONA=orchestrator
+VOICE_SIDECAR_HOST=127.0.0.1
 ```
 
 Use them when:
 
 - validating sidecar behavior quietly
 - preserving `.mp3` artifacts for inspection
+- forcing the bundled hook to use a specific persona
+- overriding the sidecar host explicitly
 
 ## Walkthrough 5: Verify hook observability and replay data
 

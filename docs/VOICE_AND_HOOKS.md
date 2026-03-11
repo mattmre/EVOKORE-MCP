@@ -116,6 +116,7 @@ Behavior notes:
 - unknown personas fall back to `default`
 - `flush: true` can arrive with or without additional text
 - the sidecar resolves persona config per connection
+- the bundled `scripts/voice-hook.js` can forward persona via `VOICE_SIDECAR_PERSONA`, payload `persona`, or payload `metadata.persona`
 
 ## `voices.json` and persona hot-reload
 

@@ -199,18 +199,25 @@ The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses
    {
       "hooks": {
         "Stop": [
-          { "command": "node /path/to/EVOKORE-MCP/scripts/voice-hook.js" }
+          {
+            "command": "node /path/to/EVOKORE-MCP/scripts/voice-hook.js",
+            "env": {
+              "VOICE_SIDECAR_PERSONA": "orchestrator"
+            }
+          }
         ]
       }
    }
    ```
 
-The sidecar listens on `ws://localhost:8888` (override with `VOICE_SIDECAR_PORT` env var). This `ws://localhost:<VOICE_SIDECAR_PORT>` endpoint is the standalone sidecar protocol endpoint for any custom producer. When Claude Code finishes a response, the hook forwards the text to that endpoint, which streams it to ElevenLabs and plays the audio.
+The sidecar listens on `ws://127.0.0.1:8888` by default (override with `VOICE_SIDECAR_PORT`, and use `VOICE_SIDECAR_HOST` on the hook side only if you need a non-default host). This `ws://127.0.0.1:<VOICE_SIDECAR_PORT>` endpoint is the standalone sidecar protocol endpoint for any custom producer. When Claude Code finishes a response, the bundled hook forwards the text to that endpoint and can now forward a persona as well, either from `VOICE_SIDECAR_PERSONA` or from a `persona` field carried in the payload metadata.
 
 **Optional runtime controls:**
 
 - `VOICE_SIDECAR_DISABLE_PLAYBACK=1` - skip local audio playback while keeping synthesis/stream handling intact; the sidecar logs that playback is disabled.
 - `VOICE_SIDECAR_ARTIFACT_DIR=/absolute/path` - preserve a copy of the final playable `.mp3` in the specified directory and log the saved path.
+- `VOICE_SIDECAR_PERSONA=orchestrator` - force the bundled hook to send that persona with every utterance.
+- `VOICE_SIDECAR_HOST=127.0.0.1` - override the hook target host if you intentionally need something other than the loopback default.
 
 These toggles are opt-in only; if unset, the sidecar preserves the existing playback behavior.
 
@@ -238,6 +245,7 @@ Contract notes:
 - `flush: true` can be sent with or without additional `text` in the same frame.
 - `persona` may be sent on the first chunk, or repeated on each chunk for explicitness.
 - Unknown personas fall back to `default` voice settings.
+- The bundled `scripts/voice-hook.js` forwards `VOICE_SIDECAR_PERSONA` first, then falls back to any `persona` or `metadata.persona` field present in the hook payload.
 
 ### Persona Configuration
 

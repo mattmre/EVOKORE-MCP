@@ -40,6 +40,7 @@ If the server still won't connect, launch your AI assistant in debug mode to see
 - Verify your `ELEVENLABS_API_KEY` is set
 - If you intentionally want silent validation or artifact-only runs, set `VOICE_SIDECAR_DISABLE_PLAYBACK=1`
 - To preserve generated audio for inspection, set `VOICE_SIDECAR_ARTIFACT_DIR=/absolute/path` and check the logged saved path
+- If you expected a non-default persona, set `VOICE_SIDECAR_PERSONA=<persona>` on the hook or include `persona` / `metadata.persona` in the hook payload
 - Validate hook and payload behavior with:
   - `node test-voice-e2e-validation.js`
   - `node test-voice-refinement-validation.js`
