@@ -130,6 +130,7 @@ Owns:
 
 - scanning and indexing `SKILLS/`
 - YAML frontmatter parsing
+- imported skill metadata parsing (`category`, nested `metadata`, tags, aliases)
 - fuzzy search over skill metadata/content
 - native tool definitions
 - workflow/skill retrieval responses

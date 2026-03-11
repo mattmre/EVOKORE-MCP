@@ -1,6 +1,6 @@
 # EVOKORE-MCP Skills Overview
 
-EVOKORE-MCP exposes over 200+ specialized Agent Skills and coding workflows. Below is a high-level overview of the major categories available in this library.
+EVOKORE-MCP currently indexes over 300 specialized Agent Skills and coding workflows. The library now includes imported Agent33/HIVE/WSHOBSON material plus EVOKORE-native workflows, all exposed through the same search and workflow-resolution surface.
 
 ## General Coding Workflows
 *Your Custom Scripts and Architectures*
@@ -12,7 +12,20 @@ EVOKORE-MCP exposes over 200+ specialized Agent Skills and coding workflows. Bel
 - **`repo-ingestor`**: Uses multi-agent swarms to ingest external repositories and benchmarks.
 - **`planning-with-files`**: The "Manus" workflow for progressive, multi-stage task orchestration.
 
-## The Wshobson Plugin Library (146+ Skills)
+## Orchestration Framework
+*Imported Agent33 orchestration commands, governance, and workflow specs*
+- **`handoff-protocol`** / **`policy-pack-v1`**: Agent-to-agent coordination and policy controls.
+- **`orch-*` command skills**: Direct orchestration entry points like `orch-plan`, `orch-tdd`, `orch-review`, and `orch-deploy`.
+- **`workflow-templates` / `agent-archetypes` / `tool-governance`**: Durable orchestration specs and operational templates.
+
+## The Hive Framework
+*Goal-driven agent design, testing, and debugging*
+- **`hive`**: Meta-router for the Hive skill family.
+- **`hive-create`** / **`hive-test`**: Agent creation and iterative testing workflows.
+- **`hive-concepts` / `hive-patterns` / `hive-debugger`**: Architecture, optimization, and runtime debugging guidance.
+- **`hive-credentials`**: Credential detection and setup support for Hive agents.
+
+## The WSHOBSON Plugin Library (146+ Skills)
 *Extremely detailed architectural patterns and testing strategies.*
 - **Backend Development**: Microservices, CQRS, Saga Orchestration, API Design.
 - **Frontend & Mobile**: React State Management, React Native Architecture, Tailwind Systems.
@@ -30,12 +43,8 @@ EVOKORE-MCP exposes over 200+ specialized Agent Skills and coding workflows. Bel
 - **`file-organizer` / `invoice-organizer`**: Standardized sorting algorithms for filesystem data.
 - **`competitive-ads-extractor`**: Research extraction workflows.
 
-## The Hive Framework
-*Abstract troubleshooting and design*
-- **`hive-concepts` / `hive-debugger`**: Framework-level reasoning and state-machine analysis.
-
 ---
 ### Finding a Skill
 If you need a specific skill, ask your AI assistant to use the `search_skills` tool:
 *"Do you have a skill for PostgreSQL database design?"*
-The AI will execute the search tool, find `database-design/postgresql`, read it into context, and apply the workflow to your database requests.
+The AI will execute the search tool, find the best-matching skill, read it into context, and apply the workflow to your request.
