@@ -174,12 +174,19 @@ export class ProxyManager {
             const modifiedTool = JSON.parse(JSON.stringify(tool));
             modifiedTool.name = prefixedName;
             
-            if (modifiedTool.inputSchema && modifiedTool.inputSchema.properties) {
-              modifiedTool.inputSchema.properties._evokore_approval_token = {
-                type: "string",
-                description: "If this tool requires approval, the server will return an error with a token. Ask the user for permission, and if granted, retry the tool call with this token."
-              };
+            if (!modifiedTool.inputSchema || typeof modifiedTool.inputSchema !== "object") {
+              modifiedTool.inputSchema = { type: "object" };
             }
+            if (!modifiedTool.inputSchema.type) {
+              modifiedTool.inputSchema.type = "object";
+            }
+            if (!modifiedTool.inputSchema.properties || typeof modifiedTool.inputSchema.properties !== "object") {
+              modifiedTool.inputSchema.properties = {};
+            }
+            modifiedTool.inputSchema.properties._evokore_approval_token = {
+              type: "string",
+              description: "If this tool requires approval, the server will return an error with a token. Ask the user for permission, and if granted, retry the tool call with this token."
+            };
             
             this.cachedTools.push(modifiedTool);
             registeredCount++;

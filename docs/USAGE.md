@@ -89,6 +89,7 @@ For tools configured as `require_approval`, EVOKORE returns a security-intercept
 - Tokens are **one-time use**. A replayed token is rejected.
 - Tokens are bound to the **exact same tool arguments**. If any argument changes, the token is rejected.
 - Tokens are **short-lived** (current implementation target: about 5 minutes). If you wait too long, expect expiry and request a fresh token.
+- Proxied tools advertise `_evokore_approval_token` as an optional schema field even when the upstream tool declares no input properties.
 - Retry workflow: ask for explicit approval -> rerun the same tool call -> include `_evokore_approval_token` exactly as returned.
 
 ## 3. Adopting a Workflow
