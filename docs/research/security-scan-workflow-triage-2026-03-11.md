@@ -21,6 +21,8 @@ The repository was using an older `aquasecurity/trivy-action@0.28.0` path that i
 - Mounted the workspace and `~/.cache/trivy` into the container for deterministic execution and cache reuse.
 - Upgraded SARIF upload to `github/codeql-action/upload-sarif@v4`.
 - Added `test-security-scan-workflow-validation.js` and wired it into `npm test`.
+- After the workflow fix exposed real dependency findings, updated `@modelcontextprotocol/sdk` from `^1.26.0` to `^1.27.1`.
+- Added package `overrides` so the lockfile resolves patched `hono`, `@hono/node-server`, and `express-rate-limit` versions deterministically in CI.
 
 ## Expected Outcome
 
