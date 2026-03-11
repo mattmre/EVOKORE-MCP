@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
-const { writeSessionState, SESSIONS_DIR } = require('./session-continuity');
+const { writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
 
 const RESET = '\x1b[0m';
 const C = {
@@ -113,6 +113,9 @@ if (process.argv.length > 2) {
     tasks.push({ text, done: false, added: new Date().toISOString() });
     saveTasks(sessionId, tasks);
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastTaskAction: 'add',
       lastActivityAt: new Date().toISOString()
@@ -131,6 +134,9 @@ if (process.argv.length > 2) {
     tasks[num - 1].done = !tasks[num - 1].done;
     saveTasks(sessionId, tasks);
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastTaskAction: 'toggle',
       lastActivityAt: new Date().toISOString()
@@ -148,6 +154,9 @@ if (process.argv.length > 2) {
     tasks[num - 1].done = true;
     saveTasks(sessionId, tasks);
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastTaskAction: 'done',
       lastActivityAt: new Date().toISOString()
@@ -157,6 +166,9 @@ if (process.argv.length > 2) {
   } else if (hasFlag('--list')) {
     const tasks = loadTasks(sessionId);
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastTaskAction: 'list',
       lastActivityAt: new Date().toISOString()
@@ -166,6 +178,9 @@ if (process.argv.length > 2) {
   } else if (hasFlag('--clear')) {
     saveTasks(sessionId, []);
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastTaskAction: 'clear',
       lastActivityAt: new Date().toISOString()
@@ -194,6 +209,9 @@ process.stdin.on('end', () => {
 
     if (incomplete.length > 0) {
       writeSessionState(sessionId, {
+        workspaceRoot: process.cwd(),
+        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+        repoName: path.basename(process.cwd()),
         status: 'active',
         lastStopCheckAt: new Date().toISOString(),
         lastStopCheckResult: 'blocked',
@@ -214,6 +232,9 @@ process.stdin.on('end', () => {
     }
 
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastStopCheckAt: new Date().toISOString(),
       lastStopCheckResult: 'clear',

@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { pruneOldSessions } = require('./log-rotation');
-const { writeSessionState, SESSIONS_DIR } = require('./session-continuity');
+const { writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
 
 function summarize(toolName, toolInput) {
   if (!toolInput) return '';
@@ -55,6 +55,9 @@ process.stdin.on('end', () => {
     const logPath = path.join(SESSIONS_DIR, `${sessionId}-replay.jsonl`);
     fs.appendFileSync(logPath, JSON.stringify(entry) + '\n');
     writeSessionState(sessionId, {
+      workspaceRoot: process.cwd(),
+      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
+      repoName: path.basename(process.cwd()),
       status: 'active',
       lastToolName: toolName,
       lastReplayAt: entry.ts,
