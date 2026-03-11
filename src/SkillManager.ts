@@ -7,10 +7,18 @@ import { ProxyManager } from "./ProxyManager";
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
 
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", "__pycache__", "__tests__",
+  ".claude", "themes", "assets", "scripts"
+]);
+
+const MAX_DEPTH = 5;
+
 export interface SkillMetadata {
   name: string;
   description: string;
   category: string;
+  subcategory: string;
   filePath: string;
   content: string;
 }
@@ -34,91 +42,12 @@ export class SkillManager {
     this.proxyManager = proxyManager;
   }
 
-  async loadSkills() {
-    this.skillsCache.clear();
-    const loadStart = Date.now();
-    try {
-      const scanStart = Date.now();
-      const categories = await fs.readdir(SKILLS_DIR).catch(() => []);
-
-      for (const category of categories) {
-        const categoryPath = path.join(SKILLS_DIR, category);
-        const stat = await fs.stat(categoryPath).catch(() => null);
-
-        if (!stat || !stat.isDirectory()) continue;
-
-        const skills = await fs.readdir(categoryPath).catch(() => []);
-        for (const skillDir of skills) {
-          const itemPath = path.join(categoryPath, skillDir);
-          let skillPath = path.join(itemPath, "SKILL.md");
-          let fallbackName = skillDir;
-
-          const itemStat = await fs.stat(itemPath).catch(() => null);
-          if (!itemStat) continue;
-
-          if (!itemStat.isDirectory()) {
-              if (skillDir.endsWith(".md")) {
-                  skillPath = itemPath;
-                  fallbackName = skillDir.replace(".md", "");
-              } else {
-                  continue;
-              }
-          }
-
-          try {
-            const content = await fs.readFile(skillPath, "utf-8");
-            const metadata = this.parseSkillMarkdown(content, category, skillPath, fallbackName);
-            if (metadata) {
-              this.skillsCache.set(metadata.name.toLowerCase(), metadata);
-            }
-          } catch (error) {
-            // File might not exist
-          }
-        }
-      }
-      const dirScanMs = Date.now() - scanStart;
-
-      const fuseStart = Date.now();
-      this.fuseIndex = new Fuse(Array.from(this.skillsCache.values()), {
-        keys: ["name", "description", "category", "content"],
-        threshold: 0.4,
-        ignoreLocation: true
-      });
-      const fuseMs = Date.now() - fuseStart;
-
-      this._loadTimeMs = Date.now() - loadStart;
-      console.error(`[EVOKORE] Skill indexing: ${dirScanMs}ms scan, ${fuseMs}ms index, ${this.skillsCache.size} skills`);
-    } catch (e) {
-      this._loadTimeMs = Date.now() - loadStart;
-      console.error("[EVOKORE] Error loading skills directory:", e);
-    }
-  }
-
-  private parseSkillMarkdown(content: string, category: string, filePath: string, fallbackName: string): SkillMetadata | null {
-    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
-    if (!match) return null;
-
-    try {
-      const frontmatter = yaml.parse(match[1]);
-      return {
-        name: frontmatter.name || fallbackName,
-        description: frontmatter.description || "No description provided.",
-        category,
-        filePath,
-        content: match[2].trim()
-      };
-    } catch (e) {
-      return null;
-    }
-  }
-
   getStats(): SkillIndexStats {
     const categories = new Set<string>();
     for (const skill of this.skillsCache.values()) {
       categories.add(skill.category);
     }
 
-    // Approximate Fuse index size by serializing to JSON
     let fuseIndexSizeKb = 0;
     try {
       if (this.fuseIndex) {
@@ -136,6 +65,114 @@ export class SkillManager {
       fuseIndexSizeKb,
       lastSearchMs: this._lastSearchMs
     };
+  }
+
+  async loadSkills() {
+    this.skillsCache.clear();
+    const loadStart = Date.now();
+    try {
+      const scanStart = Date.now();
+      const categories = await fs.readdir(SKILLS_DIR).catch(() => []);
+
+      for (const category of categories) {
+        const categoryPath = path.join(SKILLS_DIR, category);
+        const stat = await fs.stat(categoryPath).catch(() => null);
+
+        if (!stat || !stat.isDirectory()) continue;
+
+        await this.walkDirectory(categoryPath, category, "", 0);
+      }
+      const dirScanMs = Date.now() - scanStart;
+
+      const fuseStart = Date.now();
+      this.fuseIndex = new Fuse(Array.from(this.skillsCache.values()), {
+        keys: [
+          { name: "name", weight: 0.3 },
+          { name: "description", weight: 0.3 },
+          { name: "category", weight: 0.05 },
+          { name: "subcategory", weight: 0.05 },
+          { name: "content", weight: 0.3 }
+        ],
+        threshold: 0.4,
+        ignoreLocation: true
+      });
+      const fuseMs = Date.now() - fuseStart;
+
+      this._loadTimeMs = Date.now() - loadStart;
+      console.error(`[EVOKORE] Skill indexing: ${dirScanMs}ms scan, ${fuseMs}ms index, ${this.skillsCache.size} skills`);
+    } catch (e) {
+      this._loadTimeMs = Date.now() - loadStart;
+      console.error("[EVOKORE] Error loading skills directory:", e);
+    }
+  }
+
+  private async walkDirectory(dirPath: string, category: string, subcategoryPath: string, depth: number) {
+    if (depth > MAX_DEPTH) return;
+
+    const entries = await fs.readdir(dirPath).catch(() => []);
+
+    for (const entry of entries) {
+      const entryPath = path.join(dirPath, entry);
+      const entryStat = await fs.stat(entryPath).catch(() => null);
+      if (!entryStat) continue;
+
+      if (!entryStat.isDirectory()) {
+        // Handle loose .md files at this level
+        if (entry.endsWith(".md") && entry !== "SKILL.md") {
+          try {
+            const content = await fs.readFile(entryPath, "utf-8");
+            const fallbackName = entry.replace(".md", "");
+            const metadata = this.parseSkillMarkdown(content, category, entryPath, fallbackName, subcategoryPath);
+            if (metadata) {
+              const cacheKey = (category + "/" + metadata.name).toLowerCase();
+              this.skillsCache.set(cacheKey, metadata);
+            }
+          } catch {
+            // skip unreadable files
+          }
+        }
+        continue;
+      }
+
+      // Skip excluded directories
+      if (SKIP_DIRS.has(entry)) continue;
+
+      // Check for SKILL.md in this directory
+      const skillMdPath = path.join(entryPath, "SKILL.md");
+      try {
+        const content = await fs.readFile(skillMdPath, "utf-8");
+        const metadata = this.parseSkillMarkdown(content, category, skillMdPath, entry, subcategoryPath);
+        if (metadata) {
+          const cacheKey = (category + "/" + metadata.name).toLowerCase();
+          this.skillsCache.set(cacheKey, metadata);
+        }
+      } catch {
+        // No SKILL.md here - still recurse
+      }
+
+      // Build subcategory path for deeper levels
+      const nextSubcategory = subcategoryPath ? subcategoryPath + "/" + entry : entry;
+      await this.walkDirectory(entryPath, category, nextSubcategory, depth + 1);
+    }
+  }
+
+  private parseSkillMarkdown(content: string, category: string, filePath: string, fallbackName: string, subcategory: string = ""): SkillMetadata | null {
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+    if (!match) return null;
+
+    try {
+      const frontmatter = yaml.parse(match[1]);
+      return {
+        name: frontmatter.name || fallbackName,
+        description: frontmatter.description || "No description provided.",
+        category,
+        subcategory,
+        filePath,
+        content: match[2].trim()
+      };
+    } catch (e) {
+      return null;
+    }
   }
 
   getTools(): Tool[] {
@@ -217,7 +254,6 @@ export class SkillManager {
         const targetDir = args.target_dir as string;
         let projectContext = "";
         try {
-            // Actively harness the proxied child server to fetch data first
             const pkgPath = path.join(targetDir, "package.json");
             const result = await this.proxyManager.callProxiedTool("fs_read_file", { path: pkgPath });
             projectContext = (result as any).content[0].text;
@@ -228,11 +264,7 @@ export class SkillManager {
         return {
             content: [{
                 type: "text",
-                text: `You are the Documentation Architect. I have harnessed the filesystem tool to read the project context.
-Project context (package.json):
-${projectContext}
-
-Please use this to generate a Gold Standard README.md and /docs directory for ${targetDir}.`
+                text: "You are the Documentation Architect. I have harnessed the filesystem tool to read the project context.\nProject context (package.json):\n" + projectContext + "\n\nPlease use this to generate a Gold Standard README.md and /docs directory for " + targetDir + "."
             }]
         };
     }
@@ -244,35 +276,19 @@ Please use this to generate a Gold Standard README.md and /docs directory for ${
 
         const skillPath = path.join(targetDir, skillName);
         const skillMdPath = path.join(skillPath, "SKILL.md");
-
-        const skillTemplate = `---
-name: ${skillName}
-description: ${description}
----
-
-# ${skillName}
-
-This skill provides guidance for ${description}.
-
-## Usage
-
-(Add instructions here)
-`;
-
+        const skillTemplate = "---\nname: " + skillName + "\ndescription: " + description + "\n---\n\n# " + skillName + "\n\nThis skill provides guidance for " + description + ".\n\n## Usage\n\n(Add instructions here)\n";
         try {
-            // Actively harness the proxied child server to write files
-            // For directories, we might not have a proxy tool, so we rely on write_file creating parents or just instruct the AI
             await this.proxyManager.callProxiedTool("fs_write_file", { path: skillMdPath, content: skillTemplate });
 
             return {
                 content: [{
                     type: "text",
-                    text: `Successfully actively harnessed child servers to initialize skill scaffolding at ${skillMdPath}. Please review and update it further.`
+                    text: "Successfully actively harnessed child servers to initialize skill scaffolding at " + skillMdPath + ". Please review and update it further."
                 }]
             };
         } catch (error: any) {
             return {
-                content: [{ type: "text", text: `Failed to harness child server to create skill: ${error.message}` }],
+                content: [{ type: "text", text: "Failed to harness child server to create skill: " + error.message }],
                 isError: true
             };
         }
@@ -285,14 +301,15 @@ This skill provides guidance for ${description}.
         const results = this.fuseIndex!.search(objective, { limit: 3 });
 
         if (results.length === 0) {
-            return { content: [{ type: "text", text: `No specific workflows found for '${objective}'. Proceed using your general knowledge.` }] };
+            return { content: [{ type: "text", text: "No specific workflows found for '" + objective + "'. Proceed using your general knowledge." }] };
         }
 
         const injectedWorkflows = results.map(r => {
-            return `--- WORKFLOW: ${r.item.name} [${r.item.category}] ---\nDescription: ${r.item.description}\n\n<activated_skill name="${r.item.name}">\n${r.item.content}\n</activated_skill>\n`;
+            const subcatLabel = r.item.subcategory ? " > " + r.item.subcategory : "";
+            return "--- WORKFLOW: " + r.item.name + " [" + r.item.category + subcatLabel + "] ---\nDescription: " + r.item.description + "\n\n<activated_skill name=\"" + r.item.name + "\">\n" + r.item.content + "\n</activated_skill>\n";
         }).join("\n\n");
 
-        return { content: [{ type: "text", text: `EVOKORE-MCP injected highly relevant workflows. Please adopt these instructions:\n\n${injectedWorkflows}` }] };
+        return { content: [{ type: "text", text: "EVOKORE-MCP injected highly relevant workflows. Please adopt these instructions:\n\n" + injectedWorkflows }] };
     }
 
     if (name === "search_skills") {
@@ -302,7 +319,7 @@ This skill provides guidance for ${description}.
         const results = this.fuseIndex!.search(query, { limit: 15 }).map(r => r.item);
         this._lastSearchMs = Date.now() - searchStart;
 
-        if (this._lastSearchMs > 50) {
+        if (this._lastSearchMs > 250) {
           console.error(`[EVOKORE] Slow skill search: "${query}" took ${this._lastSearchMs}ms`);
         }
 
@@ -310,7 +327,10 @@ This skill provides guidance for ${description}.
           content: [{
             type: "text",
             text: results.length > 0
-                ? results.map(r => `- **${r.name}** [${r.category}]: ${r.description}`).join("\n")
+                ? results.map(r => {
+                    const subcatLabel = r.subcategory ? " > " + r.subcategory : "";
+                    return "- **" + r.name + "** [" + r.category + subcatLabel + "]: " + r.description;
+                  }).join("\n")
                 : "No skills found matching that query."
           }]
         };
@@ -320,30 +340,45 @@ This skill provides guidance for ${description}.
         if (!this.fuseIndex) await this.loadSkills();
         const skillName = (args.skill_name as string || "").toLowerCase();
 
+        // Try composite key first, then scan cache values for bare name match
         let skill = this.skillsCache.get(skillName);
+        if (!skill) {
+            for (const s of this.skillsCache.values()) {
+                if (s.name.toLowerCase() === skillName) {
+                    skill = s;
+                    break;
+                }
+            }
+        }
         if (!skill && this.fuseIndex) {
             const matches = this.fuseIndex.search(skillName, { limit: 1 });
             if (matches.length > 0) skill = matches[0].item;
         }
 
         if (!skill) {
-           return { content: [{ type: "text", text: `Could not find a skill named '${skillName}'.` }] };
+           return { content: [{ type: "text", text: "Could not find a skill named '" + skillName + "'." }] };
         }
 
-        const helpText = `### Skill Overview: ${skill.name}\n**Category:** ${skill.category}\n**Description:** ${skill.description}\n\n---\n\n### Internal Instructions:\n${skill.content}`;
+        const subcatLine = skill.subcategory ? "\n**Subcategory:** " + skill.subcategory : "";
+        const helpText = "### Skill Overview: " + skill.name + "\n**Category:** " + skill.category + subcatLine + "\n**Description:** " + skill.description + "\n\n---\n\n### Internal Instructions:\n" + skill.content;
         return { content: [{ type: "text", text: helpText }] };
     }
 
-    throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+    throw new McpError(ErrorCode.MethodNotFound, "Unknown tool: " + name);
   }
 
   getResources(): Resource[] {
-      return Array.from(this.skillsCache.values()).map(skill => ({
-        uri: `skill://${skill.category.replace(/[^a-zA-Z0-9-]/g, '-')}/${skill.name.replace(/[^a-zA-Z0-9-]/g, '-')}`,
-        name: `Skill: ${skill.name}`,
-        mimeType: "text/markdown",
-        description: skill.description
-      }));
+      return Array.from(this.skillsCache.values()).map(skill => {
+        const subcatSegment = skill.subcategory
+          ? "/" + skill.subcategory.replace(/[^a-zA-Z0-9-/]/g, '-')
+          : "";
+        return {
+          uri: "skill://" + skill.category.replace(/[^a-zA-Z0-9-]/g, '-') + subcatSegment + "/" + skill.name.replace(/[^a-zA-Z0-9-]/g, '-'),
+          name: "Skill: " + skill.name,
+          mimeType: "text/markdown",
+          description: skill.description
+        };
+      });
   }
 
   readResource(uriStr: string) {
@@ -352,7 +387,7 @@ This skill provides guidance for ${description}.
 
       const skill = Array.from(this.skillsCache.values()).find(s => s.name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase() === skillName || s.name.toLowerCase() === skillName);
 
-      if (!skill) throw new McpError(ErrorCode.InvalidParams, `Skill not found: ${skillName}`);
+      if (!skill) throw new McpError(ErrorCode.InvalidParams, "Skill not found: " + skillName);
 
       return {
         contents: [{
