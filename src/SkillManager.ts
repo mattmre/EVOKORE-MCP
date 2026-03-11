@@ -71,6 +71,7 @@ export class SkillManager {
     this.skillsCache.clear();
     const loadStart = Date.now();
     try {
+      const scanStart = Date.now();
       const categories = await fs.readdir(SKILLS_DIR).catch(() => []);
 
       for (const category of categories) {
@@ -81,7 +82,9 @@ export class SkillManager {
 
         await this.walkDirectory(categoryPath, category, "", 0);
       }
+      const dirScanMs = Date.now() - scanStart;
 
+      const fuseStart = Date.now();
       this.fuseIndex = new Fuse(Array.from(this.skillsCache.values()), {
         keys: [
           { name: "name", weight: 0.3 },
@@ -93,9 +96,10 @@ export class SkillManager {
         threshold: 0.4,
         ignoreLocation: true
       });
+      const fuseMs = Date.now() - fuseStart;
 
       this._loadTimeMs = Date.now() - loadStart;
-      console.error("[EVOKORE] Indexed " + this.skillsCache.size + " skills (recursive, max depth " + MAX_DEPTH + ") in " + this._loadTimeMs + "ms.");
+      console.error(`[EVOKORE] Skill indexing: ${dirScanMs}ms scan, ${fuseMs}ms index, ${this.skillsCache.size} skills`);
     } catch (e) {
       this._loadTimeMs = Date.now() - loadStart;
       console.error("[EVOKORE] Error loading skills directory:", e);
@@ -272,9 +276,7 @@ export class SkillManager {
 
         const skillPath = path.join(targetDir, skillName);
         const skillMdPath = path.join(skillPath, "SKILL.md");
-
         const skillTemplate = "---\nname: " + skillName + "\ndescription: " + description + "\n---\n\n# " + skillName + "\n\nThis skill provides guidance for " + description + ".\n\n## Usage\n\n(Add instructions here)\n";
-
         try {
             await this.proxyManager.callProxiedTool("fs_write_file", { path: skillMdPath, content: skillTemplate });
 
@@ -313,7 +315,13 @@ export class SkillManager {
     if (name === "search_skills") {
         if (!this.fuseIndex) await this.loadSkills();
         const query = (args.query as string || "").toLowerCase();
+        const searchStart = Date.now();
         const results = this.fuseIndex!.search(query, { limit: 15 }).map(r => r.item);
+        this._lastSearchMs = Date.now() - searchStart;
+
+        if (this._lastSearchMs > 250) {
+          console.error(`[EVOKORE] Slow skill search: "${query}" took ${this._lastSearchMs}ms`);
+        }
 
         return {
           content: [{
