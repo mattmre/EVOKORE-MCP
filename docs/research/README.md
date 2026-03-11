@@ -20,6 +20,7 @@ This directory tracks active research, implementation notes, and continuity arti
 - `remaining-items-research.md`: targeted follow-up research gaps.
 - `ORCHESTRATION_RELEASE_CLOSURE_2026-02-25.md`: durable closure artifact for the earlier release/handoff slice.
 - `open-pr-audit-2026-03-04*.md`: queue, publication, and landing-state audit artifacts.
+- `mcp-repos-research-plan.md`: competitive MCP repository research plan and selection criteria.
 
 ## How this directory is organized
 

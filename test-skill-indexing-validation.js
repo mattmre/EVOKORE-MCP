@@ -79,9 +79,9 @@ async function run() {
       'Expected >=100 indexed skills with recursive traversal, got ' + indexedCount);
   });
 
-  test('performance gate: loadSkills completes in <60000ms', () => {
-    assert.ok(loadTimeMs < 60000,
-      'Expected loadSkills to complete in <60s, took ' + loadTimeMs + 'ms');
+  test('performance gate: loadSkills completes in <10000ms', () => {
+    assert.ok(loadTimeMs < 10000,
+      'Expected loadSkills to complete in <10s, took ' + loadTimeMs + 'ms');
   });
 
   // ----------------------------------------------------------------

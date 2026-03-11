@@ -24,6 +24,24 @@ function run() {
   assert.match(sidecarSource, /filters\.push\("atempo=2\.0"\)/);
   assert.match(sidecarSource, /postProcessSpeed\(tmpFile, processedFile, this\.voice\.postProcessTempo\)/);
 
+  // Hardening: verifyClient loopback check must exist.
+  assert.match(sidecarSource, /verifyClient/, 'verifyClient callback must be present');
+  assert.match(sidecarSource, /LOOPBACK_ADDRESSES/, 'loopback address check must be present');
+
+  // Hardening: maxPayload must be configured.
+  assert.match(sidecarSource, /maxPayload/, 'maxPayload must be configured on WebSocketServer');
+
+  // Hardening: heartbeat ping/pong must exist.
+  assert.match(sidecarSource, /client\.ping\(\)/, 'heartbeat ping must be present');
+  assert.match(sidecarSource, /client\.on\("pong"/, 'pong handler must be present');
+
+  // Hardening: host binding to 127.0.0.1.
+  assert.match(sidecarSource, /host:\s*"127\.0\.0\.1"/, 'server must bind to 127.0.0.1');
+
+  // Hardening: connection limit with close code 1013.
+  assert.match(sidecarSource, /MAX_CONNECTIONS/, 'MAX_CONNECTIONS must be defined');
+  assert.match(sidecarSource, /close\(1013/, 'connection limit must use close code 1013');
+
   // Voice config shape/range checks.
   assert.ok(voices.default, 'voices.json must include a default profile');
   assert.ok(voices.personas && typeof voices.personas === 'object', 'voices.json must include personas');

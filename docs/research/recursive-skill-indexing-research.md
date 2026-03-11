@@ -29,9 +29,9 @@ SkillManager's `loadSkills()` only traversed 2 directory levels under `SKILLS/`,
 | ANTHROPIC COOKBOOK | 4 |
 
 ### Performance Observations
-- Sequential I/O traversal on Windows with git submodules: ~37-39 seconds for 339 skills
-- This is acceptable for startup (one-time cost) but could be optimized with parallel readdir/stat calls in a future iteration
-- Fuse.js index building is fast (<100ms) -- the bottleneck is filesystem I/O
+- Current measured load time on the refreshed 2026-03-11 branch state: ~465ms for 336 indexed skills on local Windows checkout
+- The earlier 37-39 second observation was not reproducible on the current repo state and should not be treated as the operating expectation for this implementation
+- Fuse.js index building remains fast; the dominant work is still filesystem traversal, but the current recursive walker is comfortably below startup-risk thresholds in practice
 
 ### Design Decisions
 
@@ -47,7 +47,7 @@ SkillManager's `loadSkills()` only traversed 2 directory levels under `SKILLS/`,
 
 6. **Bare name fallback in get_skill_help:** When a user passes just a skill name (not a composite key), the handler scans all cache values for a matching name before falling back to fuzzy search.
 
-7. **Performance gate relaxation:** The test performance gate was set to 60s to accommodate Windows + git submodule overhead. A future optimization could parallelize I/O or add caching.
+7. **Performance gate:** The validation gate is set to 10s, which leaves wide safety margin over the current ~465ms measurement while still catching real regressions.
 
 ## Files Changed
 - `src/SkillManager.ts` -- recursive walker, subcategory, composite keys, weighted search
@@ -55,6 +55,6 @@ SkillManager's `loadSkills()` only traversed 2 directory levels under `SKILLS/`,
 - `test-skill-indexing-validation.js` -- updated tests for recursive behavior
 
 ## Future Optimization Opportunities
-- Parallel `Promise.all` for readdir/stat calls within each directory
+- Parallel `Promise.all` for readdir/stat calls within each directory if startup time regresses materially
 - Persistent disk cache (JSON) to skip re-scanning on startup when SKILLS/ hasn't changed
 - Configurable depth limit via environment variable
