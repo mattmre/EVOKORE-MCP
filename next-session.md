@@ -1,46 +1,55 @@
 # Next Session Priorities
 
-Last Updated (UTC): 2026-03-10
+Last Updated (UTC): 2026-03-12
 
 ## Current Handoff State
-- **Main branch:** `3f23365` — Agent33 migration complete, session logs updated
-- **Open PRs:**
-  - #81 — fix: resolve env drift, encoding corruption, and missing env vars (`fix/env-drift-audit-20260310`)
-  - #82 — docs: archive Q1 orchestration logs and evidence narratives (`docs/tracker-archival-20260310`)
-  - #83 — test: add post-merge skill indexing validation (`test/skill-indexing-validation-20260310`)
-  - #84 — fix: add shared log rotation and session pruning for all hooks (`fix/hook-log-rotation-20260310`)
-  - #85 — test: add cross-CLI sync e2e validation and troubleshooting docs (`test/cross-cli-sync-validation-20260310`)
-- **Session logs:** `docs/session-logs/session-2026-03-10-stabilization-recovery.md`, `docs/session-logs/session-2026-03-10-stabilization-campaign.md`
+- **Main branch:** `a606d98` — roadmap chain complete through `T27`, including merged PRs `#104` and `#105`
+- **Open PRs:** `#106` (`docs: refresh canonical release documentation`) plus the pending session-wrap publication branch from this handoff
+- **Current handoff branch:** `handoff/post-pr105-session` tracking `origin/main`
+- **Active worktrees:** root handoff worktree only
+- **Root control plane:** `task_plan.md`, `findings.md`, `progress.md`
+- **Session logs:** `docs/session-logs/session-2026-03-10-stabilization-recovery.md`, `docs/session-logs/session-2026-03-11-roadmap-t10-t17-wrap.md`, `docs/session-logs/session-2026-03-11-t18-session-continuity.md`, `docs/session-logs/session-2026-03-11-t19-auto-memory.md`, `docs/session-logs/session-2026-03-11-t20-voice-followthrough.md`, `docs/session-logs/session-2026-03-11-t21-status-line.md`, `docs/session-logs/session-2026-03-11-t22-roadmap-closeout.md`, `docs/session-logs/session-2026-03-11-t23-repo-hygiene.md`, `docs/session-logs/session-2026-03-11-t24-t27-branch-followthrough.md`, `docs/session-logs/session-2026-03-12-pr104-pr105-cleanup.md`
 
 ## Completed This Session
-- Recovered from crashed stabilization campaign session
-- Archived 370+ lines of historical orchestration logs to docs/archive/
-- Added shared log rotation module for all 5 hook scripts
-- Added 24-assertion skill indexing validation (documents 2-level depth limit)
-- Added 7 cross-CLI sync e2e tests + troubleshooting docs
-- Fixed tracker consistency validator for archival
+- Reviewed, merged, and verified PR `#104` (`feat: reconcile damage-control expansion on current main`) as `0e1eabb`
+- Refreshed PR `#105` onto the new `main`, resolved the `package.json` merge conflict, reran local validation, and merged it as `a606d98`
+- Ran `npm run repo:audit` from merged `main` before and after cleanup
+- Removed disposable PR verification worktrees and pruned explicitly-accounted local branches
+- Deleted explicitly-accounted merged remote branches after ancestor verification and `git fetch --prune origin`
+- Moved the root handoff worktree off stale `feature/damage-control-expansion` onto `handoff/post-pr105-session`
+- Refreshed the canonical documentation suite to the current `2.0.2` runtime level and opened PR `#106`
+- Verified there is no separate outstanding uncommitted source-code slice to publish; the remaining local drift is control-plane/session-wrap only
 
 ## Next Actions
 
-### Priority 1: Review and Merge Stabilization PRs
-- Review/merge PRs #81-#85 (all independent, no ordering dependency)
-- Run `npm test` on main after each merge to confirm no regressions
+### Priority 1: Review And Merge The Documentation Refresh
+- Review PR `#106` (`docs: refresh canonical release documentation`)
+- After merge, rerun the documentation guardrail set on fresh `main` if any follow-up edits are requested
 
-### Priority 2: Skill Indexing Decision
-- PR #83 documents that only ~47 skills are indexed (2-level depth limit)
-- **Decision needed:** Make `loadSkills()` recursive to index all ~290 files, or accept current behavior
-- If recursive: implement with category-scoped search for performance
-- If not: the validation test documents the intentional boundary
+### Priority 2: Publish The Session-Wrap/Handoff Sync
+- Publish and review the session-wrap/control-plane branch from this handoff
+- Merge it after PR `#106` so the trackers land on the freshest docs state
 
-### Priority 3: Apply Reverse Instructions to Agent33
-- Feed `docs/AGENT33_IMPROVEMENT_INSTRUCTIONS.md` into Agent33 CLI sessions
-- Priority items: hooks system, HITL approval tokens, dynamic tool discovery
+### Priority 3: Start New User-Directed Work
+- There is no required implementation follow-through left from the roadmap or the `#104` / `#105` merge wave
+- After the docs/session-wrap PRs land, use `handoff/post-pr105-session` or `main` as the starting point for the next implementation slice
 
-### Priority 4: Skill Index Performance
-- Monitor `[EVOKORE] Indexed N skills` count in server startup logs
-- If Fuse.js performance degrades, consider lazy-loading or category-scoped search
+### Priority 4: Optional Legacy Branch Review
+- The repo audit reports no stale local or remote branch candidates
+- If you want to go beyond stale-branch cleanup, explicitly account for the remaining non-stale historical remote branches before deleting them:
+  - `origin/feature/damage-control-expansion`
+  - `origin/feature/docs-architect-v2`
+  - `origin/chore/sync-mode-safety-phase`
+  - the active docs topic branches under `origin/docs/*`
 
 ## Guardrails
-- Use `.commit-msg.txt` + `git commit -F` to avoid damage-control hook false positives
-- `unlink` for removing `.git/index.lock` when damage-control blocks `rm -f`
-- Clean up worktrees after agent work: `git worktree list` and `git worktree remove`
+- Use `task_plan.md`, `findings.md`, and `progress.md` as the durable source of truth after any reset or crash
+- Do not commit shared trackers (`next-session.md`, `docs/session-logs/*`, root planning files) on feature branches unless the slice explicitly owns final handoff
+- `scripts/repo-state-audit.js` is now the canonical preflight for branch/worktree/handoff drift; run `npm run repo:audit` before cleanup or new multi-slice implementation work
+- If a stale branch predates major runtime/config changes, replay the valid feature work onto fresh `main` in a disposable worktree instead of reviving the branch in place
+- Refresh remote refs with `git fetch --prune origin` before attempting remote branch cleanup; GitHub may auto-delete merged PR branches for you
+- `scripts/sync-configs.js` resolves the canonical git common root automatically; use `EVOKORE_SYNC_PROJECT_ROOT` only for deliberate overrides
+- `npm run memory:sync` updates the live EVOKORE Claude memory directory at `C:\Users\mattm\.claude\projects\D--GITHUB-EVOKORE-MCP\memory`
+- `scripts/status.js` remains continuity-first: read the canonical session manifest first and treat managed Claude memory as fallback only
+- `scripts/voice-hook.js` forwards persona via `VOICE_SIDECAR_PERSONA` first, then falls back to payload persona metadata
+- The `planning-with-files` helper install path on this machine is under `C:\Users\mattm\.codex\skills\...`, not `C:\Users\mattm\.claude\skills\...`
