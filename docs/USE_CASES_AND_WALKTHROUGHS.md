@@ -228,6 +228,46 @@ Inspect logs for `damage-control`, `purpose-gate`, `session-replay`, or `tilldon
 - replay logs: `~/.evokore/sessions/*-replay.jsonl`
 - tilldone task state: `~/.evokore/sessions/*-tasks.json`
 
+## Walkthrough 6: Start a new repo-maintenance session safely
+
+Use this when you are resuming a branch, triaging repo state, or starting a multi-slice implementation session.
+
+### Goal
+
+Re-enter the repo with low context drift and without guessing at branch, worktree, or handoff state.
+
+### Steps
+
+1. Run the repo preflight:
+
+   ```bash
+   npm run repo:audit
+   ```
+
+2. If you need machine-readable output:
+
+   ```bash
+   npm run repo:audit -- --json
+   ```
+
+3. Read the active handoff files:
+   - `next-session.md`
+   - `task_plan.md`
+   - `findings.md`
+   - `progress.md`
+
+4. Read the latest session log if the work is a continuation rather than a fresh slice.
+5. Only after that, decide whether to:
+   - continue on the handoff branch
+   - branch from `main`
+   - clean up stale branches or worktrees
+
+### Why this matters
+
+- surfaces branch divergence before you stack work on stale history
+- catches disposable worktrees and stale local branches early
+- keeps control-plane docs aligned with the actual repo state
+
 ## Suggested operator path
 
 If you are new to the repo, use the docs in this order:

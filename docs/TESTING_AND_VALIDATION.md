@@ -30,6 +30,7 @@ Representative checks:
 - `test-env-sync-validation.js`
 - `test-unresolved-env-placeholder-validation.js`
 - `test-version-contract-consistency.js`
+- `test-damage-control-validation.js`
 
 What they cover:
 
@@ -39,6 +40,7 @@ What they cover:
 - duplicate prefix safety
 - env interpolation failures
 - README/runtime/version contract consistency
+- expanded shell/path safety coverage in `damage-control-rules.yaml`
 
 ### Skill and workflow surface
 
@@ -55,15 +57,33 @@ What they cover:
 
 - `test-tool-discovery-validation.js`
 - `test-tool-discovery-benchmark-validation.js`
+- `test-skill-indexing-validation.js`
+- `test-skill-perf-monitoring.js`
 
 What they cover:
 
 - `legacy` vs `dynamic` listing behavior
 - session activation expectations
 - exact-name compatibility
+- recursive skill indexing coverage
+- performance telemetry and search envelope checks
 - deterministic benchmark JSON output
 - `--output` artifact parity
 - optional `--live-timings` behavior
+
+### Operator continuity and repo hygiene surface
+
+- `test-session-continuity-validation.js`
+- `test-auto-memory-validation.js`
+- `test-status-line-validation.js`
+- `test-repo-state-audit-validation.js`
+
+What they cover:
+
+- canonical session manifest behavior
+- managed Claude memory sync
+- continuity-backed status rendering
+- repo-state audit parsing and report shape
 
 ### Voice and hook surface
 
@@ -97,7 +117,6 @@ What they cover:
 - `test-pr-metadata-validation.js`
 - `test-release-doc-freshness-validation.js`
 - `test-submodule-doc-workflow.js`
-- `test-repo-state-audit-validation.js`
 
 What they cover:
 
@@ -109,7 +128,6 @@ What they cover:
 - PR metadata expectations
 - release doc freshness
 - submodule workflow documentation
-- repo-state audit parsing and report shape
 
 ### Windows and platform-specific runtime checks
 
@@ -134,6 +152,7 @@ What they cover:
 | Validate VoiceSidecar smoke path | `node test-voice-sidecar-smoke-validation.js` |
 | Validate Windows command behavior | `node test-windows-exec-validation.js` |
 | Validate version/runtime/doc consistency | `node test-version-contract-consistency.js` |
+| Validate damage-control policy expansion | `node test-damage-control-validation.js` |
 | Validate PR metadata/runbook contract | `node test-pr-metadata-validation.js` |
 | Validate submodule cleanliness guardrails | `node test-submodule-commit-order-guard-validation.js` |
 | Audit live repo state before a session | `npm run repo:audit` |

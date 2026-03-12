@@ -1,6 +1,6 @@
 # EVOKORE-MCP Skills Overview
 
-EVOKORE-MCP currently indexes over 300 specialized Agent Skills and coding workflows. The library now includes imported Agent33/HIVE/WSHOBSON material plus EVOKORE-native workflows, all exposed through the same search and workflow-resolution surface.
+EVOKORE-MCP currently indexes roughly **336** specialized skills and workflow files. The searchable library includes EVOKORE-native workflows plus imported Agent33, HIVE, WSHOBSON, and curated skill collections, all exposed through the same search and workflow-resolution surface.
 
 ## General Coding Workflows
 *Your Custom Scripts and Architectures*
@@ -25,7 +25,7 @@ EVOKORE-MCP currently indexes over 300 specialized Agent Skills and coding workf
 - **`hive-concepts` / `hive-patterns` / `hive-debugger`**: Architecture, optimization, and runtime debugging guidance.
 - **`hive-credentials`**: Credential detection and setup support for Hive agents.
 
-## The WSHOBSON Plugin Library (146+ Skills)
+## The WSHOBSON Plugin Library
 *Extremely detailed architectural patterns and testing strategies.*
 - **Backend Development**: Microservices, CQRS, Saga Orchestration, API Design.
 - **Frontend & Mobile**: React State Management, React Native Architecture, Tailwind Systems.
@@ -52,3 +52,9 @@ The AI will execute the search tool, find the best-matching skill, read it into 
 For broader natural-language intents, use `resolve_workflow`:
 *"I need to wrap up this session and leave a clean handoff."*
 EVOKORE will semantically rank the best workflow matches, explain why they matched, and inject the top skills directly into the response.
+
+## Operator notes
+
+- Skill indexing is recursive, not limited to a shallow two-level directory walk.
+- Search quality now includes aliases, tags, frontmatter metadata, and semantic hints.
+- Performance monitoring exists on top of the recursive shape, so large-library regressions are visible in validation.

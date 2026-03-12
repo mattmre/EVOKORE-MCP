@@ -15,6 +15,7 @@ EVOKORE-MCP is a stdio MCP server that merges six native EVOKORE tools with a co
 | Proxy layer | `src/ProxyManager.ts` | Boots child servers from `mcp.config.json`, prefixes tools, forwards calls, and manages cooldown/error state |
 | Security layer | `src/SecurityManager.ts` + `permissions.yml` | Applies `allow`, `require_approval`, and `deny` policy before proxied execution |
 | Catalog/search layer | `src/ToolCatalogIndex.ts` | Merges native + proxied tools, indexes them, and builds projected tool lists |
+| Continuity/operator layer | `scripts/session-continuity.js`, `scripts/status-runtime.js`, `scripts/claude-memory.js`, `scripts/repo-state-audit.js` | Keeps repo work restartable through session manifests, managed memory, status summaries, and repo-state preflight auditing |
 | Voice side runtime | `src/VoiceSidecar.ts` | Separate standalone WebSocket voice server, not part of stdio routing |
 
 ## Tech stack
@@ -192,6 +193,17 @@ It:
 - streams text to ElevenLabs
 - optionally disables playback
 - optionally saves `.mp3` artifacts
+
+## Operator continuity and repo-hygiene helpers
+
+These scripts are not part of the stdio request path, but they are part of the effective operator architecture:
+
+| Helper | Role |
+|---|---|
+| `scripts/session-continuity.js` | canonical session manifest reads/writes under `~/.evokore/sessions/{sessionId}.json` |
+| `scripts/status-runtime.js` | continuity-first status summary used by `scripts/status.js` and hook status injection |
+| `scripts/claude-memory.js` + `scripts/sync-memory.js` | managed Claude project memory generation from repo + session state |
+| `scripts/repo-state-audit.js` | preflight audit for branch divergence, worktree state, stale branches, open PR heads, and control-plane drift |
 
 ## System architecture diagram
 

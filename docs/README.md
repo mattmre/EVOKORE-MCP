@@ -2,11 +2,21 @@
 
 Use this page as the main portal for repository documentation.
 
+## Current documentation snapshot
+
+- Runtime/package version: `2.0.2`
+- Canonical operator preflight: `npm run repo:audit`
+- Current runtime summary: [RUNTIME_SUMMARY_v2.0.2.md](./RUNTIME_SUMMARY_v2.0.2.md)
+- Canonical recent changes report: [RECENT_ADDITIONS_2026-03-12.md](./RECENT_ADDITIONS_2026-03-12.md)
+- Latest session closeout: [session-2026-03-12-pr104-pr105-cleanup.md](./session-logs/session-2026-03-12-pr104-pr105-cleanup.md)
+
 ## Getting Started
 
 - [Repository README](../README.md)
+- [Runtime Summary v2.0.2](./RUNTIME_SUMMARY_v2.0.2.md)
 - [SETUP.md](./SETUP.md)
 - [Usage Guide](./USAGE.md)
+- [Recent Additions Report](./RECENT_ADDITIONS_2026-03-12.md)
 - [Troubleshooting Guide](./TROUBLESHOOTING.md)
 - [Use Cases and Walkthroughs](./USE_CASES_AND_WALKTHROUGHS.md)
 - [Training & Use Cases](./TRAINING_AND_USE_CASES.md)
@@ -31,7 +41,9 @@ Use this page as the main portal for repository documentation.
 - [Submodule Workflow](./SUBMODULE_WORKFLOW.md)
 - [PR_MERGE_RUNBOOK.md](./PR_MERGE_RUNBOOK.md)
 - [PR Template](../.github/PULL_REQUEST_TEMPLATE.md)
+- [Runtime Summary v2.0.2](./RUNTIME_SUMMARY_v2.0.2.md)
 - [Release Notes v2.0.1](./RELEASE_NOTES_v2.0.1.md)
+- [Recent Additions Report](./RECENT_ADDITIONS_2026-03-12.md)
 
 ## Research & Continuity
 
@@ -43,9 +55,24 @@ Use this page as the main portal for repository documentation.
 - [Ecosystem Sprint Results](./research/ecosystem-sprint-results.md)
 - [Session Logs](./session-logs/)
 - [next-session.md](../next-session.md)
-- [Latest Orchestration Log (2026-03-10, Stabilization Recovery)](./session-logs/session-2026-03-10-stabilization-recovery.md)
+- [Latest Orchestration Log (2026-03-12, PR104/105 Cleanup)](./session-logs/session-2026-03-12-pr104-pr105-cleanup.md)
+- [Post-Merge Cleanup Accounting (2026-03-12)](./research/post-merge-cleanup-accounting-2026-03-12.md)
 - [AGENT33 Migration Plan](./AGENT33_MIGRATION_PLAN.md) *(historical)*
 - [AGENT33 Improvement Instructions](./AGENT33_IMPROVEMENT_INSTRUCTIONS.md)
+
+## Canonical doc map
+
+| Need | Canonical doc | Historical / supporting refs |
+|---|---|---|
+| Product overview and quickstart | [../README.md](../README.md) | [RECENT_ADDITIONS_2026-03-12.md](./RECENT_ADDITIONS_2026-03-12.md) |
+| Current shipped runtime level | [RUNTIME_SUMMARY_v2.0.2.md](./RUNTIME_SUMMARY_v2.0.2.md) | [RELEASE_NOTES_v2.0.1.md](./RELEASE_NOTES_v2.0.1.md) |
+| Local install and client registration | [SETUP.md](./SETUP.md) | [CLI_INTEGRATION.md](./CLI_INTEGRATION.md) |
+| Day-to-day operation | [USAGE.md](./USAGE.md) | [USE_CASES_AND_WALKTHROUGHS.md](./USE_CASES_AND_WALKTHROUGHS.md) |
+| Runtime design | [ARCHITECTURE.md](./ARCHITECTURE.md) | [V2_ARCHITECTURE_PLAN.md](./V2_ARCHITECTURE_PLAN.md), [V2_PHASE2_ARCHITECTURE_DESIGN.md](./V2_PHASE2_ARCHITECTURE_DESIGN.md) |
+| Discovery model and tool surface | [TOOLS_AND_DISCOVERY.md](./TOOLS_AND_DISCOVERY.md) | [research/dynamic-tool-discovery-research.md](./research/dynamic-tool-discovery-research.md) |
+| Voice and hooks | [VOICE_AND_HOOKS.md](./VOICE_AND_HOOKS.md) | [VOICE_CLI_RESEARCH.md](./VOICE_CLI_RESEARCH.md) |
+| Validation and release gates | [TESTING_AND_VALIDATION.md](./TESTING_AND_VALIDATION.md) | [RELEASE_FLOW.md](./RELEASE_FLOW.md) |
+| Continuity, trackers, and session restart | [RESEARCH_AND_HANDOFFS.md](./RESEARCH_AND_HANDOFFS.md) | [ORCHESTRATION_TRACKER.md](./ORCHESTRATION_TRACKER.md), [PRIORITY_STATUS_MATRIX.md](./PRIORITY_STATUS_MATRIX.md) |
 
 ## Validation & Governance
 

@@ -63,6 +63,12 @@ They capture:
 
 Use session logs for detailed chronology. Use `next-session.md` for the short restart instruction set.
 
+Latest closeout references:
+
+- [session-2026-03-12-pr104-pr105-cleanup.md](./session-logs/session-2026-03-12-pr104-pr105-cleanup.md)
+- [RECENT_ADDITIONS_2026-03-12.md](./RECENT_ADDITIONS_2026-03-12.md)
+- [post-merge-cleanup-accounting-2026-03-12.md](./research/post-merge-cleanup-accounting-2026-03-12.md)
+
 ## Research directory
 
 The research directory lives at:
@@ -177,6 +183,14 @@ Before starting a new multi-slice implementation session, run:
 - `npm run repo:audit`
 
 This gives a live repo-state view for branch divergence, worktree pressure, stale local/remote branch candidates, open PR heads, and control-plane drift in `CLAUDE.md`, `next-session.md`, and the root planning files.
+
+Recommended restart order:
+
+1. `npm run repo:audit`
+2. read `next-session.md`
+3. read the latest session log
+4. read `task_plan.md`, `findings.md`, and `progress.md` if the work is multi-step
+5. only then branch or start implementation
 
 ## Recommended handoff practice
 
