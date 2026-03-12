@@ -4,6 +4,14 @@ EVOKORE-MCP is a TypeScript-based stdio MCP router and multi-server aggregator. 
 
 Current package/runtime version: `2.0.2`.
 
+## Current operator snapshot
+
+- **Runtime shape:** stdio MCP router plus multi-server child aggregation
+- **Native tool surface:** `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`
+- **Continuity surfaces:** canonical session manifest, managed Claude memory sync, manifest-backed status line, repo-state audit CLI
+- **Voice surfaces:** proxied ElevenLabs tools, VoiceMode guidance, standalone VoiceSidecar with persona-aware hook forwarding
+- **Recent change report:** [docs/RECENT_ADDITIONS_2026-03-12.md](docs/RECENT_ADDITIONS_2026-03-12.md)
+
 ## Why EVOKORE exists
 
 EVOKORE exists to solve three common MCP operator problems:
@@ -23,6 +31,7 @@ EVOKORE exists to solve three common MCP operator problems:
   - `dynamic`: always-visible native tools plus session-activated proxied tools
 - **Exact-name compatibility in dynamic mode**: hidden proxied tools still remain callable by exact prefixed name.
 - **HITL approval flow** using `_evokore_approval_token`, with one-time, exact-args, short-lived retries.
+- **Operator continuity tooling** through session manifests, Claude memory sync, manifest-backed status summaries, and `npm run repo:audit`.
 - **Voice integrations** across proxied ElevenLabs tools, VoiceMode guidance, and the standalone VoiceSidecar.
 - **Ops and governance hardening** for docs integrity, release flow, PR metadata, submodule cleanliness, tracker consistency, and Windows runtime behavior.
 
@@ -105,6 +114,14 @@ npm run sync
 - In **dynamic mode**, use `discover_tools` to activate relevant proxied tools for the current session.
 - For protected proxied tools, EVOKORE returns an `_evokore_approval_token` and requires explicit human approval before retry.
 
+### 5. If you are resuming repo work, run the operator preflight
+
+```bash
+npm run repo:audit
+```
+
+Use this before a new multi-slice session or cleanup wave to surface branch divergence, worktree pressure, stale branch candidates, open PR heads, and control-plane drift.
+
 ## Operator paths
 
 - **First-time setup**: [docs/SETUP.md](docs/SETUP.md)
@@ -113,6 +130,7 @@ npm run sync
 - **Tool discovery behavior**: [docs/TOOLS_AND_DISCOVERY.md](docs/TOOLS_AND_DISCOVERY.md)
 - **Voice and hooks**: [docs/VOICE_AND_HOOKS.md](docs/VOICE_AND_HOOKS.md)
 - **Troubleshooting**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+- **Last two weeks report**: [docs/RECENT_ADDITIONS_2026-03-12.md](docs/RECENT_ADDITIONS_2026-03-12.md)
 
 ## Contributor and maintainer paths
 
@@ -120,6 +138,7 @@ npm run sync
 - **Runtime architecture**: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - **Validation surface**: [docs/TESTING_AND_VALIDATION.md](docs/TESTING_AND_VALIDATION.md)
 - **Research and handoffs**: [docs/RESEARCH_AND_HANDOFFS.md](docs/RESEARCH_AND_HANDOFFS.md)
+- **Recent additions report**: [docs/RECENT_ADDITIONS_2026-03-12.md](docs/RECENT_ADDITIONS_2026-03-12.md)
 - **PR merge governance**: [docs/PR_MERGE_RUNBOOK.md](docs/PR_MERGE_RUNBOOK.md)
 - **Submodule workflow**: [docs/SUBMODULE_WORKFLOW.md](docs/SUBMODULE_WORKFLOW.md)
 
@@ -139,9 +158,13 @@ npm run sync
 ## Recent implementation and research highlights
 
 - **Dynamic tool discovery MVP landed** with `legacy` default mode, opt-in `dynamic` mode, session-scoped activation, and exact-name compatibility for hidden proxied tools.
+- **Recursive skill indexing and semantic workflow resolution landed** with metadata-aware search, performance monitoring, and actionable reranking in `resolve_workflow`.
+- **Canonical hook entrypoints, fail-safe bootstrap, and universal HITL schema injection landed** to harden the operator/runtime contract.
+- **Session continuity, Claude memory sync, manifest-backed status line, and repo-state audit landed** so repo work can restart safely with less context drift.
 - **Discovery benchmarking now emits deterministic JSON by default**, with optional `--output` artifact writing and opt-in `--live-timings`.
 - **HITL approval guidance and hardening were expanded** around `_evokore_approval_token`: one-time use, exact same arguments, and short-lived retry windows.
 - **VoiceSidecar matured into a standalone runtime** on `ws://localhost:8888`, with `voices.json` hot-reload per new connection, playback disable support, and audio artifact saving.
+- **Damage-control rules and repo hygiene tooling expanded** with broader shell/path protections and `npm run repo:audit` for cleanup planning and verification.
 - **Windows runtime behavior is now explicit**: EVOKORE remaps only `npx` to `npx.cmd`; `uv` and `uvx` must resolve directly on PATH.
 - **Governance and continuity docs are first-class** through PR metadata validation, tracker consistency checks, next-session freshness validation, docs link validation, release gating, and research/session logs.
 

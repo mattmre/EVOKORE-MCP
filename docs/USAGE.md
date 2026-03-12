@@ -95,6 +95,36 @@ For tools configured as `require_approval`, EVOKORE returns a security-intercept
 - Proxied tools advertise `_evokore_approval_token` as an optional schema field even when the upstream tool declares no input properties.
 - Retry workflow: ask for explicit approval -> rerun the same tool call -> include `_evokore_approval_token` exactly as returned.
 
+## 2.4 Operator preflight before a new work session
+
+If you are about to start a new implementation slice, cleanup wave, or repo review session, run:
+
+```bash
+npm run repo:audit
+```
+
+This is the quickest way to answer:
+
+- am I on the right branch?
+- is `main` ahead of my current work?
+- are there stale worktrees or stale local branches?
+- are there merged remote branches that should be accounted for?
+- is my control plane (`CLAUDE.md`, `next-session.md`, planning files) drifting from repo state?
+
+For machine-readable output:
+
+```bash
+npm run repo:audit -- --json
+```
+
+In the normal repo-maintenance loop, the recommended order is:
+
+1. `npm run repo:audit`
+2. review branch / PR state
+3. run the smallest targeted validation for your subsystem
+4. run `npm test` for broad changes
+5. update continuity artifacts (`next-session.md`, session log, planning files) if the execution state changed
+
 ## 3. Adopting a Workflow
 
 EVOKORE-MCP exposes skills through tools like `search_skills`, `get_skill_help`, and `resolve_workflow`.
