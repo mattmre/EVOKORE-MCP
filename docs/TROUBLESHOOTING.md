@@ -195,3 +195,26 @@ Example:
 node scripts/benchmark-tool-discovery.js --output artifacts/tool-discovery-benchmark.json
 ```
 
+## 17. `repo:audit` Reports Control-Plane Drift
+**Symptoms:** `npm run repo:audit` reports modified or untracked control-plane files even though code/runtime state looks clean.
+**Cause:** In this repo, the handoff surface is intentionally local-first. Files such as `CLAUDE.md`, `next-session.md`, `task_plan.md`, `findings.md`, `progress.md`, and session logs may drift during an in-progress session without implying runtime breakage.
+**Solution:**
+- Confirm whether the drift is expected handoff work or unexpected noise.
+- If you are resuming repo work, read the listed control-plane files before changing branches.
+- If you are finishing a session, update the handoff docs and then rerun:
+  ```bash
+  npm run repo:audit -- --json
+  ```
+- Treat stale branch/worktree candidates as cleanup items. Treat control-plane drift as documentation state unless it conflicts with the live repo state.
+
+## 18. Remote Branch Cleanup Fails After A Merge Wave
+**Symptoms:** `git push origin --delete ...` fails for some merged PR branches with `remote ref does not exist`.
+**Cause:** GitHub may have already auto-deleted the merged PR head branches.
+**Solution:**
+```bash
+git fetch --prune origin
+git branch -r
+```
+
+Then delete only the still-present remote branches that remain explicitly accounted for. Do not treat the initial failure as evidence of a repo problem by itself.
+

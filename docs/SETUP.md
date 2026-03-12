@@ -34,6 +34,22 @@ The MCP runtime entrypoint is:
 dist/index.js
 ```
 
+## Recommended operator preflight
+
+If you are resuming ongoing repo work rather than doing a first install, run:
+
+```bash
+npm run repo:audit
+```
+
+This surfaces:
+
+- current branch divergence from `main`
+- active worktrees
+- stale local/remote branch candidates
+- open PR heads
+- drift in `CLAUDE.md`, `next-session.md`, and the root planning files
+
 ## Environment and config files
 
 ### `.env`
@@ -245,6 +261,7 @@ node test-version-contract-consistency.js
 node test-tool-discovery-validation.js
 node test-docs-canonical-links.js
 node test-windows-exec-validation.js
+npm run repo:audit -- --json
 ```
 
 For voice and hook paths:

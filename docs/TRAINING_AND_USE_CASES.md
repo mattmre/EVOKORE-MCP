@@ -1,6 +1,6 @@
-# 🎓 EVOKORE-MCP Training & Use Cases
+# EVOKORE-MCP Training & Use Cases
 
-This master document serves as the comprehensive training manual and use-case directory for all 200+ Agent Skills available in the EVOKORE-MCP library. 
+This master document serves as the high-level training and category directory for the current EVOKORE skill library, which now indexes roughly **336** skills and workflow files.
 
 ## 📚 Skill Categories
 
@@ -16,3 +16,14 @@ Select a category below to dive deep into the specific workflows, training examp
 - [**OFFICIAL MCP SERVERS**](./categories/OFFICIAL_MCP_SERVERS.md)
 - [**RESEARCH AND CONTENT**](./categories/RESEARCH_AND_CONTENT.md)
 - [**WSHOBSON PLUGINS**](./categories/WSHOBSON_PLUGINS.md)
+
+## How to use this directory
+
+Use this page when you need category-level navigation.
+
+Use these docs when you need the active runtime/operator picture:
+
+- [README.md](../README.md)
+- [RUNTIME_SUMMARY_v2.0.2.md](./RUNTIME_SUMMARY_v2.0.2.md)
+- [SKILLS_OVERVIEW.md](./SKILLS_OVERVIEW.md)
+- [TOOLS_AND_DISCOVERY.md](./TOOLS_AND_DISCOVERY.md)
