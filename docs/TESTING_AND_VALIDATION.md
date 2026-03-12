@@ -97,6 +97,7 @@ What they cover:
 - `test-pr-metadata-validation.js`
 - `test-release-doc-freshness-validation.js`
 - `test-submodule-doc-workflow.js`
+- `test-repo-state-audit-validation.js`
 
 What they cover:
 
@@ -108,6 +109,7 @@ What they cover:
 - PR metadata expectations
 - release doc freshness
 - submodule workflow documentation
+- repo-state audit parsing and report shape
 
 ### Windows and platform-specific runtime checks
 
@@ -134,6 +136,7 @@ What they cover:
 | Validate version/runtime/doc consistency | `node test-version-contract-consistency.js` |
 | Validate PR metadata/runbook contract | `node test-pr-metadata-validation.js` |
 | Validate submodule cleanliness guardrails | `node test-submodule-commit-order-guard-validation.js` |
+| Audit live repo state before a session | `npm run repo:audit` |
 
 ## CI and release validations
 
