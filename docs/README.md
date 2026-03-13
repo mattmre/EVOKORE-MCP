@@ -4,16 +4,16 @@ Use this page as the main portal for repository documentation.
 
 ## Current documentation snapshot
 
-- Runtime/package version: `2.0.2`
+- Runtime/package version: `3.0.0`
 - Canonical operator preflight: `npm run repo:audit`
-- Current runtime summary: [RUNTIME_SUMMARY_v2.0.2.md](./RUNTIME_SUMMARY_v2.0.2.md)
+- Current runtime summary: [RUNTIME_SUMMARY_v3.0.0.md](./RUNTIME_SUMMARY_v3.0.0.md)
 - Canonical recent changes report: [RECENT_ADDITIONS_2026-03-12.md](./RECENT_ADDITIONS_2026-03-12.md)
 - Latest session closeout: [session-2026-03-12-pr104-pr105-cleanup.md](./session-logs/session-2026-03-12-pr104-pr105-cleanup.md)
 
 ## Getting Started
 
 - [Repository README](../README.md)
-- [Runtime Summary v2.0.2](./RUNTIME_SUMMARY_v2.0.2.md)
+- [Runtime Summary v3.0.0](./RUNTIME_SUMMARY_v3.0.0.md)
 - [SETUP.md](./SETUP.md)
 - [Usage Guide](./USAGE.md)
 - [Recent Additions Report](./RECENT_ADDITIONS_2026-03-12.md)
@@ -41,7 +41,7 @@ Use this page as the main portal for repository documentation.
 - [Submodule Workflow](./SUBMODULE_WORKFLOW.md)
 - [PR_MERGE_RUNBOOK.md](./PR_MERGE_RUNBOOK.md)
 - [PR Template](../.github/PULL_REQUEST_TEMPLATE.md)
-- [Runtime Summary v2.0.2](./RUNTIME_SUMMARY_v2.0.2.md)
+- [Runtime Summary v3.0.0](./RUNTIME_SUMMARY_v3.0.0.md)
 - [Release Notes v2.0.1](./RELEASE_NOTES_v2.0.1.md)
 - [Recent Additions Report](./RECENT_ADDITIONS_2026-03-12.md)
 
@@ -65,7 +65,7 @@ Use this page as the main portal for repository documentation.
 | Need | Canonical doc | Historical / supporting refs |
 |---|---|---|
 | Product overview and quickstart | [../README.md](../README.md) | [RECENT_ADDITIONS_2026-03-12.md](./RECENT_ADDITIONS_2026-03-12.md) |
-| Current shipped runtime level | [RUNTIME_SUMMARY_v2.0.2.md](./RUNTIME_SUMMARY_v2.0.2.md) | [RELEASE_NOTES_v2.0.1.md](./RELEASE_NOTES_v2.0.1.md) |
+| Current shipped runtime level | [RUNTIME_SUMMARY_v3.0.0.md](./RUNTIME_SUMMARY_v3.0.0.md) | [RELEASE_NOTES_v2.0.1.md](./RELEASE_NOTES_v2.0.1.md) |
 | Local install and client registration | [SETUP.md](./SETUP.md) | [CLI_INTEGRATION.md](./CLI_INTEGRATION.md) |
 | Day-to-day operation | [USAGE.md](./USAGE.md) | [USE_CASES_AND_WALKTHROUGHS.md](./USE_CASES_AND_WALKTHROUGHS.md) |
 | Runtime design | [ARCHITECTURE.md](./ARCHITECTURE.md) | [V2_ARCHITECTURE_PLAN.md](./V2_ARCHITECTURE_PLAN.md), [V2_PHASE2_ARCHITECTURE_DESIGN.md](./V2_PHASE2_ARCHITECTURE_DESIGN.md) |

@@ -1,6 +1,6 @@
 # EVOKORE Runtime Architecture
 
-This document describes the current runtime shape of EVOKORE-MCP as shipped in `v2.0.2`.
+This document describes the current runtime shape of EVOKORE-MCP as shipped in `v3.0.0`.
 
 ## Runtime in one sentence
 
@@ -120,7 +120,7 @@ At startup, EVOKORE performs these steps in order:
 
 Owns:
 
-- server name/version (`2.0.2`)
+- server name/version (`3.0.0`)
 - MCP capability registration
 - `tools/list`, `tools/call`, resources, and prompt handling
 - session activation state for dynamic discovery

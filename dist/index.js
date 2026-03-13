@@ -18,7 +18,7 @@ const ToolCatalogIndex_1 = require("./ToolCatalogIndex");
 const DEFAULT_SESSION_ID = "__stdio_default_session__";
 const ACTIVATED_TOOL_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_ACTIVATED_TOOL_SESSIONS = 100;
-const SERVER_VERSION = "2.0.2";
+const SERVER_VERSION = "3.0.0";
 class EvokoreMCPServer {
     server;
     skillManager;
@@ -194,6 +194,28 @@ class EvokoreMCPServer {
                     text: `Skills refreshed in ${result.refreshTimeMs}ms: ${result.added} added, ${result.removed} removed, ${result.updated} unchanged/updated, ${result.total} total skills indexed.`
                 }]
         };
+    }
+    async handleFetchSkill(args) {
+        // Delegate to SkillManager for the fetch, then auto-refresh the index
+        const result = await this.skillManager.handleToolCall("fetch_skill", args);
+        // If the fetch succeeded (no isError), auto-refresh the skill index
+        if (!result.isError) {
+            try {
+                await this.skillManager.refreshSkills();
+                this.rebuildToolCatalog();
+                await this.server.sendToolListChanged();
+                // Append a refresh note to the response
+                const originalText = result.content?.[0]?.text || "";
+                result.content = [{
+                        type: "text",
+                        text: originalText + " Index auto-refreshed."
+                    }];
+            }
+            catch (error) {
+                console.error(`[EVOKORE] Auto-refresh after fetch_skill failed: ${error?.message || error}`);
+            }
+        }
+        return result;
     }
     getServerResources() {
         return [
@@ -388,6 +410,9 @@ class EvokoreMCPServer {
             }
             if (toolName === "refresh_skills") {
                 return await this.handleRefreshSkills();
+            }
+            if (toolName === "fetch_skill") {
+                return await this.handleFetchSkill(args);
             }
             // Handle Native Skill Tools
             if (this.toolCatalog.isNativeTool(toolName)) {
