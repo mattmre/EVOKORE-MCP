@@ -1,4 +1,5 @@
 {
+  "skillRegistries": [],
   "servers": {
     "github": {
       "command": "npx",
