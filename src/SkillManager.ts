@@ -15,6 +15,11 @@ const SKIP_DIRS = new Set([
 
 const MAX_DEPTH = 5;
 
+export interface SkillDependency {
+  name: string;
+  minVersion?: string;
+}
+
 export interface SkillMetadata {
   name: string;
   description: string;
@@ -30,6 +35,9 @@ export interface SkillMetadata {
   pathDepth: number;
   filePath: string;
   content: string;
+  version?: string;
+  requires?: SkillDependency[];
+  conflicts?: string[];
 }
 
 export interface SkillIndexStats {
@@ -260,6 +268,21 @@ export class SkillManager {
       const tags = this.collectTags(frontmatter, metadata);
       const aliases = this.collectAliases(frontmatter, metadata, fallbackName, subcategory, filePath);
       const resolutionHints = this.collectResolutionHints(frontmatter, content, metadata);
+
+      // Parse optional versioning and dependency fields
+      const version = frontmatter?.version || metadata?.version || undefined;
+      const requires: SkillDependency[] = Array.isArray(frontmatter?.requires)
+        ? frontmatter.requires.map((r: any) => ({
+            name: typeof r === "string" ? r : String(r?.name || ""),
+            ...(typeof r === "object" && r?.minVersion ? { minVersion: String(r.minVersion) } : {})
+          })).filter((r: SkillDependency) => r.name)
+        : [];
+      const conflicts: string[] = Array.isArray(frontmatter?.conflicts)
+        ? frontmatter.conflicts
+            .map((c: any) => typeof c === "string" ? c : (c?.name ? String(c.name) : ""))
+            .filter(Boolean)
+        : [];
+
       return {
         name: frontmatter?.name || fallbackName,
         description: frontmatter?.description || "No description provided.",
@@ -285,7 +308,10 @@ export class SkillManager {
         ),
         pathDepth: subcategory ? subcategory.split("/").filter(Boolean).length : 0,
         filePath,
-        content: match[2].trim()
+        content: match[2].trim(),
+        ...(version ? { version: String(version) } : {}),
+        ...(requires.length > 0 ? { requires } : {}),
+        ...(conflicts.length > 0 ? { conflicts } : {})
       };
     } catch (e) {
       return null;
@@ -809,7 +835,18 @@ export class SkillManager {
             return "--- WORKFLOW: " + r.skill.name + " [" + r.skill.category + subcatLabel + "] ---\nDescription: " + r.skill.description + "\n" + whyMatched + "\n\n<activated_skill name=\"" + r.skill.name + "\" category=\"" + r.skill.category + "\">\n" + r.skill.content + "\n</activated_skill>\n";
         }).join("\n\n");
 
-        return { content: [{ type: "text", text: "EVOKORE-MCP injected highly relevant workflows. Please adopt these instructions:\n\n" + injectedWorkflows }] };
+        // Append dependency warnings if any matched skill has unmet deps or conflicts
+        const depWarnings = results.map(r => {
+            const validation = this.validateDependencies(r.skill.name);
+            return validation.valid ? null : "[" + r.skill.name + "]: " + validation.errors.join(", ");
+        }).filter(Boolean);
+
+        let resultText = "EVOKORE-MCP injected highly relevant workflows. Please adopt these instructions:\n\n" + injectedWorkflows;
+        if (depWarnings.length > 0) {
+            resultText += "\n\nDependency warnings:\n" + depWarnings.join("\n");
+        }
+
+        return { content: [{ type: "text", text: resultText }] };
     }
 
     if (name === "search_skills") {
@@ -861,7 +898,24 @@ export class SkillManager {
         }
 
         const subcatLine = skill.subcategory ? "\n**Subcategory:** " + skill.subcategory : "";
-        const helpText = "### Skill Overview: " + skill.name + "\n**Category:** " + skill.category + subcatLine + "\n**Description:** " + skill.description + "\n\n---\n\n### Internal Instructions:\n" + skill.content;
+        const versionLine = skill.version ? "\n**Version:** " + skill.version : "";
+        const requiresLine = skill.requires && skill.requires.length > 0
+          ? "\n**Requires:** " + skill.requires.map(r => r.name + (r.minVersion ? " >= " + r.minVersion : "")).join(", ")
+          : "";
+        const conflictsLine = skill.conflicts && skill.conflicts.length > 0
+          ? "\n**Conflicts:** " + skill.conflicts.join(", ")
+          : "";
+
+        let helpText = "### Skill Overview: " + skill.name + "\n**Category:** " + skill.category + subcatLine + versionLine + "\n**Description:** " + skill.description + requiresLine + conflictsLine + "\n\n---\n\n### Internal Instructions:\n" + skill.content;
+
+        // Append dependency validation if the skill declares deps
+        if (skill.requires?.length || skill.conflicts?.length) {
+          const validation = this.validateDependencies(skill.name);
+          if (!validation.valid) {
+            helpText += "\n\n---\n\n### Dependency Warnings:\n" + validation.errors.map(e => "- " + e).join("\n");
+          }
+        }
+
         return { content: [{ type: "text", text: helpText }] };
     }
 
@@ -930,6 +984,49 @@ export class SkillManager {
     return null;
   }
 
+  validateDependencies(skillName: string): { valid: boolean; errors: string[] } {
+    const skill = this.findSkillByName(skillName);
+    if (!skill) return { valid: false, errors: ["Skill not found: " + skillName] };
+
+    const errors: string[] = [];
+
+    // Check requires
+    if (skill.requires) {
+      for (const dep of skill.requires) {
+        const depSkill = this.findSkillByName(dep.name);
+        if (!depSkill) {
+          errors.push("Missing required skill: " + dep.name);
+        } else if (dep.minVersion && depSkill.version) {
+          if (!this.semverSatisfies(depSkill.version, dep.minVersion)) {
+            errors.push(dep.name + " version " + depSkill.version + " < required " + dep.minVersion);
+          }
+        }
+      }
+    }
+
+    // Check conflicts
+    if (skill.conflicts) {
+      for (const conflictName of skill.conflicts) {
+        if (this.findSkillByName(conflictName)) {
+          errors.push("Conflicts with installed skill: " + conflictName);
+        }
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+
+  private semverSatisfies(actual: string, minimum: string): boolean {
+    const parse = (v: string) => v.split(".").map(Number);
+    const a = parse(actual);
+    const m = parse(minimum);
+    for (let i = 0; i < 3; i++) {
+      if ((a[i] || 0) > (m[i] || 0)) return true;
+      if ((a[i] || 0) < (m[i] || 0)) return false;
+    }
+    return true; // equal
+  }
+
   resolveWorkflowText(objective: string): string {
     if (!this.fuseIndex) return "Skills not loaded. Call loadSkills() first.";
 
@@ -954,7 +1051,14 @@ export class SkillManager {
     }
 
     const subcatLine = skill.subcategory ? "\nSubcategory: " + skill.subcategory : "";
-    return "Skill: " + skill.name + "\nCategory: " + skill.category + subcatLine + "\nDescription: " + skill.description + "\n\n" + skill.content;
+    const versionLine = skill.version ? "\nVersion: " + skill.version : "";
+    const requiresLine = skill.requires && skill.requires.length > 0
+      ? "\nRequires: " + skill.requires.map(r => r.name + (r.minVersion ? " >= " + r.minVersion : "")).join(", ")
+      : "";
+    const conflictsLine = skill.conflicts && skill.conflicts.length > 0
+      ? "\nConflicts: " + skill.conflicts.join(", ")
+      : "";
+    return "Skill: " + skill.name + "\nCategory: " + skill.category + subcatLine + versionLine + "\nDescription: " + skill.description + requiresLine + conflictsLine + "\n\n" + skill.content;
   }
 
   getResources(): Resource[] {
