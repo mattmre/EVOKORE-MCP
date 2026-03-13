@@ -58,6 +58,7 @@ export class EvokoreMCPServer {
             listChanged: true
           },
         },
+        instructions: "EVOKORE-MCP is a multi-server MCP aggregator. Use discover_tools to find available tools, resolve_workflow for skill-based workflows, and proxy_server_status to check child server health.",
       }
     );
 
