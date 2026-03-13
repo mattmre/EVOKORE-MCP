@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SkillManager = void 0;
 const promises_1 = __importDefault(require("fs/promises"));
+const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const yaml_1 = __importDefault(require("yaml"));
 const fuse_js_1 = __importDefault(require("fuse.js"));
@@ -25,6 +26,8 @@ class SkillManager {
     proxyManager;
     _loadTimeMs = 0;
     _lastSearchMs = 0;
+    watcher = null;
+    onRefreshCallback = null;
     constructor(proxyManager) {
         this.proxyManager = proxyManager;
     }
@@ -91,6 +94,55 @@ class SkillManager {
         catch (e) {
             this._loadTimeMs = Date.now() - loadStart;
             console.error("[EVOKORE] Error loading skills directory:", e);
+        }
+    }
+    async refreshSkills() {
+        const oldKeys = new Set(this.skillsCache.keys());
+        const refreshStart = Date.now();
+        await this.loadSkills();
+        const newKeys = new Set(this.skillsCache.keys());
+        const refreshTimeMs = Date.now() - refreshStart;
+        const added = [...newKeys].filter(k => !oldKeys.has(k)).length;
+        const removed = [...oldKeys].filter(k => !newKeys.has(k)).length;
+        const updated = this.skillsCache.size - added;
+        console.error(`[EVOKORE] Skill refresh: +${added} -${removed} ~${updated} = ${this.skillsCache.size} total (${refreshTimeMs}ms)`);
+        return { added, removed, updated, total: this.skillsCache.size, refreshTimeMs };
+    }
+    setOnRefreshCallback(cb) {
+        this.onRefreshCallback = cb;
+    }
+    enableWatcher() {
+        if (this.watcher)
+            return;
+        if (!fs_1.default.existsSync(SKILLS_DIR)) {
+            console.error("[EVOKORE] Skill watcher: SKILLS directory not found, watcher not started.");
+            return;
+        }
+        let debounceTimer = null;
+        try {
+            this.watcher = fs_1.default.watch(SKILLS_DIR, { recursive: true }, () => {
+                if (debounceTimer)
+                    clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    console.error("[EVOKORE] Skill watcher: filesystem change detected, refreshing...");
+                    this.refreshSkills().then(() => {
+                        this.onRefreshCallback?.();
+                    }).catch((err) => {
+                        console.error("[EVOKORE] Skill watcher: refresh failed:", err);
+                    });
+                }, 1000);
+            });
+            console.error("[EVOKORE] Skill watcher: watching SKILLS directory for changes.");
+        }
+        catch (err) {
+            console.error("[EVOKORE] Skill watcher: failed to start:", err);
+        }
+    }
+    disableWatcher() {
+        if (this.watcher) {
+            this.watcher.close();
+            this.watcher = null;
+            console.error("[EVOKORE] Skill watcher: stopped.");
         }
     }
     async walkDirectory(dirPath, category, subcategoryPath, depth) {
@@ -538,6 +590,23 @@ class SkillManager {
                 annotations: {
                     title: "Proxy Server Status",
                     readOnlyHint: true,
+                    destructiveHint: false,
+                    idempotentHint: true,
+                    openWorldHint: false
+                }
+            },
+            {
+                name: "refresh_skills",
+                title: "Refresh Skills Index",
+                description: "Refresh the skill index by rescanning the SKILLS/ directory. Use this after adding, removing, or modifying skill files during a live session.",
+                inputSchema: {
+                    type: "object",
+                    properties: {},
+                    required: []
+                },
+                annotations: {
+                    title: "Refresh Skills Index",
+                    readOnlyHint: false,
                     destructiveHint: false,
                     idempotentHint: true,
                     openWorldHint: false

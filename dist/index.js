@@ -179,6 +179,22 @@ class EvokoreMCPServer {
             content: [{ type: "text", text: lines.join("\n") }]
         };
     }
+    async handleRefreshSkills() {
+        const result = await this.skillManager.refreshSkills();
+        this.rebuildToolCatalog();
+        try {
+            await this.server.sendToolListChanged();
+        }
+        catch (error) {
+            console.error(`[EVOKORE] sendToolListChanged() failed after skill refresh: ${error?.message || error}`);
+        }
+        return {
+            content: [{
+                    type: "text",
+                    text: `Skills refreshed in ${result.refreshTimeMs}ms: ${result.added} added, ${result.removed} removed, ${result.updated} unchanged/updated, ${result.total} total skills indexed.`
+                }]
+        };
+    }
     getServerResources() {
         return [
             {
@@ -370,6 +386,9 @@ class EvokoreMCPServer {
             if (toolName === "discover_tools") {
                 return await this.handleDiscoverTools(args, extra);
             }
+            if (toolName === "refresh_skills") {
+                return await this.handleRefreshSkills();
+            }
             // Handle Native Skill Tools
             if (this.toolCatalog.isNativeTool(toolName)) {
                 return await this.skillManager.handleToolCall(toolName, args);
@@ -389,6 +408,16 @@ class EvokoreMCPServer {
         console.error(`[EVOKORE] Skill stats: ${skillStats.totalSkills} skills, ${skillStats.categories.length} categories, loaded in ${skillStats.loadTimeMs}ms, index ~${skillStats.fuseIndexSizeKb}KB`);
         await this.proxyManager.loadServers();
         this.rebuildToolCatalog();
+        // Opt-in filesystem watcher for auto-refreshing skills
+        if (process.env.EVOKORE_SKILL_WATCHER === "true") {
+            this.skillManager.setOnRefreshCallback(() => {
+                this.rebuildToolCatalog();
+                this.server.sendToolListChanged().catch((err) => {
+                    console.error(`[EVOKORE] sendToolListChanged() failed after watcher refresh: ${err?.message || err}`);
+                });
+            });
+            this.skillManager.enableWatcher();
+        }
         const transport = new stdio_js_1.StdioServerTransport();
         await this.server.connect(transport);
         console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
