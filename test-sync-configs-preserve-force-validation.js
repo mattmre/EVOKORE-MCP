@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -164,17 +165,9 @@ function validateConflictingEntryFlagsFailNonZero() {
   }
 }
 
-function run() {
+test('sync configs preserve/force validation', () => {
   validateApplyPreservesExistingByDefault();
   validateApplyForceOverwritesExistingEntry();
   validateDryRunShowsExistingEntryAndAction();
   validateConflictingEntryFlagsFailNonZero();
-  console.log('Sync configs preserve/force validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Sync configs preserve/force validation failed:', error);
-  process.exit(1);
-}
+});

@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const net = require('net');
@@ -122,7 +123,7 @@ async function ensureChildStopped(child) {
   }
 }
 
-async function run() {
+test('voice sidecar hot-reload validation', async () => {
   const sidecarPath = path.resolve(__dirname, 'dist', 'VoiceSidecar.js');
   const voicesPath = path.resolve(__dirname, 'voices.json');
   assert.ok(fs.existsSync(sidecarPath), 'dist/VoiceSidecar.js must exist for hot-reload validation');
@@ -205,11 +206,4 @@ async function run() {
     fs.writeFileSync(voicesPath, voicesOriginalRaw, 'utf8');
     await ensureChildStopped(child);
   }
-
-  console.log('Voice sidecar hot-reload validation passed.');
-}
-
-run().catch((error) => {
-  console.error('Voice sidecar hot-reload validation failed:', error);
-  process.exit(1);
 });

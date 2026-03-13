@@ -71,14 +71,8 @@ async function testTransportErrorsIncrementServerStatus() {
   }
 }
 
-async function run() {
+test('ProxyManager server error regression', async () => {
   console.log('Starting ProxyManager server error regression tests...');
   await testToolErrorsIncrementServerStatus();
   await testTransportErrorsIncrementServerStatus();
-  console.log('ProxyManager server error regression tests passed.');
-}
-
-run().catch((error) => {
-  console.error('ProxyManager server error regression tests failed:', error);
-  process.exit(1);
 });

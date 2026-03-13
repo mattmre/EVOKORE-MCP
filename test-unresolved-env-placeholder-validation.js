@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('unresolved env placeholder validation', () => {
   const proxyPath = path.resolve(__dirname, 'src', 'ProxyManager.ts');
   const usagePath = path.resolve(__dirname, 'docs', 'USAGE.md');
   const troubleshootingPath = path.resolve(__dirname, 'docs', 'TROUBLESHOOTING.md');
@@ -23,13 +24,4 @@ function run() {
   assert.match(usage, /unresolved.*fails fast.*child server/i);
   assert.match(troubleshooting, /Unresolved env placeholder\(s\) for child server/i);
   assert.match(troubleshooting, /\$\{[A-Z0-9_]+\}/);
-
-  console.log('Unresolved env placeholder validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Unresolved env placeholder validation failed:', error);
-  process.exit(1);
-}
+});

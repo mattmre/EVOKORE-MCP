@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { resolveCommandForPlatform } from "./src/utils/resolveCommandForPlatform";
 
+
+test('Windows command runtime validation', () => {
 assert.equal(resolveCommandForPlatform("npx", "win32"), "npx.cmd");
 assert.equal(resolveCommandForPlatform("npx", "linux"), "npx");
 
@@ -21,4 +23,4 @@ if (process.platform === "win32") {
   console.log("Skipping Windows runtime probe on non-win32 platform.");
 }
 
-console.log("Windows command runtime validation passed.");
+});

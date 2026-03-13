@@ -1,11 +1,12 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-function run() {
+test('log rotation validation', () => {
   console.log('Running log rotation validation...');
 
   // ─── 1. Validate scripts/log-rotation.js exists and exports correctly ───
@@ -176,13 +177,4 @@ function run() {
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
-
-  console.log('Log rotation validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Log rotation validation failed:', error);
-  process.exit(1);
-}
+});

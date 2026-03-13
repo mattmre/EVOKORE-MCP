@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -8,7 +9,7 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function run() {
+test('version/config consistency validation', () => {
   const packageJsonPath = path.resolve(__dirname, 'package.json');
   const srcIndexPath = path.resolve(__dirname, 'src', 'index.ts');
   const srcIndexJsPath = path.resolve(__dirname, 'src', 'index.js');
@@ -47,13 +48,4 @@ function run() {
   assert.match(envExample, /Tool discovery mode.*legacy.*dynamic/);
   assert.doesNotMatch(envExample, /EVOKORE_DISCOVERY_MODE/);
   assert.doesNotMatch(envExample, /"full" = all tools visible, "gated" = discovery-based/);
-
-  console.log('Version/config consistency validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Version/config consistency validation failed:', error);
-  process.exit(1);
-}
+});

@@ -72,14 +72,8 @@ function testStaleSessionResetAndPrune() {
   assert(server.activatedToolSessionsBySession.size <= 100, "Activated tool session state should stay bounded.");
 }
 
-async function run() {
+test('tool discovery session hardening validation', async () => {
   console.log("Starting tool discovery session hardening validation...");
   await testSessionIsolation();
   testStaleSessionResetAndPrune();
-  console.log("Tool discovery session hardening validation passed.");
-}
-
-run().catch((error) => {
-  console.error("Tool discovery session hardening validation failed:", error);
-  process.exit(1);
 });

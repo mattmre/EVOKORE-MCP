@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('ops docs validation', () => {
   const trackerPath = path.resolve(__dirname, 'docs', 'ORCHESTRATION_TRACKER.md');
   const decisionsPath = path.resolve(__dirname, 'docs', 'RESEARCH_DECISIONS_LOG.md');
   const matrixPath = path.resolve(__dirname, 'docs', 'PRIORITY_STATUS_MATRIX.md');
@@ -67,13 +68,4 @@ function run() {
   assert.match(prTemplate, /## Testing/);
   assert.match(prTemplate, /## Evidence/);
   assert.match(prTemplate, /## Skills\/Tools Affected/);
-
-  console.log('Ops docs validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Ops docs validation failed:', error);
-  process.exit(1);
-}
+});

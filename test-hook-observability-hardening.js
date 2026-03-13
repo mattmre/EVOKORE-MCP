@@ -1,11 +1,12 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-function run() {
+test('hook observability hardening validation', () => {
   console.log('Running hook observability hardening validation...');
 
   // 1. Validate rotation logic exists in hook-observability.js
@@ -129,13 +130,4 @@ function run() {
   assert.match(usageSrc, /hooks:view/, 'USAGE.md must document hooks:view command');
 
   console.log('  [PASS] USAGE.md documents rotation and viewer');
-
-  console.log('Hook observability hardening validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Hook observability hardening validation failed:', error);
-  process.exit(1);
-}
+});

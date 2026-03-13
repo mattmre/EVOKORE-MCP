@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
@@ -18,7 +19,7 @@ function resolveCanonicalProjectRoot() {
     : projectRoot;
 }
 
-function run() {
+test('sync configs canonical root validation', () => {
   console.log('Running sync configs canonical root validation...');
 
   const canonicalRoot = resolveCanonicalProjectRoot();
@@ -45,13 +46,4 @@ function run() {
       `Expected sync output to avoid disposable worktree entry path.\nUnexpected: ${worktreeEntry}\nOutput: ${normalizedOutput}`
     );
   }
-
-  console.log('Sync configs canonical root validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Sync configs canonical root validation failed:', error);
-  process.exit(1);
-}
+});

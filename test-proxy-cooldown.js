@@ -157,19 +157,10 @@ async function testErrorAndExceptionResponsesStillTriggerCooldown() {
   }
 }
 
-async function runTest() {
-  console.log('Starting ProxyManager cooldown regression tests...');
-
+test('ProxyManager cooldown regression', async () => {
   await testCooldownAppliesToSameToolAndSameArgs();
   await testCooldownDoesNotBleedAcrossDifferentArgs();
   await testApprovalPromptWinsOverCooldown();
   await testApprovalTokenSurvivesCooldownBlock();
   await testErrorAndExceptionResponsesStillTriggerCooldown();
-
-  console.log('All cooldown tests passed successfully.');
-}
-
-runTest().catch((error) => {
-  console.error('Test failed:', error);
-  process.exit(1);
 });

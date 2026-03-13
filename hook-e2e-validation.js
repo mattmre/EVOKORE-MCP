@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -14,7 +15,7 @@ const CANONICAL_HOOKS = {
   tilldone: 'scripts/hooks/tilldone.js'
 };
 
-function run() {
+test('hook E2E validation', () => {
   console.log('Starting hook E2E validation...');
   const logsDir = path.join(os.homedir(), '.evokore', 'logs');
   const hooksLogPath = path.join(logsDir, 'hooks.jsonl');
@@ -116,13 +117,4 @@ function run() {
   assert.ok(hasEvent('evidence-capture', 'evidence_captured'), 'E2E should log evidence capture');
   assert.ok(hasEvent('tilldone', 'hook_mode_allow'), 'E2E should log tilldone hook-mode allow');
   assert.ok(hasEvent('tilldone', 'cli_action'), 'E2E should log tilldone CLI action');
-
-  console.log('Hook E2E validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Hook E2E validation failed:', error);
-  process.exit(1);
-}
+});

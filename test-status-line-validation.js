@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -15,7 +16,7 @@ function cleanup(filePath) {
   }
 }
 
-function run() {
+test('status-line validation', () => {
   console.log('Running status-line validation...');
 
   const activeWorktree = path.resolve(__dirname);
@@ -91,14 +92,20 @@ function run() {
 - Last evidence item: none
 `);
 
+  const isolatedHome = path.join(os.tmpdir(), `evokore-status-home-${Date.now()}`);
+  fs.mkdirSync(path.join(isolatedHome, '.evokore', 'sessions'), { recursive: true });
+
   const fallbackResult = runNodeScript(
     'scripts/status.js',
     {
+      session_id: 'status-fallback-nonexistent-' + Date.now(),
       workspace: { current_dir: isolatedWorkspace }
     },
     {
       env: {
-        EVOKORE_CLAUDE_MEMORY_DIR: memoryDir
+        EVOKORE_CLAUDE_MEMORY_DIR: memoryDir,
+        HOME: isolatedHome,
+        USERPROFILE: isolatedHome
       }
     }
   );
@@ -107,13 +114,6 @@ function run() {
   assert.match(fallbackResult.cleanStdout, /purpose Memory fallback purpose/i);
 
   cleanup(isolatedWorkspace);
+  cleanup(isolatedHome);
   cleanup(memoryDir);
-  console.log('Status-line validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Status-line validation failed:', error);
-  process.exit(1);
-}
+});

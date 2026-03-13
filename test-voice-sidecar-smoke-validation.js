@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const net = require('net');
@@ -128,7 +129,7 @@ async function ensureChildStopped(child) {
   }
 }
 
-async function run() {
+test('voice sidecar smoke validation', async () => {
   const sidecarPath = path.resolve(__dirname, 'dist', 'VoiceSidecar.js');
   assert.ok(fs.existsSync(sidecarPath), 'dist/VoiceSidecar.js must exist for runtime smoke validation');
 
@@ -173,11 +174,4 @@ async function run() {
     await ensureChildStopped(child);
     throw error;
   }
-
-  console.log('Voice sidecar smoke validation passed.');
-}
-
-run().catch((error) => {
-  console.error('Voice sidecar smoke validation failed:', error);
-  process.exit(1);
 });

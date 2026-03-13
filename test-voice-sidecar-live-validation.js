@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const net = require('net');
@@ -165,7 +166,7 @@ async function ensureChildStopped(child) {
   }
 }
 
-async function run() {
+test('voice sidecar live validation', async () => {
   if (process.env.EVOKORE_RUN_LIVE_VOICE_TEST !== '1') {
     console.log('Skipping live VoiceSidecar validation. Set EVOKORE_RUN_LIVE_VOICE_TEST=1 to enable.');
     return;
@@ -173,8 +174,8 @@ async function run() {
 
   if (!process.env.ELEVENLABS_API_KEY) {
     console.error('EVOKORE_RUN_LIVE_VOICE_TEST=1 requires ELEVENLABS_API_KEY to be set.');
-    process.exit(1);
-  }
+    throw new Error("Test failed");
+}
 
   const sidecarPath = path.resolve(__dirname, 'dist', 'VoiceSidecar.js');
   assert.ok(fs.existsSync(sidecarPath), 'dist/VoiceSidecar.js must exist for live validation');
@@ -230,11 +231,4 @@ async function run() {
     await ensureChildStopped(child);
     fs.rmSync(artifactDir, { recursive: true, force: true });
   }
-
-  console.log('Voice sidecar live validation passed.');
-}
-
-run().catch((error) => {
-  console.error('Voice sidecar live validation failed:', error);
-  process.exit(1);
 });

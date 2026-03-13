@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('Windows executable fallback validation', () => {
   const proxyPath = path.resolve(__dirname, 'src', 'ProxyManager.ts');
   const resolveHelperPath = path.resolve(__dirname, 'src', 'utils', 'resolveCommandForPlatform.ts');
   const proxySource = fs.readFileSync(proxyPath, 'utf8');
@@ -18,13 +19,4 @@ function run() {
 
   assert.match(proxySource, /import \{ resolveCommandForPlatform \} from "\.\/utils\/resolveCommandForPlatform";/);
   assert.match(proxySource, /const cmd = resolveCommandForPlatform\(serverConfig\.command\);/);
-
-  console.log('Windows executable fallback validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Windows executable fallback validation failed:', error);
-  process.exit(1);
-}
+});

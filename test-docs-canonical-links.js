@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -56,7 +57,7 @@ function resolveInternalLinkPath(sourceFilePath, href) {
   return path.resolve(path.dirname(sourceFilePath), mappedTarget);
 }
 
-function run() {
+test('docs canonical link validation', () => {
   const docsReadmePath = path.resolve(__dirname, 'docs', 'README.md');
   const submodulePath = path.resolve(__dirname, 'docs', 'SUBMODULE_WORKFLOW.md');
   const readmePath = path.resolve(__dirname, 'README.md');
@@ -112,13 +113,4 @@ function run() {
   assert.match(readme, /docs\/SUBMODULE_WORKFLOW\.md/);
   assert.match(contributing, /docs\/README\.md/);
   assert.match(contributing, /docs\/SUBMODULE_WORKFLOW\.md/);
-
-  console.log('Docs canonical link validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Docs canonical link validation failed:', error);
-  process.exit(1);
-}
+});

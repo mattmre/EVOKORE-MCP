@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -477,7 +478,7 @@ function validatePreserveSemanticsThirdPartyServers() {
 // Runner
 // ---------------------------------------------------------------------------
 
-function run() {
+test('cross-CLI sync validation', () => {
   validateClaudeCodeConfigStructure();
   validateCursorProjectLevelFallback();
   validateMalformedJsonRecovery();
@@ -485,12 +486,4 @@ function run() {
   validateWriteJsonSafeDirectoryCreation();
   validateForceIdempotencyByteIdentity();
   validatePreserveSemanticsThirdPartyServers();
-  console.log('Cross-CLI sync validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Cross-CLI sync validation failed:', error);
-  process.exit(1);
-}
+});

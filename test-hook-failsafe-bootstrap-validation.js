@@ -1,12 +1,13 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-function run() {
+test('hook fail-safe bootstrap validation', () => {
   console.log('Running hook fail-safe bootstrap validation...');
 
   const logsDir = path.join(os.homedir(), '.evokore', 'logs');
@@ -46,13 +47,4 @@ function run() {
   const bootstrapEntry = entries.find((entry) => entry.hook === 'bootstrap-test' && entry.event === 'bootstrap_fail_safe');
   assert.ok(bootstrapEntry, 'bootstrap fail-safe entry should be present in hooks log');
   assert.match(bootstrapEntry.error || '', /Cannot find module/i);
-
-  console.log('Hook fail-safe bootstrap validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Hook fail-safe bootstrap validation failed:', error);
-  process.exit(1);
-}
+});

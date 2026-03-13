@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('voice Windows docs validation', () => {
   const usagePath = path.resolve(__dirname, 'docs', 'USAGE.md');
   const troubleshootingPath = path.resolve(__dirname, 'docs', 'TROUBLESHOOTING.md');
 
@@ -20,13 +21,4 @@ function run() {
   assert.match(troubleshooting, /setx OPENAI_API_KEY/i);
   assert.match(troubleshooting, /\$env:OPENAI_API_KEY/i);
   assert.match(troubleshooting, /uvx --version/i);
-
-  console.log('Voice Windows docs validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Voice Windows docs validation failed:', error);
-  process.exit(1);
-}
+});

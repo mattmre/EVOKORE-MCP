@@ -1,19 +1,14 @@
 'use strict';
 
+
 const assert = require('assert');
 const audit = require('./scripts/repo-state-audit');
 
 function check(label, fn) {
-  try {
-    fn();
-    console.log(`[PASS] ${label}`);
-  } catch (error) {
-    console.error(`[FAIL] ${label}: ${error.message}`);
-    process.exitCode = 1;
-  }
+  fn(); // Let vitest catch assertion failures directly
 }
 
-console.log('Running repo state audit validation...');
+test('repo state audit validation', () => {
 
 check('parseTrack handles gone upstream', () => {
   const parsed = audit.parseTrack('[gone]');
@@ -94,9 +89,4 @@ check('collectAudit returns current repo report shape', () => {
   assert.strictEqual(typeof report.divergenceFromMain.behind, 'number');
   assert.strictEqual(typeof report.divergenceFromMain.ahead, 'number');
 });
-
-if (process.exitCode) {
-  throw new Error('Repo state audit validation failed');
-}
-
-console.log('Repo state audit validation passed.');
+});

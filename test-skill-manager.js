@@ -3,7 +3,7 @@ const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio
 const path = require("path");
 const fs = require("fs");
 
-async function run() {
+test('SkillManager integration', async () => {
   console.log("Starting SkillManager Integration Client...");
   
   const transport = new StdioClientTransport({
@@ -23,8 +23,8 @@ async function run() {
   const toolsResponse = await client.listTools();
   if (!toolsResponse.tools.some((tool) => tool.name === "discover_tools")) {
     console.error("discover_tools was not exposed in the server tool list.");
-    process.exit(1);
-  }
+    throw new Error("Test failed");
+}
   
   // Test docs_architect
   console.log("Testing docs_architect...");
@@ -39,8 +39,8 @@ async function run() {
     console.log("docs_architect test passed!");
   } else {
     console.error("docs_architect test failed:", docsResponse);
-    process.exit(1);
-  }
+    throw new Error("Test failed");
+}
 
   // Test skill_creator
   console.log("Testing skill_creator...");
@@ -87,12 +87,12 @@ async function run() {
               }
           } else {
               console.error("skill_creator retry failed:", retryResponse);
-              process.exit(1);
-          }
+    throw new Error("Test failed");
+}
       } else {
           console.error("Failed to extract token or unexpected error:", errorText);
-          process.exit(1);
-      }
+    throw new Error("Test failed");
+}
   } else {
       console.log("skill_creator test passed without HITL (perhaps it's not intercepted)! Response:", creatorResponse.content[0].text);
       if (fs.existsSync(testSkillMdPath)) {
@@ -101,10 +101,4 @@ async function run() {
   }
 
   console.log("SkillManager Validation Passed!");
-  process.exit(0);
-}
-
-run().catch(err => {
-    console.error("Test failed with exception:", err);
-    process.exit(1);
 });

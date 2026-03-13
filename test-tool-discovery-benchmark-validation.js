@@ -54,7 +54,7 @@ function validateLiveTimings(payload) {
   }
 }
 
-function run() {
+test('tool discovery benchmark validation', () => {
   const stdoutRun = runBenchmark();
   validatePayload(stdoutRun.payload);
   assert.strictEqual(stdoutRun.payload.benchmarkScenario.deterministicArtifact, true, "Default benchmark run should stay deterministic.");
@@ -87,6 +87,4 @@ function run() {
   }
 
   console.log("Tool discovery benchmark validation passed.");
-}
-
-run();
+});

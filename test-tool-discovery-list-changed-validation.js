@@ -60,7 +60,7 @@ async function closeClient({ client, transport }) {
   }
 }
 
-async function run() {
+test('tool discovery list-changed validation', async () => {
   console.log("Starting tool discovery list-changed validation...");
   writeTestConfig();
 
@@ -112,11 +112,4 @@ async function run() {
       fs.unlinkSync(tempConfigPath);
     }
   }
-
-  console.log("Tool discovery list-changed validation passed.");
-}
-
-run().catch((error) => {
-  console.error("Tool discovery list-changed validation failed:", error);
-  process.exit(1);
 });

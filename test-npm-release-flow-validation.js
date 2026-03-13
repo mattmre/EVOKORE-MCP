@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('NPM release flow validation', () => {
   const workflowPath = path.resolve(__dirname, '.github', 'workflows', 'release.yml');
   const docsPath = path.resolve(__dirname, 'docs', 'RELEASE_FLOW.md');
   const pkgPath = path.resolve(__dirname, 'package.json');
@@ -56,13 +57,4 @@ function run() {
   assert.match(docs, /GitHub Release/i, 'docs must mention GitHub Release creation');
   assert.match(docs, /softprops\/action-gh-release/, 'docs must reference the GH Release action');
   assert.match(docs, /workflow_dispatch.*does not.*create.*release/is, 'docs must note workflow_dispatch does not create releases');
-
-  console.log('NPM release flow validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('NPM release flow validation failed:', error);
-  process.exit(1);
-}
+});

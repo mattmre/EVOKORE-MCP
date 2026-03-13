@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -20,7 +21,7 @@ function cleanup(paths) {
   }
 }
 
-function run() {
+test('auto-memory validation', () => {
   console.log('Running auto-memory validation...');
 
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-memory-'));
@@ -75,12 +76,4 @@ function run() {
 
   delete process.env.EVOKORE_CLAUDE_PROJECTS_DIR;
   cleanup([tmpRoot, sessionPaths.sessionStatePath, sessionPaths.replayLogPath, sessionPaths.evidenceLogPath, sessionPaths.tasksPath]);
-  console.log('Auto-memory validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Auto-memory validation failed:', error);
-  process.exit(1);
-}
+});

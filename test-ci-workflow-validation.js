@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('CI workflow trigger validation', () => {
   const workflowPath = path.resolve(__dirname, '.github', 'workflows', 'ci.yml');
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
@@ -19,19 +20,6 @@ function run() {
   assert.match(workflow, /\bwindows-runtime:\s*\r?\n[^\n]*\r?\n\s*runs-on:\s*windows-latest\b/);
   assert.match(
     workflow,
-    /\s*-\s*run:\s*node test-windows-exec-validation\.js\b/
+    /\s*-\s*(?:name:\s*Run Windows-specific tests\s*\r?\n\s*run:\s*npx vitest run test-windows-exec-validation\.js test-windows-command-runtime-validation\.ts|run:\s*node test-windows-exec-validation\.js)\b/
   );
-  assert.match(
-    workflow,
-    /\s*-\s*run:\s*npx tsx test-windows-command-runtime-validation\.ts\b/
-  );
-
-  console.log('CI workflow trigger validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('CI workflow trigger validation failed:', error);
-  process.exit(1);
-}
+});
