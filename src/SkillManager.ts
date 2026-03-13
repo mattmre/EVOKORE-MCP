@@ -1,12 +1,14 @@
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
+import os from "os";
 import http from "http";
 import https from "https";
 import yaml from "yaml";
 import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { ProxyManager } from "./ProxyManager";
+import { execFileSync } from "child_process";
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
 const CONFIG_PATH = path.resolve(__dirname, "../mcp.config.json");
@@ -641,6 +643,89 @@ export class SkillManager {
       .slice(0, limit);
   }
 
+  extractCodeBlocks(skillName: string): Array<{language: string; code: string; index: number}> {
+    const skill = this.findSkillByName(skillName);
+    if (!skill) throw new Error("Skill not found: " + skillName);
+
+    const blocks: Array<{language: string; code: string; index: number}> = [];
+    const regex = /```(\w*)\n([\s\S]*?)```/g;
+    let match;
+    let index = 0;
+    while ((match = regex.exec(skill.content)) !== null) {
+      blocks.push({
+        language: match[1] || "text",
+        code: match[2].trim(),
+        index: index++
+      });
+    }
+    return blocks;
+  }
+
+  async executeCodeBlock(
+    skillName: string,
+    stepIndex: number,
+    userEnv?: Record<string, string>
+  ): Promise<{stdout: string; stderr: string; exitCode: number; timedOut: boolean}> {
+    const blocks = this.extractCodeBlocks(skillName);
+    if (stepIndex < 0 || stepIndex >= blocks.length) {
+      throw new Error(`Step ${stepIndex} out of range (0-${blocks.length - 1})`);
+    }
+
+    const block = blocks[stepIndex];
+
+    // Determine executor based on language
+    const executors: Record<string, {command: string; args: string[]; ext: string}> = {
+      "bash": { command: "bash", args: ["-e"], ext: ".sh" },
+      "sh": { command: "sh", args: ["-e"], ext: ".sh" },
+      "javascript": { command: "node", args: [], ext: ".js" },
+      "js": { command: "node", args: [], ext: ".js" },
+      "python": { command: "python3", args: [], ext: ".py" },
+      "py": { command: "python3", args: [], ext: ".py" },
+      "typescript": { command: "npx", args: ["tsx"], ext: ".ts" },
+      "ts": { command: "npx", args: ["tsx"], ext: ".ts" },
+    };
+
+    const executor = executors[block.language.toLowerCase()];
+    if (!executor) {
+      throw new Error("Unsupported language for execution: " + block.language);
+    }
+
+    // Write to temp file
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `evokore-sandbox-${Date.now()}${executor.ext}`);
+    fsSync.writeFileSync(tmpFile, block.code);
+
+    try {
+      const env = {
+        ...process.env,
+        ...userEnv,
+        EVOKORE_SANDBOX: "true"  // Signal to code it's running in sandbox
+      };
+
+      const result = execFileSync(executor.command, [...executor.args, tmpFile], {
+        encoding: "utf8",
+        timeout: 30000,  // 30s timeout
+        maxBuffer: 1024 * 1024,  // 1MB output limit
+        env,
+        stdio: ["pipe", "pipe", "pipe"]
+      });
+
+      return { stdout: result, stderr: "", exitCode: 0, timedOut: false };
+    } catch (err: any) {
+      if (err.killed) {
+        return { stdout: err.stdout || "", stderr: err.stderr || "", exitCode: -1, timedOut: true };
+      }
+      return {
+        stdout: err.stdout || "",
+        stderr: err.stderr || err.message || "",
+        exitCode: err.status || 1,
+        timedOut: false
+      };
+    } finally {
+      try { fsSync.unlinkSync(tmpFile); } catch {}
+    }
+  }
+
   getTools(): Tool[] {
     return [
       {
@@ -832,6 +917,27 @@ export class SkillManager {
           readOnlyHint: true,
           destructiveHint: false,
           idempotentHint: true,
+          openWorldHint: true
+        }
+      },
+      {
+        name: "execute_skill",
+        title: "Execute Skill Steps",
+        description: "Execute code blocks from a skill file in a sandboxed subprocess with output capture, timeout, and resource limits.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            skill_name: { type: "string", description: "Name of the skill to execute" },
+            step: { type: "number", description: "Index of the code block to execute (0-based). Omit to list available blocks." },
+            env: { type: "object", description: "Optional environment variables to pass to the subprocess" }
+          },
+          required: ["skill_name"]
+        },
+        annotations: {
+          title: "Execute Skill Steps",
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: false,
           openWorldHint: true
         }
       }
@@ -1070,6 +1176,86 @@ export class SkillManager {
         } catch (error: any) {
             return {
                 content: [{ type: "text", text: "Failed to list registry skills: " + error.message }],
+                isError: true
+            };
+        }
+    }
+
+    if (name === "execute_skill") {
+        const skillName = typeof args.skill_name === "string" ? args.skill_name.trim() : "";
+        if (!skillName) {
+            return {
+                content: [{ type: "text", text: "The 'skill_name' argument is required." }],
+                isError: true
+            };
+        }
+
+        // If no step specified, list available code blocks
+        if (args.step === undefined || args.step === null) {
+            try {
+                if (!this.fuseIndex) await this.loadSkills();
+                const blocks = this.extractCodeBlocks(skillName);
+                if (blocks.length === 0) {
+                    return {
+                        content: [{
+                            type: "text",
+                            text: "Skill '" + skillName + "' has no executable code blocks."
+                        }]
+                    };
+                }
+
+                const listing = blocks.map(b =>
+                    "  [" + b.index + "] " + b.language + " (" + b.code.split("\n").length + " lines): " + b.code.split("\n")[0].slice(0, 80)
+                ).join("\n");
+
+                return {
+                    content: [{
+                        type: "text",
+                        text: "Skill '" + skillName + "' has " + blocks.length + " code block(s):\n" + listing + "\n\nUse the 'step' parameter to execute a specific block."
+                    }]
+                };
+            } catch (error: any) {
+                return {
+                    content: [{ type: "text", text: "Failed to extract code blocks: " + error.message }],
+                    isError: true
+                };
+            }
+        }
+
+        // Execute the specified step
+        const stepIndex = typeof args.step === "number" ? args.step : parseInt(String(args.step), 10);
+        if (isNaN(stepIndex)) {
+            return {
+                content: [{ type: "text", text: "The 'step' parameter must be a number." }],
+                isError: true
+            };
+        }
+
+        const userEnv = (args.env && typeof args.env === "object") ? args.env as Record<string, string> : undefined;
+
+        try {
+            if (!this.fuseIndex) await this.loadSkills();
+            const result = await this.executeCodeBlock(skillName, stepIndex, userEnv);
+
+            const parts: string[] = [];
+            if (result.timedOut) {
+                parts.push("[TIMED OUT after 30s]");
+            }
+            parts.push("Exit code: " + result.exitCode);
+            if (result.stdout) {
+                parts.push("--- stdout ---\n" + result.stdout);
+            }
+            if (result.stderr) {
+                parts.push("--- stderr ---\n" + result.stderr);
+            }
+
+            return {
+                content: [{ type: "text", text: parts.join("\n") }],
+                isError: result.exitCode !== 0
+            };
+        } catch (error: any) {
+            return {
+                content: [{ type: "text", text: "Execution failed: " + error.message }],
                 isError: true
             };
         }
