@@ -247,6 +247,37 @@ export class ProxyManager {
       .map((state) => ({ ...state }));
   }
 
+  async getSanitizedConfig(): Promise<Record<string, any>> {
+    try {
+      const configFile = this.getConfigFilePath();
+      const content = await fs.readFile(configFile, "utf-8");
+      const config = JSON.parse(content);
+
+      if (!config.servers) return { servers: {} };
+
+      const sanitized: Record<string, any> = { servers: {} };
+      for (const [serverId, serverConfig] of Object.entries(config.servers as Record<string, ServerConfig>)) {
+        const sanitizedServer: Record<string, any> = {};
+        if (serverConfig.command) sanitizedServer.command = serverConfig.command;
+        if (serverConfig.args) sanitizedServer.args = serverConfig.args;
+        if (serverConfig.transport) sanitizedServer.transport = serverConfig.transport;
+        if (serverConfig.url) sanitizedServer.url = serverConfig.url;
+        if (serverConfig.env) {
+          const redactedEnv: Record<string, string> = {};
+          for (const key of Object.keys(serverConfig.env)) {
+            redactedEnv[key] = "[REDACTED]";
+          }
+          sanitizedServer.env = redactedEnv;
+        }
+        sanitized.servers[serverId] = sanitizedServer;
+      }
+
+      return sanitized;
+    } catch {
+      return { servers: {}, error: "Could not read config file" };
+    }
+  }
+
   canHandle(toolName: string): boolean {
     return this.toolRegistry.has(toolName);
   }

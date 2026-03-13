@@ -195,6 +195,39 @@ class ProxyManager {
             .sort((left, right) => left.id.localeCompare(right.id))
             .map((state) => ({ ...state }));
     }
+    async getSanitizedConfig() {
+        try {
+            const configFile = this.getConfigFilePath();
+            const content = await promises_1.default.readFile(configFile, "utf-8");
+            const config = JSON.parse(content);
+            if (!config.servers)
+                return { servers: {} };
+            const sanitized = { servers: {} };
+            for (const [serverId, serverConfig] of Object.entries(config.servers)) {
+                const sanitizedServer = {};
+                if (serverConfig.command)
+                    sanitizedServer.command = serverConfig.command;
+                if (serverConfig.args)
+                    sanitizedServer.args = serverConfig.args;
+                if (serverConfig.transport)
+                    sanitizedServer.transport = serverConfig.transport;
+                if (serverConfig.url)
+                    sanitizedServer.url = serverConfig.url;
+                if (serverConfig.env) {
+                    const redactedEnv = {};
+                    for (const key of Object.keys(serverConfig.env)) {
+                        redactedEnv[key] = "[REDACTED]";
+                    }
+                    sanitizedServer.env = redactedEnv;
+                }
+                sanitized.servers[serverId] = sanitizedServer;
+            }
+            return sanitized;
+        }
+        catch {
+            return { servers: {}, error: "Could not read config file" };
+        }
+    }
     canHandle(toolName) {
         return this.toolRegistry.has(toolName);
     }
