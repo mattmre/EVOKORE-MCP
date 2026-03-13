@@ -33,7 +33,7 @@ const DEFAULT_SESSION_ID = "__stdio_default_session__";
 const ACTIVATED_TOOL_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_ACTIVATED_TOOL_SESSIONS = 100;
 
-const SERVER_VERSION = "2.0.2";
+const SERVER_VERSION = "3.0.0";
 
 export class EvokoreMCPServer {
   private server: Server;
