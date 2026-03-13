@@ -19,6 +19,13 @@
         "ELEVENLABS_API_KEY": "${ELEVENLABS_API_KEY}",
         "ELEVENLABS_MCP_OUTPUT_MODE": "both"
       }
+    },
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase", "--read-only"],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
     }
   }
 }
