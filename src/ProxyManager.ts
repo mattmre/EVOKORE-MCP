@@ -11,12 +11,18 @@ import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
 const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 
+interface RateLimitConfig {
+  requestsPerMinute?: number;       // per-server limit
+  toolLimits?: Record<string, number>;  // per-tool overrides (requests per minute)
+}
+
 interface ServerConfig {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
   transport?: "stdio" | "http";
   url?: string;
+  rateLimit?: RateLimitConfig;
 }
 
 export interface ServerState {
@@ -28,6 +34,42 @@ export interface ServerState {
   registeredToolCount: number;
 }
 
+export class TokenBucket {
+  private tokens: number;
+  private lastRefill: number;
+  private maxTokens: number;
+  private refillRatePerMs: number;
+
+  constructor(requestsPerMinute: number) {
+    this.maxTokens = requestsPerMinute;
+    this.tokens = requestsPerMinute;
+    this.lastRefill = Date.now();
+    this.refillRatePerMs = requestsPerMinute / 60000;
+  }
+
+  tryConsume(): boolean {
+    this.refill();
+    if (this.tokens >= 1) {
+      this.tokens -= 1;
+      return true;
+    }
+    return false;
+  }
+
+  getRetryAfterMs(): number {
+    this.refill();
+    if (this.tokens >= 1) return 0;
+    return Math.ceil((1 - this.tokens) / this.refillRatePerMs);
+  }
+
+  private refill(): void {
+    const now = Date.now();
+    const elapsed = now - this.lastRefill;
+    this.tokens = Math.min(this.maxTokens, this.tokens + elapsed * this.refillRatePerMs);
+    this.lastRefill = now;
+  }
+}
+
 export class ProxyManager {
   private clients: Map<string, Client> = new Map();
   private transports: Map<string, StdioClientTransport | StreamableHTTPClientTransport> = new Map();
@@ -36,6 +78,7 @@ export class ProxyManager {
   private security: SecurityManager;
   private serverRegistry: Map<string, ServerState> = new Map();
   private toolCooldowns: Map<string, number> = new Map();
+  private rateLimitBuckets: Map<string, TokenBucket> = new Map();
 
   constructor(security: SecurityManager) {
     this.security = security;
@@ -76,6 +119,45 @@ export class ProxyManager {
     }
   }
 
+  private initRateLimitBuckets(serverId: string, rateLimitConfig?: RateLimitConfig): void {
+    if (!rateLimitConfig) return;
+
+    if (rateLimitConfig.requestsPerMinute && rateLimitConfig.requestsPerMinute > 0) {
+      this.rateLimitBuckets.set(serverId, new TokenBucket(rateLimitConfig.requestsPerMinute));
+    }
+
+    if (rateLimitConfig.toolLimits) {
+      for (const [toolName, rpm] of Object.entries(rateLimitConfig.toolLimits)) {
+        if (rpm > 0) {
+          this.rateLimitBuckets.set(`${serverId}/${toolName}`, new TokenBucket(rpm));
+        }
+      }
+    }
+  }
+
+  private checkRateLimit(serverId: string, originalToolName: string): void {
+    // Check tool-level bucket first (more specific)
+    const toolBucketKey = `${serverId}/${originalToolName}`;
+    const toolBucket = this.rateLimitBuckets.get(toolBucketKey);
+    if (toolBucket && !toolBucket.tryConsume()) {
+      const retryMs = toolBucket.getRetryAfterMs();
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `Rate limit exceeded for ${serverId}/${originalToolName}. Retry after ${Math.ceil(retryMs / 1000)}s.`
+      );
+    }
+
+    // Check server-level bucket
+    const serverBucket = this.rateLimitBuckets.get(serverId);
+    if (serverBucket && !serverBucket.tryConsume()) {
+      const retryMs = serverBucket.getRetryAfterMs();
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `Rate limit exceeded for server '${serverId}'. Retry after ${Math.ceil(retryMs / 1000)}s.`
+      );
+    }
+  }
+
   private resolveServerEnv(serverId: string, serverEnv?: Record<string, string>): Record<string, string> {
     const resolvedEnv: Record<string, string> = {};
     if (!serverEnv) return resolvedEnv;
@@ -108,6 +190,7 @@ export class ProxyManager {
     this.toolRegistry.clear();
     this.cachedTools = [];
     this.serverRegistry.clear();
+    this.rateLimitBuckets.clear();
 
     try {
       const configFile = this.getConfigFilePath();
@@ -131,6 +214,8 @@ export class ProxyManager {
             lastPing: Date.now(),
             registeredToolCount: 0
           });
+
+          this.initRateLimitBuckets(serverId, serverConfig.rateLimit);
 
           const client = new Client(
             { name: `evokore-proxy-${serverId}`, version: "2.0.0" },
@@ -319,7 +404,10 @@ export class ProxyManager {
       approvalTokenToConsume = providedToken;
     }
 
-    // 2. Cooldown Check
+    // 2. Rate Limit Check (proactive, before the call)
+    this.checkRateLimit(serverId, originalName);
+
+    // 3. Cooldown Check (reactive, after previous errors)
     const cooldownKey = this.getCooldownKey(toolName, toolArgs);
     const cooldownExpires = this.toolCooldowns.get(cooldownKey);
     if (cooldownExpires && Date.now() < cooldownExpires) {
