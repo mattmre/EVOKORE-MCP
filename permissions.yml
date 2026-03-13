@@ -1,16 +1,58 @@
 # EVOKORE-MCP Permissions Configuration
 # Use this file to restrict specific proxied tools from executing autonomously.
-# 
+#
 # Access Levels:
 #   "allow": The AI can execute this tool without confirmation.
 #   "require_approval": The AI must pause and ask the user for explicit permission before running this tool.
 #   "deny": The AI is completely blocked from running this tool.
+#
+# Role-Based Access Control (RBAC):
+#   Roles define a default permission level plus per-tool overrides.
+#   Set the active role via the EVOKORE_ROLE env var or the active_role key below.
+#   When no role is active, flat per-tool rules under "rules:" are used (original behavior).
+
+# Role definitions
+roles:
+  admin:
+    description: Full access to all tools
+    default_permission: allow
+
+  developer:
+    description: Standard development access
+    default_permission: require_approval
+    overrides:
+      # Read operations are allowed
+      github_list_commits: allow
+      github_search_repositories: allow
+      fs_read_file: allow
+      fs_list_directory: allow
+      supabase_list_projects: allow
+      supabase_list_tables: allow
+      # Destructive operations denied
+      supabase_create_project: deny
+      supabase_delete_branch: deny
+
+  readonly:
+    description: Read-only access
+    default_permission: deny
+    overrides:
+      github_search_repositories: allow
+      github_list_commits: allow
+      fs_read_file: allow
+      fs_list_directory: allow
+      supabase_list_projects: allow
+      supabase_get_project: allow
+      supabase_list_tables: allow
+      supabase_search_docs: allow
+
+# Active role (set via EVOKORE_ROLE env var, defaults to no role = flat permissions)
+# active_role: developer
 
 rules:
   # Example: Let the AI read files freely, but prevent it from writing/modifying without approval.
   fs_read_file: "allow"
   fs_write_file: "require_approval"
-  
+
   # Example: Let the AI search GitHub freely, but prevent it from creating issues or pushing code without approval.
   github_search_repositories: "allow"
   github_create_issue: "require_approval"

@@ -11,8 +11,18 @@ const EVOKORE_STATE_DIR = path.join(os.homedir(), ".evokore");
 const PENDING_APPROVALS_FILE = path.join(EVOKORE_STATE_DIR, "pending-approvals.json");
 const DENIED_TOKENS_FILE = path.join(EVOKORE_STATE_DIR, "denied-tokens.json");
 
+type PermissionLevel = "allow" | "require_approval" | "deny";
+
+export interface RoleDefinition {
+  description: string;
+  default_permission: PermissionLevel;
+  overrides?: Record<string, PermissionLevel>;
+}
+
 export class SecurityManager {
   private rules: Record<string, string> = {};
+  private roles: Map<string, RoleDefinition> = new Map();
+  private activeRole: string | null = null;
   private pendingTokens: Map<string, { toolName: string; argsHash: string; expiresAt: number }> = new Map();
   private static readonly TOKEN_TTL_MS = 5 * 60 * 1000;
 
@@ -24,6 +34,27 @@ export class SecurityManager {
         this.rules = config.rules;
         console.error(`[EVOKORE] Loaded ${Object.keys(this.rules).length} security rules.`);
       }
+
+      // Load role definitions
+      if (config && config.roles && typeof config.roles === "object") {
+        for (const [name, def] of Object.entries(config.roles)) {
+          this.roles.set(name, def as RoleDefinition);
+        }
+        if (this.roles.size > 0) {
+          console.error(`[EVOKORE] Loaded ${this.roles.size} RBAC role(s): ${Array.from(this.roles.keys()).join(", ")}`);
+        }
+      }
+
+      // Determine active role: env var takes precedence, then config file
+      this.activeRole = process.env.EVOKORE_ROLE || config?.active_role || null;
+      if (this.activeRole) {
+        if (this.roles.has(this.activeRole)) {
+          console.error(`[EVOKORE] Active role: ${this.activeRole}`);
+        } else {
+          console.error(`[EVOKORE] Warning: active role '${this.activeRole}' not found in role definitions. Falling back to flat permissions.`);
+          this.activeRole = null;
+        }
+      }
     } catch (e) {
       console.error("[EVOKORE] No permissions.yml found or error parsing it. Defaulting to 'allow' for all proxied tools.");
     }
@@ -31,20 +62,83 @@ export class SecurityManager {
 
   /**
    * Check if a tool call is allowed.
+   *
+   * When a role is active, the resolution order is:
+   *   1. Role-specific overrides for this tool
+   *   2. Flat per-tool rules (act as additional overrides layered on top of the role)
+   *   3. Role default_permission
+   *
+   * When no role is active, flat per-tool rules are used directly (original behavior).
+   *
    * Returns:
    *  "allow" - Execution proceeds normally.
    *  "require_approval" - The MCP server intercepts and returns an error forcing HITL.
    *  "deny" - Blocked entirely.
    */
-  checkPermission(toolName: string): "allow" | "require_approval" | "deny" {
+  checkPermission(toolName: string): PermissionLevel {
+    // If a role is active, use role-based permissions
+    if (this.activeRole && this.roles.has(this.activeRole)) {
+      const role = this.roles.get(this.activeRole)!;
+
+      // Check role overrides first
+      if (role.overrides && toolName in role.overrides) {
+        return role.overrides[toolName];
+      }
+
+      // Then check flat per-tool rules (they act as additional overrides)
+      const flatRule = this.rules[toolName];
+      if (flatRule === "allow" || flatRule === "require_approval" || flatRule === "deny") {
+        return flatRule;
+      }
+
+      // Fall back to role default
+      return role.default_permission;
+    }
+
+    // No role active -- use flat permissions (existing behavior)
     const rule = this.rules[toolName];
     if (!rule) return "allow"; // Default permissive if not explicitly ruled
-    
+
     if (rule === "require_approval" || rule === "deny") {
       return rule;
     }
 
     return "allow";
+  }
+
+  /**
+   * Get the currently active role name, or null if no role is active.
+   */
+  getActiveRole(): string | null {
+    return this.activeRole;
+  }
+
+  /**
+   * Set the active role at runtime.
+   * Pass null to deactivate role-based permissions and revert to flat rules.
+   * Returns true if the role was set successfully, false if the role name is unknown.
+   */
+  setActiveRole(role: string | null): boolean {
+    if (role === null) {
+      this.activeRole = null;
+      return true;
+    }
+    if (this.roles.has(role)) {
+      this.activeRole = role;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * List all defined roles with their descriptions and active status.
+   */
+  listRoles(): Array<{ name: string; description: string; isActive: boolean }> {
+    return Array.from(this.roles.entries()).map(([name, def]) => ({
+      name,
+      description: def.description,
+      isActive: name === this.activeRole,
+    }));
   }
 
   private normalizeValue(value: any): any {
