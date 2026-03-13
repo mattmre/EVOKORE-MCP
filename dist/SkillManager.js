@@ -7,10 +7,17 @@ exports.SkillManager = void 0;
 const promises_1 = __importDefault(require("fs/promises"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const os_1 = __importDefault(require("os"));
+const http_1 = __importDefault(require("http"));
+const https_1 = __importDefault(require("https"));
 const yaml_1 = __importDefault(require("yaml"));
 const fuse_js_1 = __importDefault(require("fuse.js"));
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
+const child_process_1 = require("child_process");
 const SKILLS_DIR = path_1.default.resolve(__dirname, "../SKILLS");
+const CONFIG_PATH = path_1.default.resolve(__dirname, "../mcp.config.json");
+const MAX_FETCH_SIZE = 1 * 1024 * 1024; // 1MB limit for fetched skills
+const MAX_REDIRECT_DEPTH = 5;
 const SKIP_DIRS = new Set([
     "node_modules", ".git", "__pycache__", "__tests__",
     ".claude", "themes", "assets", "scripts"
@@ -474,6 +481,81 @@ class SkillManager {
             .sort((left, right) => left.score - right.score)
             .slice(0, limit);
     }
+    extractCodeBlocks(skillName) {
+        const skill = this.findSkillByName(skillName);
+        if (!skill)
+            throw new Error("Skill not found: " + skillName);
+        const blocks = [];
+        const regex = /```(\w*)\n([\s\S]*?)```/g;
+        let match;
+        let index = 0;
+        while ((match = regex.exec(skill.content)) !== null) {
+            blocks.push({
+                language: match[1] || "text",
+                code: match[2].trim(),
+                index: index++
+            });
+        }
+        return blocks;
+    }
+    async executeCodeBlock(skillName, stepIndex, userEnv) {
+        const blocks = this.extractCodeBlocks(skillName);
+        if (stepIndex < 0 || stepIndex >= blocks.length) {
+            throw new Error(`Step ${stepIndex} out of range (0-${blocks.length - 1})`);
+        }
+        const block = blocks[stepIndex];
+        // Determine executor based on language
+        const executors = {
+            "bash": { command: "bash", args: ["-e"], ext: ".sh" },
+            "sh": { command: "sh", args: ["-e"], ext: ".sh" },
+            "javascript": { command: "node", args: [], ext: ".js" },
+            "js": { command: "node", args: [], ext: ".js" },
+            "python": { command: "python3", args: [], ext: ".py" },
+            "py": { command: "python3", args: [], ext: ".py" },
+            "typescript": { command: "npx", args: ["tsx"], ext: ".ts" },
+            "ts": { command: "npx", args: ["tsx"], ext: ".ts" },
+        };
+        const executor = executors[block.language.toLowerCase()];
+        if (!executor) {
+            throw new Error("Unsupported language for execution: " + block.language);
+        }
+        // Write to temp file
+        const tmpDir = os_1.default.tmpdir();
+        const tmpFile = path_1.default.join(tmpDir, `evokore-sandbox-${Date.now()}${executor.ext}`);
+        fs_1.default.writeFileSync(tmpFile, block.code);
+        try {
+            const env = {
+                ...process.env,
+                ...userEnv,
+                EVOKORE_SANDBOX: "true" // Signal to code it's running in sandbox
+            };
+            const result = (0, child_process_1.execFileSync)(executor.command, [...executor.args, tmpFile], {
+                encoding: "utf8",
+                timeout: 30000, // 30s timeout
+                maxBuffer: 1024 * 1024, // 1MB output limit
+                env,
+                stdio: ["pipe", "pipe", "pipe"]
+            });
+            return { stdout: result, stderr: "", exitCode: 0, timedOut: false };
+        }
+        catch (err) {
+            if (err.killed) {
+                return { stdout: err.stdout || "", stderr: err.stderr || "", exitCode: -1, timedOut: true };
+            }
+            return {
+                stdout: err.stdout || "",
+                stderr: err.stderr || err.message || "",
+                exitCode: err.status || 1,
+                timedOut: false
+            };
+        }
+        finally {
+            try {
+                fs_1.default.unlinkSync(tmpFile);
+            }
+            catch { }
+        }
+    }
     getTools() {
         return [
             {
@@ -626,6 +708,67 @@ class SkillManager {
                     destructiveHint: false,
                     idempotentHint: true,
                     openWorldHint: false
+                }
+            },
+            {
+                name: "fetch_skill",
+                title: "Fetch Remote Skill",
+                description: "Fetch a skill from a remote URL (GitHub raw content, HTTP endpoint) and install it locally in the SKILLS directory.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        url: { type: "string", description: "URL to fetch the skill from (must be a raw markdown file)" },
+                        category: { type: "string", description: "Category directory to install into (e.g., 'Remote Skills')" },
+                        name: { type: "string", description: "Optional name override for the skill file" },
+                        overwrite: { type: "boolean", description: "Allow overwriting an existing skill (default: false)" }
+                    },
+                    required: ["url"]
+                },
+                annotations: {
+                    title: "Fetch Remote Skill",
+                    readOnlyHint: false,
+                    destructiveHint: false,
+                    idempotentHint: false,
+                    openWorldHint: true
+                }
+            },
+            {
+                name: "list_registry",
+                title: "List Registry Skills",
+                description: "List available skills from configured remote skill registries. Registries are defined in mcp.config.json under skillRegistries.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        registry: { type: "string", description: "Optional registry name to query. If omitted, queries all configured registries." }
+                    }
+                },
+                annotations: {
+                    title: "List Registry Skills",
+                    readOnlyHint: true,
+                    destructiveHint: false,
+                    idempotentHint: true,
+                    openWorldHint: true
+                }
+            },
+            {
+                name: "execute_skill",
+                title: "Execute Skill Steps",
+                description: "Execute code blocks from a skill file in a sandboxed subprocess with output capture, timeout, and resource limits.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        skill_name: { type: "string", description: "Name of the skill to execute" },
+                        step: { type: "number", description: "Index of the code block to execute (0-based). Omit to list available blocks." },
+                        env: { type: "object", description: "Optional environment variables to pass to the subprocess" }
+                    },
+                    required: ["skill_name"]
+                },
+                annotations: {
+                    title: "Execute Skill Steps",
+                    readOnlyHint: false,
+                    destructiveHint: true,
+                    idempotentHint: false,
+                    openWorldHint: true
                 }
             }
         ];
@@ -785,7 +928,283 @@ class SkillManager {
                     }]
             };
         }
+        if (name === "fetch_skill") {
+            const url = typeof args.url === "string" ? args.url.trim() : "";
+            if (!url) {
+                return {
+                    content: [{ type: "text", text: "The 'url' argument is required." }],
+                    isError: true
+                };
+            }
+            const category = typeof args.category === "string" ? args.category.trim() : undefined;
+            const nameOverride = typeof args.name === "string" ? args.name.trim() : undefined;
+            const overwrite = args.overwrite === true;
+            try {
+                const result = await this.fetchRemoteSkill(url, category, nameOverride, overwrite);
+                return {
+                    content: [{
+                            type: "text",
+                            text: 'Skill "' + result.name + '" ' + (result.isNew ? "installed" : "updated") + " at " + result.path + ". Use refresh_skills to update the index."
+                        }]
+                };
+            }
+            catch (error) {
+                return {
+                    content: [{ type: "text", text: "Failed to fetch skill: " + error.message }],
+                    isError: true
+                };
+            }
+        }
+        if (name === "list_registry") {
+            const registryName = typeof args.registry === "string" ? args.registry.trim() : undefined;
+            try {
+                const entries = await this.listRegistrySkills(registryName);
+                if (entries.length === 0) {
+                    return {
+                        content: [{
+                                type: "text",
+                                text: registryName
+                                    ? "No skills found in registry '" + registryName + "', or registry is not configured."
+                                    : "No skill registries are configured in mcp.config.json, or no skills were found."
+                            }]
+                    };
+                }
+                const lines = entries.map(e => {
+                    const verSuffix = e.version ? " (v" + e.version + ")" : "";
+                    const catSuffix = e.category ? " [" + e.category + "]" : "";
+                    return "- **" + e.name + "**" + verSuffix + catSuffix + ": " + e.description + "\n  URL: " + e.url;
+                });
+                return {
+                    content: [{
+                            type: "text",
+                            text: "Available skills from registries (" + entries.length + " total):\n\n" + lines.join("\n")
+                        }]
+                };
+            }
+            catch (error) {
+                return {
+                    content: [{ type: "text", text: "Failed to list registry skills: " + error.message }],
+                    isError: true
+                };
+            }
+        }
+        if (name === "execute_skill") {
+            const skillName = typeof args.skill_name === "string" ? args.skill_name.trim() : "";
+            if (!skillName) {
+                return {
+                    content: [{ type: "text", text: "The 'skill_name' argument is required." }],
+                    isError: true
+                };
+            }
+            // If no step specified, list available code blocks
+            if (args.step === undefined || args.step === null) {
+                try {
+                    if (!this.fuseIndex)
+                        await this.loadSkills();
+                    const blocks = this.extractCodeBlocks(skillName);
+                    if (blocks.length === 0) {
+                        return {
+                            content: [{
+                                    type: "text",
+                                    text: "Skill '" + skillName + "' has no executable code blocks."
+                                }]
+                        };
+                    }
+                    const listing = blocks.map(b => "  [" + b.index + "] " + b.language + " (" + b.code.split("\n").length + " lines): " + b.code.split("\n")[0].slice(0, 80)).join("\n");
+                    return {
+                        content: [{
+                                type: "text",
+                                text: "Skill '" + skillName + "' has " + blocks.length + " code block(s):\n" + listing + "\n\nUse the 'step' parameter to execute a specific block."
+                            }]
+                    };
+                }
+                catch (error) {
+                    return {
+                        content: [{ type: "text", text: "Failed to extract code blocks: " + error.message }],
+                        isError: true
+                    };
+                }
+            }
+            // Execute the specified step
+            const stepIndex = typeof args.step === "number" ? args.step : parseInt(String(args.step), 10);
+            if (isNaN(stepIndex)) {
+                return {
+                    content: [{ type: "text", text: "The 'step' parameter must be a number." }],
+                    isError: true
+                };
+            }
+            const userEnv = (args.env && typeof args.env === "object") ? args.env : undefined;
+            try {
+                if (!this.fuseIndex)
+                    await this.loadSkills();
+                const result = await this.executeCodeBlock(skillName, stepIndex, userEnv);
+                const parts = [];
+                if (result.timedOut) {
+                    parts.push("[TIMED OUT after 30s]");
+                }
+                parts.push("Exit code: " + result.exitCode);
+                if (result.stdout) {
+                    parts.push("--- stdout ---\n" + result.stdout);
+                }
+                if (result.stderr) {
+                    parts.push("--- stderr ---\n" + result.stderr);
+                }
+                return {
+                    content: [{ type: "text", text: parts.join("\n") }],
+                    isError: result.exitCode !== 0
+                };
+            }
+            catch (error) {
+                return {
+                    content: [{ type: "text", text: "Execution failed: " + error.message }],
+                    isError: true
+                };
+            }
+        }
         throw new types_js_1.McpError(types_js_1.ErrorCode.MethodNotFound, "Unknown tool: " + name);
+    }
+    async fetchRemoteSkill(url, category, nameOverride, overwrite = false) {
+        // Validate URL
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(url);
+        }
+        catch {
+            throw new Error("Invalid URL: " + url);
+        }
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+            throw new Error("Only HTTP/HTTPS URLs are supported, got: " + parsedUrl.protocol);
+        }
+        // Fetch content
+        const content = await this.httpGet(url);
+        // Validate it looks like a skill (must have frontmatter)
+        const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+        if (!fmMatch) {
+            throw new Error("Invalid skill format: fetched content does not contain valid YAML frontmatter.");
+        }
+        let frontmatter;
+        try {
+            frontmatter = yaml_1.default.parse(fmMatch[1]);
+        }
+        catch {
+            throw new Error("Invalid skill format: frontmatter YAML could not be parsed.");
+        }
+        const skillName = nameOverride || frontmatter?.name || path_1.default.basename(parsedUrl.pathname, ".md");
+        const targetCategory = category || frontmatter?.category || "Remote Skills";
+        // Sanitize directory/file names to prevent path traversal
+        const sanitized = (input) => input.replace(/[<>:"|?*\x00-\x1f]/g, "_").replace(/\.\./g, "_");
+        const safeCategory = sanitized(targetCategory);
+        const safeName = sanitized(skillName);
+        const categoryDir = path_1.default.join(SKILLS_DIR, safeCategory);
+        const skillDir = path_1.default.join(categoryDir, safeName);
+        // Validate the resulting path is still within SKILLS_DIR
+        const resolvedSkillDir = path_1.default.resolve(skillDir);
+        if (!resolvedSkillDir.startsWith(path_1.default.resolve(SKILLS_DIR))) {
+            throw new Error("Path traversal detected: resolved path escapes SKILLS directory.");
+        }
+        const targetPath = path_1.default.join(skillDir, "SKILL.md");
+        const isNew = !fs_1.default.existsSync(targetPath);
+        if (!isNew && !overwrite) {
+            throw new Error('Skill "' + safeName + '" already exists at ' + targetPath + '. Pass overwrite: true to replace it.');
+        }
+        if (!fs_1.default.existsSync(skillDir)) {
+            fs_1.default.mkdirSync(skillDir, { recursive: true });
+        }
+        fs_1.default.writeFileSync(targetPath, content, "utf-8");
+        console.error("[EVOKORE] Fetched remote skill '" + safeName + "' -> " + targetPath);
+        return { name: safeName, path: targetPath, isNew };
+    }
+    async listRegistrySkills(registryName) {
+        const registries = this.loadRegistriesFromConfig();
+        if (registries.length === 0)
+            return [];
+        const targets = registryName
+            ? registries.filter(r => r.name.toLowerCase() === registryName.toLowerCase())
+            : registries;
+        const allEntries = [];
+        for (const registry of targets) {
+            try {
+                const indexUrl = registry.baseUrl.replace(/\/$/, "") + "/" + registry.index;
+                const raw = await this.httpGet(indexUrl);
+                const parsed = JSON.parse(raw);
+                const skills = Array.isArray(parsed) ? parsed : (parsed?.skills || []);
+                for (const entry of skills) {
+                    if (!entry.name || !entry.url)
+                        continue;
+                    allEntries.push({
+                        name: String(entry.name),
+                        description: String(entry.description || "No description"),
+                        url: String(entry.url).startsWith("http")
+                            ? String(entry.url)
+                            : registry.baseUrl.replace(/\/$/, "") + "/" + String(entry.url),
+                        category: entry.category ? String(entry.category) : undefined,
+                        version: entry.version ? String(entry.version) : undefined
+                    });
+                }
+            }
+            catch (err) {
+                console.error("[EVOKORE] Failed to fetch registry '" + registry.name + "': " + err.message);
+            }
+        }
+        return allEntries;
+    }
+    loadRegistriesFromConfig() {
+        try {
+            const raw = fs_1.default.readFileSync(CONFIG_PATH, "utf-8");
+            const config = JSON.parse(raw);
+            const registries = config?.skillRegistries;
+            if (!Array.isArray(registries))
+                return [];
+            return registries
+                .filter((r) => r && typeof r.name === "string" && typeof r.baseUrl === "string" && typeof r.index === "string")
+                .map((r) => ({
+                name: String(r.name),
+                baseUrl: String(r.baseUrl),
+                index: String(r.index)
+            }));
+        }
+        catch {
+            return [];
+        }
+    }
+    httpGet(url, redirectDepth = 0) {
+        if (redirectDepth > MAX_REDIRECT_DEPTH) {
+            return Promise.reject(new Error("Too many redirects (max " + MAX_REDIRECT_DEPTH + ")"));
+        }
+        return new Promise((resolve, reject) => {
+            const mod = url.startsWith("https") ? https_1.default : http_1.default;
+            const req = mod.get(url, { headers: { "User-Agent": "EVOKORE-MCP" } }, (res) => {
+                // Follow redirects
+                if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+                    res.resume();
+                    this.httpGet(res.headers.location, redirectDepth + 1).then(resolve).catch(reject);
+                    return;
+                }
+                if (res.statusCode !== 200) {
+                    res.resume();
+                    reject(new Error("HTTP " + res.statusCode + " from " + url));
+                    return;
+                }
+                let data = "";
+                let byteCount = 0;
+                res.on("data", (chunk) => {
+                    byteCount += chunk.length;
+                    if (byteCount > MAX_FETCH_SIZE) {
+                        res.destroy();
+                        reject(new Error("Response too large (exceeds " + (MAX_FETCH_SIZE / 1024 / 1024) + "MB limit)"));
+                        return;
+                    }
+                    data += chunk.toString("utf-8");
+                });
+                res.on("end", () => resolve(data));
+                res.on("error", reject);
+            });
+            req.on("error", reject);
+            req.setTimeout(30000, () => {
+                req.destroy();
+                reject(new Error("Request timed out after 30s"));
+            });
+        });
     }
     getSkillCount() {
         return this.skillsCache.size;
