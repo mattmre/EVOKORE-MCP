@@ -14,22 +14,7 @@ function makeToolPayload(toolName, input) {
   return { tool_name: toolName, tool_input: input, session_id: 'test-dc' };
 }
 
-function run() {
-  console.log('Running damage-control expansion validation...');
-  let passed = 0;
-  let failed = 0;
-
-  function check(label, fn) {
-    try {
-      fn();
-      console.log(`  [PASS] ${label}`);
-      passed++;
-    } catch (err) {
-      console.error(`  [FAIL] ${label}: ${err.message}`);
-      failed++;
-    }
-  }
-
+test('damage-control expansion validation', () => {
   const safeCommands = [
     ['git status', 'git status'],
     ['npm test', 'npm test'],
@@ -42,10 +27,8 @@ function run() {
   ];
 
   for (const [cmd, label] of safeCommands) {
-    check(`Allowlist: ${label}`, () => {
-      const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
-      assert.strictEqual(r.status, 0, `Expected exit 0 for safe command "${cmd}", got ${r.status}. stderr: ${r.cleanStderr}`);
-    });
+    const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
+    assert.strictEqual(r.status, 0, `Allowlist: ${label} - Expected exit 0 for safe command "${cmd}", got ${r.status}. stderr: ${r.cleanStderr}`);
   }
 
   const hardBlocks = [
@@ -70,10 +53,8 @@ function run() {
   ];
 
   for (const [cmd, label] of hardBlocks) {
-    check(`Hard block: ${label}`, () => {
-      const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
-      assert.strictEqual(r.status, 2, `Expected exit 2 (block) for "${cmd}", got ${r.status}. stdout: ${r.cleanStdout}`);
-    });
+    const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
+    assert.strictEqual(r.status, 2, `Hard block: ${label} - Expected exit 2 (block) for "${cmd}", got ${r.status}. stdout: ${r.cleanStdout}`);
   }
 
   const askCommands = [
@@ -96,94 +77,32 @@ function run() {
   ];
 
   for (const [cmd, label] of askCommands) {
-    check(`Ask mode: ${label}`, () => {
-      const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
-      assert.strictEqual(r.status, 0, `Expected exit 0 for ask-mode "${cmd}", got ${r.status}`);
-      const out = r.cleanStdout;
-      assert.ok(out.includes('"decision"') && out.includes('"ask"'),
-        `Expected ask decision in stdout for "${cmd}", got: ${out}`);
-    });
+    const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
+    assert.strictEqual(r.status, 0, `Ask mode: ${label} - Expected exit 0 for ask-mode "${cmd}", got ${r.status}`);
+    const out = r.cleanStdout;
+    assert.ok(out.includes('"decision"') && out.includes('"ask"'),
+      `Ask mode: ${label} - Expected ask decision in stdout for "${cmd}", got: ${out}`);
   }
 
-  check('Path block: cat .env', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/.env' }));
-    assert.strictEqual(r.status, 2, 'Should block reading .env');
-  });
+  // Path blocks
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/.env' })).status, 2, 'Should block reading .env');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/.env.staging' })).status, 2, 'Should block reading .env.staging');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/.env.development' })).status, 2, 'Should block reading .env.development');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/home/user/.npmrc' })).status, 2, 'Should block reading .npmrc');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/home/user/.kube/config' })).status, 2, 'Should block reading .kube/config');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/token.json' })).status, 2, 'Should block reading token.json');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/auth.json' })).status, 2, 'Should block reading auth.json');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/home/user/.docker/config.json' })).status, 2, 'Should block reading .docker/config.json');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Write', { file_path: '/project/node_modules/foo/bar.js', content: 'x' })).status, 2, 'Should block writing to node_modules');
+  assert.strictEqual(runNodeScript(SCRIPT, makeBashPayload('rm -r .github/')).status, 2, 'Should block deleting .github/');
+  assert.strictEqual(runNodeScript(SCRIPT, makeBashPayload('rm .gitignore')).status, 2, 'Should block deleting .gitignore');
+  assert.strictEqual(runNodeScript(SCRIPT, makeBashPayload('rm README.md')).status, 2, 'Should block deleting README.md');
+  assert.strictEqual(runNodeScript(SCRIPT, makeBashPayload('rm LICENSE')).status, 2, 'Should block deleting LICENSE');
 
-  check('Path block: cat .env.staging', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/.env.staging' }));
-    assert.strictEqual(r.status, 2, 'Should block reading .env.staging');
-  });
-
-  check('Path block: cat .env.development', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/.env.development' }));
-    assert.strictEqual(r.status, 2, 'Should block reading .env.development');
-  });
-
-  check('Path block: cat .npmrc', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/home/user/.npmrc' }));
-    assert.strictEqual(r.status, 2, 'Should block reading .npmrc');
-  });
-
-  check('Path block: read .kube/config', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/home/user/.kube/config' }));
-    assert.strictEqual(r.status, 2, 'Should block reading .kube/config');
-  });
-
-  check('Path block: read token.json', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/token.json' }));
-    assert.strictEqual(r.status, 2, 'Should block reading token.json');
-  });
-
-  check('Path block: read auth.json', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/auth.json' }));
-    assert.strictEqual(r.status, 2, 'Should block reading auth.json');
-  });
-
-  check('Path block: read .docker/config.json', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/home/user/.docker/config.json' }));
-    assert.strictEqual(r.status, 2, 'Should block reading .docker/config.json');
-  });
-
-  check('Path block: Write to node_modules', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Write', { file_path: '/project/node_modules/foo/bar.js', content: 'x' }));
-    assert.strictEqual(r.status, 2, 'Should block writing to node_modules');
-  });
-
-  check('Path block: delete .github/', () => {
-    const r = runNodeScript(SCRIPT, makeBashPayload('rm -r .github/'));
-    assert.strictEqual(r.status, 2, 'Should block deleting .github/');
-  });
-
-  check('Path block: delete .gitignore', () => {
-    const r = runNodeScript(SCRIPT, makeBashPayload('rm .gitignore'));
-    assert.strictEqual(r.status, 2, 'Should block deleting .gitignore');
-  });
-
-  check('Path block: delete README.md', () => {
-    const r = runNodeScript(SCRIPT, makeBashPayload('rm README.md'));
-    assert.strictEqual(r.status, 2, 'Should block deleting README.md');
-  });
-
-  check('Path block: delete LICENSE', () => {
-    const r = runNodeScript(SCRIPT, makeBashPayload('rm LICENSE'));
-    assert.strictEqual(r.status, 2, 'Should block deleting LICENSE');
-  });
-
-  check('Edge case: empty command', () => {
-    const r = runNodeScript(SCRIPT, makeBashPayload(''));
-    assert.strictEqual(r.status, 0, 'Empty command should pass');
-  });
-
-  check('Edge case: non-Bash tool passes', () => {
-    const r = runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/src/index.ts' }));
-    assert.strictEqual(r.status, 0, 'Read of normal file should pass');
-  });
-
-  check('Edge case: empty payload', () => {
-    const r = runNodeScript(SCRIPT, {});
-    assert.strictEqual(r.status, 0, 'Empty payload should pass');
-  });
+  // Edge cases
+  assert.strictEqual(runNodeScript(SCRIPT, makeBashPayload('')).status, 0, 'Empty command should pass');
+  assert.strictEqual(runNodeScript(SCRIPT, makeToolPayload('Read', { file_path: '/project/src/index.ts' })).status, 0, 'Read of normal file should pass');
+  assert.strictEqual(runNodeScript(SCRIPT, {}).status, 0, 'Empty payload should pass');
 
   const falsePositives = [
     ['echo "reboot the application logic"', 'echo with reboot in string'],
@@ -197,60 +116,33 @@ function run() {
   ];
 
   for (const [cmd, label] of falsePositives) {
-    check(`False-positive: ${label}`, () => {
-      const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
-      assert.strictEqual(r.status, 0,
-        `Expected exit 0 (pass) for "${cmd}", got ${r.status}. stderr: ${r.cleanStderr}, stdout: ${r.cleanStdout}`);
-    });
+    const r = runNodeScript(SCRIPT, makeBashPayload(cmd));
+    assert.strictEqual(r.status, 0,
+      `False-positive: ${label} - Expected exit 0 (pass) for "${cmd}", got ${r.status}. stderr: ${r.cleanStderr}, stdout: ${r.cleanStdout}`);
   }
 
-  check('Rules file: all rules have id field', () => {
-    const fs = require('fs');
-    const YAML = require('yaml');
-    const rulesPath = path.resolve(__dirname, 'damage-control-rules.yaml');
-    const rules = YAML.parse(fs.readFileSync(rulesPath, 'utf8'));
-    for (const rule of rules.dangerous_commands) {
-      assert.ok(rule.id, `Rule missing id: ${JSON.stringify(rule).slice(0, 80)}`);
-      assert.ok(rule.pattern, `Rule ${rule.id} missing pattern`);
-      assert.ok(rule.reason, `Rule ${rule.id} missing reason`);
-      assert.ok(typeof rule.ask === 'boolean', `Rule ${rule.id} missing boolean ask field`);
-    }
-  });
+  // Rules file validation
+  const fs = require('fs');
+  const YAML = require('yaml');
+  const rulesPath = path.resolve(__dirname, 'damage-control-rules.yaml');
+  const rules = YAML.parse(fs.readFileSync(rulesPath, 'utf8'));
 
-  check('Rules file: no duplicate rule IDs', () => {
-    const fs = require('fs');
-    const YAML = require('yaml');
-    const rulesPath = path.resolve(__dirname, 'damage-control-rules.yaml');
-    const rules = YAML.parse(fs.readFileSync(rulesPath, 'utf8'));
-    const ids = rules.dangerous_commands.map((rule) => rule.id);
-    const unique = new Set(ids);
-    assert.strictEqual(ids.length, unique.size, `Duplicate IDs found: ${ids.filter((id, i) => ids.indexOf(id) !== i)}`);
-  });
-
-  check('Rules file: all regex patterns compile', () => {
-    const fs = require('fs');
-    const YAML = require('yaml');
-    const rulesPath = path.resolve(__dirname, 'damage-control-rules.yaml');
-    const rules = YAML.parse(fs.readFileSync(rulesPath, 'utf8'));
-    for (const rule of rules.dangerous_commands) {
-      try {
-        new RegExp(rule.pattern, 'i');
-      } catch (e) {
-        assert.fail(`Rule ${rule.id} has invalid regex "${rule.pattern}": ${e.message}`);
-      }
-    }
-  });
-
-  console.log(`\nDamage-control validation: ${passed} passed, ${failed} failed`);
-  if (failed > 0) {
-    process.exit(1);
+  for (const rule of rules.dangerous_commands) {
+    assert.ok(rule.id, `Rule missing id: ${JSON.stringify(rule).slice(0, 80)}`);
+    assert.ok(rule.pattern, `Rule ${rule.id} missing pattern`);
+    assert.ok(rule.reason, `Rule ${rule.id} missing reason`);
+    assert.ok(typeof rule.ask === 'boolean', `Rule ${rule.id} missing boolean ask field`);
   }
-  console.log('Damage-control expansion validation passed.');
-}
 
-try {
-  run();
-} catch (error) {
-  console.error('Damage-control expansion validation failed:', error);
-  process.exit(1);
-}
+  const ids = rules.dangerous_commands.map((rule) => rule.id);
+  const unique = new Set(ids);
+  assert.strictEqual(ids.length, unique.size, `Duplicate IDs found: ${ids.filter((id, i) => ids.indexOf(id) !== i)}`);
+
+  for (const rule of rules.dangerous_commands) {
+    try {
+      new RegExp(rule.pattern, 'i');
+    } catch (e) {
+      assert.fail(`Rule ${rule.id} has invalid regex "${rule.pattern}": ${e.message}`);
+    }
+  }
+});

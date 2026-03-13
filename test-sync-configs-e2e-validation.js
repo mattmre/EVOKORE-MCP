@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -383,19 +384,11 @@ function validateIdempotencyPreservesThirdPartyEntries() {
 // Runner
 // ---------------------------------------------------------------------------
 
-function run() {
+test('cross-CLI sync E2E validation', () => {
   validateIdempotency();
   validateCursorFallbackToProjectLevel();
   validateCursorUserLevelPath();
   validateGeminiManualOutput();
   validateGeminiApplyStillManual();
   validateIdempotencyPreservesThirdPartyEntries();
-  console.log('Cross-CLI sync e2e validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Cross-CLI sync e2e validation failed:', error);
-  process.exit(1);
-}
+});

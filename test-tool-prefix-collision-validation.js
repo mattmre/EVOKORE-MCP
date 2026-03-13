@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('tool prefix collision validation', () => {
   const proxyPath = path.resolve(__dirname, 'src', 'ProxyManager.ts');
   const docsReadmePath = path.resolve(__dirname, 'docs', 'README.md');
   const usagePath = path.resolve(__dirname, 'docs', 'USAGE.md');
@@ -30,13 +31,4 @@ function run() {
   assert.match(troubleshooting, /already registered/i);
 
   assert.match(docsReadme, /Tool prefix collision guard: `test-tool-prefix-collision-validation\.js`/);
-
-  console.log('Tool prefix collision validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Tool prefix collision validation failed:', error);
-  process.exit(1);
-}
+});

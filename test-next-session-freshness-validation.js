@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +23,7 @@ function getMaxAgeDays() {
   return parsed;
 }
 
-function run() {
+test('next-session freshness validation', () => {
   const filePath = path.resolve(__dirname, 'next-session.md');
   const content = fs.readFileSync(filePath, 'utf8');
   const match = content.match(/^Last Updated \(UTC\): (\d{4}-\d{2}-\d{2})$/m);
@@ -56,13 +57,4 @@ function run() {
     ageDays <= maxAgeDays,
     `next-session.md Last Updated date is ${ageDays} days old (max ${maxAgeDays}).`
   );
-
-  console.log('Next-session freshness validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Next-session freshness validation failed:', error);
-  process.exit(1);
-}
+});

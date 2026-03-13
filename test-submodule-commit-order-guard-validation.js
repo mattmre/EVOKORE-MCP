@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('submodule commit-order safety guard validation', () => {
   const workflowPath = path.resolve(__dirname, '.github', 'workflows', 'ci.yml');
   const scriptPath = path.resolve(__dirname, 'scripts', 'validate-submodule-cleanliness.js');
 
@@ -24,13 +25,4 @@ function run() {
   assert.match(script, /marker === '\+'/);
   assert.match(script, /marker === 'U'/);
   assert.match(script, /status --porcelain/);
-
-  console.log('Submodule commit-order safety guard validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Submodule commit-order safety guard validation failed:', error);
-  process.exit(1);
-}
+});

@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -20,7 +21,7 @@ function runValidationWithHome(homeDir) {
   });
 }
 
-function run() {
+test('tracker consistency validation', () => {
   const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'tracker-consistency-home-'));
   const logPath = path.join(tempHome, '.evokore', 'logs', 'orchestration-tracker.jsonl');
 
@@ -49,11 +50,4 @@ function run() {
   } finally {
     fs.rmSync(tempHome, { recursive: true, force: true });
   }
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Tracker consistency validation test failed:', error);
-  process.exit(1);
-}
+});

@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('release doc freshness validation', () => {
   const docsPath = path.resolve(__dirname, 'docs', 'RELEASE_FLOW.md');
   const docs = fs.readFileSync(docsPath, 'utf8');
 
@@ -19,13 +20,4 @@ function run() {
   assert.doesNotMatch(docs, /Latest merged release preparation:/i);
   assert.doesNotMatch(docs, /Latest release workflow execution:/i);
   assert.doesNotMatch(docs, /via PR #\d+/i);
-
-  console.log('Release doc freshness validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Release doc freshness validation failed:', error);
-  process.exit(1);
-}
+});

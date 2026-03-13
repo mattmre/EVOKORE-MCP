@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const path = require('path');
 const net = require('net');
@@ -56,7 +57,7 @@ function getUnusedPort() {
   });
 }
 
-async function run() {
+test('voice hook E2E validation', async () => {
   // Case 1: Sidecar absent should silently exit.
   const silentPort = await getUnusedPort();
   const absentResult = await runHook(silentPort, { response: { text: 'No server attached.' } });
@@ -113,11 +114,4 @@ async function run() {
 
   assert.strictEqual(payloadPersonaResult.code, 0, 'voice-hook should exit successfully with payload persona');
   assert.deepStrictEqual(payloadPersonaReceived, { text: 'Persona via payload.', persona: 'tester', flush: true });
-
-  console.log('Voice hook e2e validation passed.');
-}
-
-run().catch((error) => {
-  console.error('Voice hook e2e validation failed:', error);
-  process.exit(1);
 });

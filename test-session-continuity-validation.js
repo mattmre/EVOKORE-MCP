@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -14,7 +15,7 @@ function cleanup(paths) {
   }
 }
 
-function run() {
+test('session continuity validation', () => {
   console.log('Running session continuity validation...');
 
   const sessionId = makeSessionId('session-continuity');
@@ -114,12 +115,4 @@ function run() {
   assert.ok(state.lastStopCheckAt, 'stop check should update session state');
 
   cleanup([paths.sessionStatePath, paths.replayLogPath, paths.evidenceLogPath, paths.tasksPath]);
-  console.log('Session continuity validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Session continuity validation failed:', error);
-  process.exit(1);
-}
+});

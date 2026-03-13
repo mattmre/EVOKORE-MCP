@@ -113,7 +113,7 @@ async function testDynamicMode(legacyToolCount) {
   }
 }
 
-async function run() {
+test('dynamic tool discovery validation', async () => {
   console.log("Starting dynamic tool discovery validation...");
   writeTestConfig();
 
@@ -126,11 +126,4 @@ async function run() {
       fs.unlinkSync(tempConfigPath);
     }
   }
-
-  console.log("Dynamic tool discovery validation passed.");
-}
-
-run().catch((error) => {
-  console.error("Dynamic tool discovery validation failed:", error);
-  process.exit(1);
 });

@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -21,7 +22,7 @@ function runValidation(eventPath) {
   });
 }
 
-function run() {
+test('PR metadata validator', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-metadata-validation-'));
 
   try {
@@ -98,11 +99,4 @@ function run() {
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('PR metadata validator tests failed:', error);
-  process.exit(1);
-}
+});

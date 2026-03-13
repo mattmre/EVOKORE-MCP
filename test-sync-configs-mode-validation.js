@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -143,17 +144,9 @@ function validateUnknownTargetFailsNonZero() {
   }
 }
 
-function run() {
+test('sync configs mode validation', () => {
   validateDefaultDryRunDoesNotWrite();
   validateApplyWritesConfig();
   validateConflictingFlagsFailNonZero();
   validateUnknownTargetFailsNonZero();
-  console.log('Sync configs mode validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Sync configs mode validation failed:', error);
-  process.exit(1);
-}
+});

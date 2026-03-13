@@ -1,5 +1,6 @@
 'use strict';
 
+
 const path = require('path');
 const fs = require('fs');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
@@ -17,7 +18,7 @@ async function callWrite(client, args) {
   });
 }
 
-async function run() {
+test('HITL hardening validation', async () => {
   const transport = new StdioClientTransport({
     command: 'node',
     args: ['dist/index.js'],
@@ -89,13 +90,4 @@ async function run() {
   if (fs.existsSync(testFile)) {
     fs.unlinkSync(testFile);
   }
-
-  console.log('HITL hardening validation passed.');
-}
-
-run()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error('HITL hardening validation failed:', error);
-    process.exit(1);
-  });
+});

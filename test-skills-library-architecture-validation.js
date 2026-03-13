@@ -9,7 +9,7 @@ function searchSkills(skillManager, query, limit = 10) {
   return skillManager.fuseIndex.search(query, { limit }).map((result) => result.item.name);
 }
 
-async function run() {
+test('skills library architecture validation', async () => {
   console.log("Running skills library architecture validation...");
 
   const skillManager = new SkillManager({});
@@ -55,11 +55,4 @@ async function run() {
   assert(searchSkills(skillManager, "OWASP").includes("security-review"), "Tag-based discovery should find security-review by OWASP.");
   assert(searchSkills(skillManager, "/tdd").includes("orch-tdd"), "Metadata-based discovery should find orch-tdd by original command.");
   assert(searchSkills(skillManager, "part_of hive").includes("hive-create"), "Metadata-based discovery should find hive-create by framework membership.");
-
-  console.log("Skills library architecture validation passed.");
-}
-
-run().catch((error) => {
-  console.error("Skills library architecture validation failed:", error);
-  process.exit(1);
 });

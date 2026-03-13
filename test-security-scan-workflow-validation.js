@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('security scan workflow validation', () => {
   const workflowPath = path.resolve(__dirname, '.github', 'workflows', 'security-scan.yml');
   const workflow = fs.readFileSync(workflowPath, 'utf8');
 
@@ -22,13 +23,4 @@ function run() {
   assert.strictEqual(imageCount, 4, 'expected all 4 jobs to use the pinned Trivy image');
   assert.strictEqual(dockerRunCount, 4, 'expected all 4 jobs to execute Trivy via docker');
   assert.strictEqual(cacheMountCount, 4, 'expected all 4 jobs to mount the shared Trivy cache');
-
-  console.log('Security scan workflow validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Security scan workflow validation failed:', error);
-  process.exit(1);
-}
+});

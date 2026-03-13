@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('environment sync validation', () => {
   const syncPath = path.resolve(__dirname, 'scripts', 'sync-configs.js');
   const proxyPath = path.resolve(__dirname, 'src', 'ProxyManager.ts');
   const configPath = path.resolve(__dirname, 'mcp.config.json');
@@ -104,13 +105,4 @@ function run() {
     `src/ references env vars not documented in .env.example: ${missingFromExample.join(', ')}`
   );
   console.log(`  Reverse-drift check passed: ${referencedVars.size} env var(s) from src/ all present in .env.example.`);
-
-  console.log('Environment sync validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Environment sync validation failed:', error);
-  process.exit(1);
-}
+});

@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +26,7 @@ function resolveCanonicalProjectRoot() {
   return path.resolve(__dirname);
 }
 
-function run() {
+test('dist path documentation validation', () => {
   const usagePath = path.resolve(__dirname, 'docs', 'USAGE.md');
   const troubleshootingPath = path.resolve(__dirname, 'docs', 'TROUBLESHOOTING.md');
   const syncScriptPath = path.resolve(__dirname, 'scripts', 'sync-configs.js');
@@ -76,13 +77,4 @@ function run() {
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
-
-  console.log('Dist path documentation validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Dist path documentation validation failed:', error);
-  process.exit(1);
-}
+});

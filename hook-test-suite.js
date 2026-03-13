@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -28,7 +29,7 @@ function cleanupFile(filePath) {
   }
 }
 
-function run() {
+test('hook test suite', () => {
   console.log('Running hook test suite...');
   cleanupFile(hooksLogPath);
 
@@ -193,13 +194,4 @@ function run() {
   assert.ok(hasEvent('session-replay', 'replay_entry_written'), 'should log replay entry write');
   assert.ok(hasEvent('tilldone', 'hook_mode_block'), 'should log tilldone hook block');
   assert.ok(hasEvent('tilldone', 'cli_action'), 'should log tilldone cli action');
-
-  console.log('Hook test suite passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Hook test suite failed:', error);
-  process.exit(1);
-}
+});

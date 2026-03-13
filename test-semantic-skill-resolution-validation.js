@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 
 const { SkillManager } = require('./dist/SkillManager');
@@ -8,7 +9,7 @@ const mockProxyManager = {
   callProxiedTool: async () => ({ content: [{ type: 'text', text: '' }] })
 };
 
-async function run() {
+test('semantic skill resolution validation', async () => {
   console.log('Running semantic skill resolution validation...');
 
   const sm = new SkillManager(mockProxyManager);
@@ -38,11 +39,4 @@ async function run() {
     workflowText.includes('activated_skill'),
     'Expected resolve_workflow to inject activated skill content.'
   );
-
-  console.log('Semantic skill resolution validation passed.');
-}
-
-run().catch((error) => {
-  console.error('Semantic skill resolution validation failed:', error);
-  process.exit(1);
 });

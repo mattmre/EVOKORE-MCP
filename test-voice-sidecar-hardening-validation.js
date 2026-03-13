@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('voice sidecar hardening validation', () => {
   const sidecarPath = path.resolve(__dirname, 'src', 'VoiceSidecar.ts');
   const sidecarSource = fs.readFileSync(sidecarPath, 'utf8');
 
@@ -208,13 +209,4 @@ function run() {
     /clearInterval\(heartbeatInterval\)/,
     'Must clear heartbeat interval on shutdown'
   );
-
-  console.log('Voice sidecar hardening validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Voice sidecar hardening validation failed:', error);
-  process.exit(1);
-}
+});

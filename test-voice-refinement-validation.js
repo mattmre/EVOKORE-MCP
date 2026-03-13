@@ -1,10 +1,11 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 
-function run() {
+test('voice refinement validation', () => {
   const sidecarPath = path.resolve(__dirname, 'src', 'VoiceSidecar.ts');
   const voicesPath = path.resolve(__dirname, 'voices.json');
 
@@ -60,13 +61,4 @@ function run() {
       );
     }
   }
-
-  console.log('Voice refinement validation passed.');
-}
-
-try {
-  run();
-} catch (error) {
-  console.error('Voice refinement validation failed:', error);
-  process.exit(1);
-}
+});

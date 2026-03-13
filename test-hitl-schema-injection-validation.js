@@ -1,5 +1,6 @@
 'use strict';
 
+
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
@@ -22,7 +23,7 @@ function writeTestConfig() {
   }, null, 2));
 }
 
-async function run() {
+test('HITL schema injection validation', async () => {
   console.log('Running HITL schema injection validation...');
   writeTestConfig();
 
@@ -74,9 +75,4 @@ async function run() {
       }
     }
   }
-}
-
-run().catch((error) => {
-  console.error('HITL schema injection validation failed:', error);
-  process.exit(1);
 });

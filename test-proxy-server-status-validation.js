@@ -57,7 +57,7 @@ async function closeClient({ client, transport }) {
   }
 }
 
-async function run() {
+test('proxy server status validation', async () => {
   console.log("Running proxy server status validation...");
   writeTestConfig();
 
@@ -111,11 +111,4 @@ async function run() {
       fs.unlinkSync(tempConfigPath);
     }
   }
-
-  console.log("Proxy server status validation passed.");
-}
-
-run().catch((error) => {
-  console.error("Proxy server status validation failed:", error);
-  process.exit(1);
 });
