@@ -3,6 +3,7 @@ import path from "path";
 import { spawn } from "child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Tool, CallToolRequestSchema, McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { SecurityManager } from "./SecurityManager";
 import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
@@ -11,15 +12,17 @@ const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 
 interface ServerConfig {
-  command: string;
+  command?: string;
   args?: string[];
   env?: Record<string, string>;
+  transport?: "stdio" | "http";
+  url?: string;
 }
 
 export interface ServerState {
   id: string;
   status: 'booting' | 'connected' | 'error' | 'disconnected';
-  connectionType: 'stdio' | 'sse';
+  connectionType: 'stdio' | 'sse' | 'http';
   errorCount: number;
   lastPing: number;
   registeredToolCount: number;
@@ -27,7 +30,7 @@ export interface ServerState {
 
 export class ProxyManager {
   private clients: Map<string, Client> = new Map();
-  private transports: Map<string, StdioClientTransport> = new Map();
+  private transports: Map<string, StdioClientTransport | StreamableHTTPClientTransport> = new Map();
   private toolRegistry: Map<string, { serverId: string; originalName: string }> = new Map();
   private cachedTools: Tool[] = [];
   private security: SecurityManager;
@@ -115,40 +118,50 @@ export class ProxyManager {
 
       for (const [serverId, serverConfig] of Object.entries(config.servers as Record<string, ServerConfig>)) {
         try {
-          console.error(`[EVOKORE] Booting child server: ${serverId}`);
-          
+          const isHttpTransport = serverConfig.transport === "http" && serverConfig.url;
+          const connectionType = isHttpTransport ? "http" : "stdio";
+
+          console.error(`[EVOKORE] Booting child server: ${serverId} (${connectionType})`);
+
           this.serverRegistry.set(serverId, {
             id: serverId,
             status: 'booting',
-            connectionType: 'stdio',
+            connectionType,
             errorCount: 0,
             lastPing: Date.now(),
             registeredToolCount: 0
           });
-
-          const cmd = resolveCommandForPlatform(serverConfig.command);
-          
-          // Resolve ${VAR} references in env values from process.env
-          const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
-          const env = { ...process.env, ...resolvedEnv };
-
-          const transport = new StdioClientTransport({
-            command: cmd,
-            args: serverConfig.args || [],
-            env: env as Record<string, string>,
-            stderr: "inherit"
-          });
-
-          // Redirect stderr from child to parent's stderr so we can see MCP logs
-          // stderr is piped
 
           const client = new Client(
             { name: `evokore-proxy-${serverId}`, version: "2.0.0" },
             { capabilities: {} }
           );
 
+          let transport: StdioClientTransport | StreamableHTTPClientTransport;
+
+          if (isHttpTransport) {
+            transport = new StreamableHTTPClientTransport(new URL(serverConfig.url!));
+          } else {
+            if (!serverConfig.command) {
+              throw new Error(`Stdio server '${serverId}' requires a 'command' field`);
+            }
+
+            const cmd = resolveCommandForPlatform(serverConfig.command);
+
+            // Resolve ${VAR} references in env values from process.env
+            const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
+            const env = { ...process.env, ...resolvedEnv };
+
+            transport = new StdioClientTransport({
+              command: cmd,
+              args: serverConfig.args || [],
+              env: env as Record<string, string>,
+              stderr: "inherit"
+            });
+          }
+
           await client.connect(transport);
-          
+
           this.clients.set(serverId, client);
           this.transports.set(serverId, transport);
 

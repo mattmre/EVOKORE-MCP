@@ -526,6 +526,7 @@ export class SkillManager {
     return [
       {
         name: "docs_architect",
+        title: "Documentation Architect",
         description: "Execute a Gold Standard documentation overhaul by actively reading the project files and returning a comprehensive generation prompt.",
         inputSchema: {
           type: "object",
@@ -533,10 +534,18 @@ export class SkillManager {
             target_dir: { type: "string", description: "The root directory of the project to document" }
           },
           required: ["target_dir"]
+        },
+        annotations: {
+          title: "Documentation Architect",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false
         }
       },
       {
         name: "skill_creator",
+        title: "Skill Creator",
         description: "Guide for creating effective skills. Actively generates the skill scaffolding, directories, and basic SKILL.md template.",
         inputSchema: {
           type: "object",
@@ -546,10 +555,18 @@ export class SkillManager {
             description: { type: "string", description: "A brief description of what the skill does" }
           },
           required: ["skill_name", "target_dir", "description"]
+        },
+        annotations: {
+          title: "Skill Creator",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false
         }
       },
       {
         name: "resolve_workflow",
+        title: "Resolve Workflow",
         description: "Describe the task or objective you are trying to accomplish. EVOKORE-MCP will dynamically run a semantic search and instantly inject the 1-3 most relevant Agent Skills, prompts, and architectural guidelines directly into this tool's response so you can read and adopt them.",
         inputSchema: {
           type: "object",
@@ -557,10 +574,18 @@ export class SkillManager {
             objective: { type: "string", description: "What are you trying to do?" }
           },
           required: ["objective"]
+        },
+        annotations: {
+          title: "Resolve Workflow",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
         }
       },
       {
         name: "search_skills",
+        title: "Search Skills",
         description: "Search the EVOKORE-MCP library for available agent skills by keyword.",
         inputSchema: {
           type: "object",
@@ -568,10 +593,18 @@ export class SkillManager {
             query: { type: "string" }
           },
           required: ["query"]
+        },
+        annotations: {
+          title: "Search Skills",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
         }
       },
       {
         name: "get_skill_help",
+        title: "Get Skill Help",
         description: "Retrieve comprehensive documentation, internal instructions, and intended use-cases for a specific skill.",
         inputSchema: {
           type: "object",
@@ -579,10 +612,18 @@ export class SkillManager {
             skill_name: { type: "string" }
           },
           required: ["skill_name"]
+        },
+        annotations: {
+          title: "Get Skill Help",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
         }
       },
       {
         name: "discover_tools",
+        title: "Discover Tools",
         description: "Search the merged EVOKORE tool catalog. In dynamic discovery mode, matching proxied tools are activated for the current session.",
         inputSchema: {
           type: "object",
@@ -591,16 +632,31 @@ export class SkillManager {
             limit: { type: "integer", description: "Optional maximum number of matches to return (default: 8)." }
           },
           required: ["query"]
+        },
+        annotations: {
+          title: "Discover Tools",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
         }
       },
       {
         name: "proxy_server_status",
+        title: "Proxy Server Status",
         description: "Inspect the aggregated child-server registry, including server status, tool counts, and recent health metadata.",
         inputSchema: {
           type: "object",
           properties: {
             server_id: { type: "string", description: "Optional specific child server id to inspect." }
           }
+        },
+        annotations: {
+          title: "Proxy Server Status",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
         }
       }
     ];

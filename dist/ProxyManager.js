@@ -8,6 +8,7 @@ const promises_1 = __importDefault(require("fs/promises"));
 const path_1 = __importDefault(require("path"));
 const index_js_1 = require("@modelcontextprotocol/sdk/client/index.js");
 const stdio_js_1 = require("@modelcontextprotocol/sdk/client/stdio.js");
+const streamableHttp_js_1 = require("@modelcontextprotocol/sdk/client/streamableHttp.js");
 const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const resolveCommandForPlatform_1 = require("./utils/resolveCommandForPlatform");
 const DEFAULT_CONFIG_FILE = path_1.default.resolve(__dirname, "../mcp.config.json");
@@ -88,28 +89,37 @@ class ProxyManager {
                 return;
             for (const [serverId, serverConfig] of Object.entries(config.servers)) {
                 try {
-                    console.error(`[EVOKORE] Booting child server: ${serverId}`);
+                    const isHttpTransport = serverConfig.transport === "http" && serverConfig.url;
+                    const connectionType = isHttpTransport ? "http" : "stdio";
+                    console.error(`[EVOKORE] Booting child server: ${serverId} (${connectionType})`);
                     this.serverRegistry.set(serverId, {
                         id: serverId,
                         status: 'booting',
-                        connectionType: 'stdio',
+                        connectionType,
                         errorCount: 0,
                         lastPing: Date.now(),
                         registeredToolCount: 0
                     });
-                    const cmd = (0, resolveCommandForPlatform_1.resolveCommandForPlatform)(serverConfig.command);
-                    // Resolve ${VAR} references in env values from process.env
-                    const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
-                    const env = { ...process.env, ...resolvedEnv };
-                    const transport = new stdio_js_1.StdioClientTransport({
-                        command: cmd,
-                        args: serverConfig.args || [],
-                        env: env,
-                        stderr: "inherit"
-                    });
-                    // Redirect stderr from child to parent's stderr so we can see MCP logs
-                    // stderr is piped
                     const client = new index_js_1.Client({ name: `evokore-proxy-${serverId}`, version: "2.0.0" }, { capabilities: {} });
+                    let transport;
+                    if (isHttpTransport) {
+                        transport = new streamableHttp_js_1.StreamableHTTPClientTransport(new URL(serverConfig.url));
+                    }
+                    else {
+                        if (!serverConfig.command) {
+                            throw new Error(`Stdio server '${serverId}' requires a 'command' field`);
+                        }
+                        const cmd = (0, resolveCommandForPlatform_1.resolveCommandForPlatform)(serverConfig.command);
+                        // Resolve ${VAR} references in env values from process.env
+                        const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
+                        const env = { ...process.env, ...resolvedEnv };
+                        transport = new stdio_js_1.StdioClientTransport({
+                            command: cmd,
+                            args: serverConfig.args || [],
+                            env: env,
+                            stderr: "inherit"
+                        });
+                    }
                     await client.connect(transport);
                     this.clients.set(serverId, client);
                     this.transports.set(serverId, transport);
