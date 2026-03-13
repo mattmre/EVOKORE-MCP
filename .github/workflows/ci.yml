@@ -97,6 +97,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - run: node test-windows-exec-validation.js
+      - name: Build TypeScript
+        run: npm run build
 
-      - run: npx tsx test-windows-command-runtime-validation.ts
+      - name: Run Windows-specific tests
+        run: npx vitest run test-windows-exec-validation.js test-windows-command-runtime-validation.ts
