@@ -8,11 +8,20 @@ const os = require('os');
 
 const PORT = parseInt(process.env.EVOKORE_DASHBOARD_PORT || '8899', 10);
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
+const EVOKORE_STATE_DIR = path.join(os.homedir(), '.evokore');
+const PENDING_APPROVALS_FILE = path.join(EVOKORE_STATE_DIR, 'pending-approvals.json');
+const DENIED_TOKENS_FILE = path.join(EVOKORE_STATE_DIR, 'denied-tokens.json');
 
 // Sanitize session IDs to prevent path traversal
 function sanitizeSessionId(id) {
   if (!id || typeof id !== 'string') return '';
   return id.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+// Sanitize a token prefix (hex characters only, max 8 chars)
+function sanitizeTokenPrefix(prefix) {
+  if (!prefix || typeof prefix !== 'string') return '';
+  return prefix.replace(/[^a-f0-9]/gi, '').substring(0, 8);
 }
 
 // Read a JSONL file and parse each line
@@ -81,6 +90,49 @@ function listSessions() {
   }).sort((a, b) => (b.lastActivity || '').localeCompare(a.lastActivity || ''));
 }
 
+// Read pending approvals from the shared state file
+function readPendingApprovals() {
+  try {
+    if (!fs.existsSync(PENDING_APPROVALS_FILE)) return [];
+    const content = fs.readFileSync(PENDING_APPROVALS_FILE, 'utf8');
+    const approvals = JSON.parse(content);
+    if (!Array.isArray(approvals)) return [];
+    // Filter out expired approvals
+    const now = Date.now();
+    return approvals.filter(a => a && a.expiresAt > now);
+  } catch {
+    return [];
+  }
+}
+
+// Add a token prefix to the denied-tokens file (atomic write)
+function denyTokenPrefix(prefix) {
+  try {
+    if (!fs.existsSync(EVOKORE_STATE_DIR)) {
+      fs.mkdirSync(EVOKORE_STATE_DIR, { recursive: true });
+    }
+    let denied = [];
+    if (fs.existsSync(DENIED_TOKENS_FILE)) {
+      try {
+        denied = JSON.parse(fs.readFileSync(DENIED_TOKENS_FILE, 'utf8'));
+        if (!Array.isArray(denied)) denied = [];
+      } catch {
+        denied = [];
+      }
+    }
+    // Only add if not already present
+    if (!denied.some(d => d.prefix === prefix)) {
+      denied.push({ prefix, deniedAt: Date.now() });
+    }
+    const tmpPath = DENIED_TOKENS_FILE + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(denied, null, 2));
+    fs.renameSync(tmpPath, DENIED_TOKENS_FILE);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Escape HTML to prevent XSS when rendering session data
 function escapeHtml(str) {
   if (!str) return '';
@@ -92,7 +144,26 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-// Self-contained HTML dashboard
+// Read the full request body as a string
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', chunk => {
+      size += chunk.length;
+      if (size > 1024 * 10) { // 10KB limit
+        reject(new Error('Body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+    req.on('error', reject);
+  });
+}
+
+// Self-contained HTML dashboard (sessions view)
 const dashboardHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -104,6 +175,9 @@ const dashboardHTML = `<!DOCTYPE html>
     body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
     h1 { color: #38bdf8; margin-bottom: 20px; }
     h2 { color: #94a3b8; margin: 16px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+    nav { margin-bottom: 20px; display: flex; gap: 16px; }
+    nav a { color: #38bdf8; text-decoration: none; padding: 6px 14px; border-radius: 6px; border: 1px solid #334155; font-size: 14px; }
+    nav a:hover, nav a.active { background: #1e293b; border-color: #38bdf8; }
     .sessions { display: grid; gap: 12px; }
     .session { background: #1e293b; border-radius: 8px; padding: 16px; cursor: pointer; border: 1px solid #334155; transition: border-color 0.15s; }
     .session:hover { border-color: #38bdf8; }
@@ -141,6 +215,10 @@ const dashboardHTML = `<!DOCTYPE html>
 <body>
   <div id="app">
     <h1>EVOKORE Session Dashboard</h1>
+    <nav>
+      <a href="/" class="active">Sessions</a>
+      <a href="/approvals">Approvals</a>
+    </nav>
     <div id="content"><p class="loading">Loading sessions...</p></div>
   </div>
   <script>
@@ -281,6 +359,146 @@ const dashboardHTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
+// Self-contained HTML approvals page
+const approvalsHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>EVOKORE HITL Approvals</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+    h1 { color: #38bdf8; margin-bottom: 20px; }
+    h2 { color: #94a3b8; margin: 16px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+    nav { margin-bottom: 20px; display: flex; gap: 16px; }
+    nav a { color: #38bdf8; text-decoration: none; padding: 6px 14px; border-radius: 6px; border: 1px solid #334155; font-size: 14px; }
+    nav a:hover, nav a.active { background: #1e293b; border-color: #38bdf8; }
+    #app { max-width: 960px; margin: 0 auto; }
+    .empty { color: #64748b; padding: 40px; text-align: center; }
+    .error { color: #f87171; padding: 16px; background: #1e293b; border-radius: 8px; }
+    .loading { color: #64748b; }
+    .approvals { display: grid; gap: 12px; }
+    .approval-card { background: #1e293b; border-radius: 8px; padding: 16px; border: 1px solid #334155; }
+    .approval-card .tool-name { color: #4ade80; font-weight: 600; font-size: 16px; font-family: monospace; }
+    .approval-card .token-prefix { color: #94a3b8; font-family: monospace; font-size: 13px; margin-top: 4px; }
+    .approval-card .timing { color: #64748b; font-size: 13px; margin-top: 8px; }
+    .approval-card .time-remaining { font-weight: 600; }
+    .time-ok { color: #4ade80; }
+    .time-warn { color: #fcd34d; }
+    .time-danger { color: #f87171; }
+    .approval-card .actions { margin-top: 12px; display: flex; gap: 8px; }
+    .btn-deny { background: #991b1b; color: #fecaca; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-deny:hover { background: #b91c1c; }
+    .btn-deny:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stats { display: flex; gap: 24px; margin: 16px 0; flex-wrap: wrap; }
+    .stat { background: #1e293b; padding: 12px 20px; border-radius: 8px; }
+    .stat .value { font-size: 24px; font-weight: 700; color: #38bdf8; }
+    .stat .label { color: #64748b; font-size: 12px; }
+    .auto-refresh { color: #64748b; font-size: 12px; margin-top: 8px; }
+    .denied-notice { color: #fcd34d; font-size: 12px; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>EVOKORE HITL Approvals</h1>
+    <nav>
+      <a href="/">Sessions</a>
+      <a href="/approvals" class="active">Approvals</a>
+    </nav>
+    <p class="auto-refresh">Auto-refreshes every 5 seconds</p>
+    <div id="content"><p class="loading">Loading pending approvals...</p></div>
+  </div>
+  <script>
+    var API = '';
+    var pollTimer = null;
+
+    function esc(s) {
+      if (!s) return '';
+      var d = document.createElement('div');
+      d.appendChild(document.createTextNode(String(s)));
+      return d.innerHTML;
+    }
+
+    function formatTimeRemaining(expiresAt) {
+      var remaining = expiresAt - Date.now();
+      if (remaining <= 0) return { text: 'Expired', cls: 'time-danger' };
+      var secs = Math.floor(remaining / 1000);
+      var mins = Math.floor(secs / 60);
+      secs = secs % 60;
+      var text = mins + 'm ' + secs + 's';
+      var cls = remaining > 120000 ? 'time-ok' : remaining > 30000 ? 'time-warn' : 'time-danger';
+      return { text: text, cls: cls };
+    }
+
+    function formatDate(ts) {
+      if (!ts) return '';
+      try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
+    }
+
+    async function denyToken(prefix) {
+      var btn = document.getElementById('deny-' + prefix);
+      if (btn) { btn.disabled = true; btn.textContent = 'Denying...'; }
+      try {
+        var res = await fetch(API + '/api/approvals/deny', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prefix: prefix })
+        });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        loadApprovals();
+      } catch (err) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Deny'; }
+        alert('Failed to deny token: ' + err.message);
+      }
+    }
+
+    async function loadApprovals() {
+      try {
+        var res = await fetch(API + '/api/approvals');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var approvals = await res.json();
+        var content = document.getElementById('content');
+
+        var html = '<div class="stats">';
+        html += '<div class="stat"><div class="value">' + approvals.length + '</div><div class="label">Pending approvals</div></div>';
+        html += '</div>';
+
+        if (!approvals.length) {
+          html += '<p class="empty">No pending approval tokens. Tokens appear here when a restricted tool is called and HITL approval is required.</p>';
+          content.innerHTML = html;
+          return;
+        }
+
+        html += '<div class="approvals">';
+        for (var i = 0; i < approvals.length; i++) {
+          var a = approvals[i];
+          var tr = formatTimeRemaining(a.expiresAt);
+          var tokenDisplay = esc(a.token);
+          html += '<div class="approval-card">';
+          html += '<div class="tool-name">' + esc(a.toolName) + '</div>';
+          html += '<div class="token-prefix">Token: ' + tokenDisplay + '</div>';
+          html += '<div class="timing">Created: ' + formatDate(a.createdAt) + ' | Remaining: <span class="time-remaining ' + tr.cls + '">' + tr.text + '</span></div>';
+          html += '<div class="actions">';
+          html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
+          html += '</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+
+        content.innerHTML = html;
+      } catch (err) {
+        document.getElementById('content').innerHTML = '<div class="error">Failed to load approvals: ' + esc(err.message) + '</div>';
+      }
+    }
+
+    // Initial load and auto-refresh
+    loadApprovals();
+    pollTimer = setInterval(loadApprovals, 5000);
+  </script>
+</body>
+</html>`;
+
 // Handle incoming HTTP requests
 function handleRequest(req, res) {
   const url = new URL(req.url, 'http://localhost');
@@ -292,6 +510,13 @@ function handleRequest(req, res) {
     return;
   }
 
+  // Approvals HTML page
+  if (url.pathname === '/approvals') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(approvalsHTML);
+    return;
+  }
+
   // API: list sessions
   if (url.pathname === '/api/sessions') {
     const sessions = listSessions();
@@ -300,6 +525,51 @@ function handleRequest(req, res) {
       'Cache-Control': 'no-cache'
     });
     res.end(JSON.stringify(sessions));
+    return;
+  }
+
+  // API: list pending approvals
+  if (url.pathname === '/api/approvals' && req.method === 'GET') {
+    const approvals = readPendingApprovals();
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache'
+    });
+    res.end(JSON.stringify(approvals));
+    return;
+  }
+
+  // API: deny a token
+  if (url.pathname === '/api/approvals/deny' && req.method === 'POST') {
+    readBody(req).then(body => {
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+        return;
+      }
+
+      const prefix = sanitizeTokenPrefix(parsed.prefix);
+      if (!prefix || prefix.length < 4) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token prefix (must be at least 4 hex characters)' }));
+        return;
+      }
+
+      const success = denyTokenPrefix(prefix);
+      if (success) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, denied: prefix }));
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Failed to write denial' }));
+      }
+    }).catch(err => {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    });
     return;
   }
 
@@ -348,5 +618,6 @@ const server = http.createServer(handleRequest);
 server.listen(PORT, '127.0.0.1', () => {
   console.log('EVOKORE Dashboard running at http://127.0.0.1:' + PORT);
   console.log('Sessions directory: ' + SESSIONS_DIR);
+  console.log('Approvals page: http://127.0.0.1:' + PORT + '/approvals');
   console.log('Press Ctrl+C to stop');
 });
