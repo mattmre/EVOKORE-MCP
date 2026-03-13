@@ -234,6 +234,24 @@ export class EvokoreMCPServer {
     };
   }
 
+  private async handleRefreshSkills(): Promise<any> {
+    const result = await this.skillManager.refreshSkills();
+    this.rebuildToolCatalog();
+
+    try {
+      await this.server.sendToolListChanged();
+    } catch (error: any) {
+      console.error(`[EVOKORE] sendToolListChanged() failed after skill refresh: ${error?.message || error}`);
+    }
+
+    return {
+      content: [{
+        type: "text",
+        text: `Skills refreshed in ${result.refreshTimeMs}ms: ${result.added} added, ${result.removed} removed, ${result.updated} unchanged/updated, ${result.total} total skills indexed.`
+      }]
+    };
+  }
+
   private getServerResources(): Resource[] {
     return [
       {
@@ -447,6 +465,10 @@ export class EvokoreMCPServer {
         return await this.handleDiscoverTools(args, extra);
       }
 
+      if (toolName === "refresh_skills") {
+        return await this.handleRefreshSkills();
+      }
+
       // Handle Native Skill Tools
       if (this.toolCatalog.isNativeTool(toolName)) {
         return await this.skillManager.handleToolCall(toolName, args);
@@ -469,6 +491,17 @@ export class EvokoreMCPServer {
     console.error(`[EVOKORE] Skill stats: ${skillStats.totalSkills} skills, ${skillStats.categories.length} categories, loaded in ${skillStats.loadTimeMs}ms, index ~${skillStats.fuseIndexSizeKb}KB`);
     await this.proxyManager.loadServers();
     this.rebuildToolCatalog();
+
+    // Opt-in filesystem watcher for auto-refreshing skills
+    if (process.env.EVOKORE_SKILL_WATCHER === "true") {
+      this.skillManager.setOnRefreshCallback(() => {
+        this.rebuildToolCatalog();
+        this.server.sendToolListChanged().catch((err: any) => {
+          console.error(`[EVOKORE] sendToolListChanged() failed after watcher refresh: ${err?.message || err}`);
+        });
+      });
+      this.skillManager.enableWatcher();
+    }
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);

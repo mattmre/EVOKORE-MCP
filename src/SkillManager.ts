@@ -1,4 +1,5 @@
 import fs from "fs/promises";
+import fsSync from "fs";
 import path from "path";
 import yaml from "yaml";
 import Fuse from "fuse.js";
@@ -39,6 +40,14 @@ export interface SkillIndexStats {
   lastSearchMs: number;
 }
 
+export interface SkillRefreshResult {
+  added: number;
+  removed: number;
+  updated: number;
+  total: number;
+  refreshTimeMs: number;
+}
+
 interface SkillSearchMatch {
   skill: SkillMetadata;
   score: number;
@@ -56,6 +65,8 @@ export class SkillManager {
   private proxyManager: ProxyManager;
   private _loadTimeMs: number = 0;
   private _lastSearchMs: number = 0;
+  private watcher: fsSync.FSWatcher | null = null;
+  private onRefreshCallback: (() => void) | null = null;
 
   constructor(proxyManager: ProxyManager) {
     this.proxyManager = proxyManager;
@@ -129,6 +140,63 @@ export class SkillManager {
     } catch (e) {
       this._loadTimeMs = Date.now() - loadStart;
       console.error("[EVOKORE] Error loading skills directory:", e);
+    }
+  }
+
+  async refreshSkills(): Promise<SkillRefreshResult> {
+    const oldKeys = new Set(this.skillsCache.keys());
+    const refreshStart = Date.now();
+
+    await this.loadSkills();
+
+    const newKeys = new Set(this.skillsCache.keys());
+    const refreshTimeMs = Date.now() - refreshStart;
+
+    const added = [...newKeys].filter(k => !oldKeys.has(k)).length;
+    const removed = [...oldKeys].filter(k => !newKeys.has(k)).length;
+    const updated = this.skillsCache.size - added;
+
+    console.error(`[EVOKORE] Skill refresh: +${added} -${removed} ~${updated} = ${this.skillsCache.size} total (${refreshTimeMs}ms)`);
+
+    return { added, removed, updated, total: this.skillsCache.size, refreshTimeMs };
+  }
+
+  setOnRefreshCallback(cb: () => void): void {
+    this.onRefreshCallback = cb;
+  }
+
+  enableWatcher(): void {
+    if (this.watcher) return;
+
+    if (!fsSync.existsSync(SKILLS_DIR)) {
+      console.error("[EVOKORE] Skill watcher: SKILLS directory not found, watcher not started.");
+      return;
+    }
+
+    let debounceTimer: NodeJS.Timeout | null = null;
+    try {
+      this.watcher = fsSync.watch(SKILLS_DIR, { recursive: true }, () => {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          console.error("[EVOKORE] Skill watcher: filesystem change detected, refreshing...");
+          this.refreshSkills().then(() => {
+            this.onRefreshCallback?.();
+          }).catch((err) => {
+            console.error("[EVOKORE] Skill watcher: refresh failed:", err);
+          });
+        }, 1000);
+      });
+      console.error("[EVOKORE] Skill watcher: watching SKILLS directory for changes.");
+    } catch (err) {
+      console.error("[EVOKORE] Skill watcher: failed to start:", err);
+    }
+  }
+
+  disableWatcher(): void {
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+      console.error("[EVOKORE] Skill watcher: stopped.");
     }
   }
 
@@ -654,6 +722,23 @@ export class SkillManager {
         annotations: {
           title: "Proxy Server Status",
           readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
+        }
+      },
+      {
+        name: "refresh_skills",
+        title: "Refresh Skills Index",
+        description: "Refresh the skill index by rescanning the SKILLS/ directory. Use this after adding, removing, or modifying skill files during a live session.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {},
+          required: []
+        },
+        annotations: {
+          title: "Refresh Skills Index",
+          readOnlyHint: false,
           destructiveHint: false,
           idempotentHint: true,
           openWorldHint: false
