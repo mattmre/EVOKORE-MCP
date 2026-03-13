@@ -24,6 +24,11 @@
             "type": "command",
             "command": "node scripts/hooks/purpose-gate.js",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "node scripts/hooks/repo-audit-hook.js",
+            "timeout": 15000
           }
         ]
       }
