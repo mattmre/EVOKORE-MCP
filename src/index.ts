@@ -252,6 +252,31 @@ export class EvokoreMCPServer {
     };
   }
 
+  private async handleFetchSkill(args: any): Promise<any> {
+    // Delegate to SkillManager for the fetch, then auto-refresh the index
+    const result = await this.skillManager.handleToolCall("fetch_skill", args);
+
+    // If the fetch succeeded (no isError), auto-refresh the skill index
+    if (!result.isError) {
+      try {
+        await this.skillManager.refreshSkills();
+        this.rebuildToolCatalog();
+        await this.server.sendToolListChanged();
+
+        // Append a refresh note to the response
+        const originalText = result.content?.[0]?.text || "";
+        result.content = [{
+          type: "text",
+          text: originalText + " Index auto-refreshed."
+        }];
+      } catch (error: any) {
+        console.error(`[EVOKORE] Auto-refresh after fetch_skill failed: ${error?.message || error}`);
+      }
+    }
+
+    return result;
+  }
+
   private getServerResources(): Resource[] {
     return [
       {
@@ -467,6 +492,10 @@ export class EvokoreMCPServer {
 
       if (toolName === "refresh_skills") {
         return await this.handleRefreshSkills();
+      }
+
+      if (toolName === "fetch_skill") {
+        return await this.handleFetchSkill(args);
       }
 
       // Handle Native Skill Tools

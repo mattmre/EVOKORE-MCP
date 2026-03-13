@@ -1,12 +1,17 @@
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
+import http from "http";
+import https from "https";
 import yaml from "yaml";
 import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { ProxyManager } from "./ProxyManager";
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
+const CONFIG_PATH = path.resolve(__dirname, "../mcp.config.json");
+const MAX_FETCH_SIZE = 1 * 1024 * 1024; // 1MB limit for fetched skills
+const MAX_REDIRECT_DEPTH = 5;
 
 const SKIP_DIRS = new Set([
   "node_modules", ".git", "__pycache__", "__tests__",
@@ -54,6 +59,26 @@ export interface SkillRefreshResult {
   updated: number;
   total: number;
   refreshTimeMs: number;
+}
+
+export interface SkillRegistry {
+  name: string;
+  baseUrl: string;
+  index: string;
+}
+
+export interface RegistrySkillEntry {
+  name: string;
+  description: string;
+  url: string;
+  category?: string;
+  version?: string;
+}
+
+export interface FetchSkillResult {
+  name: string;
+  path: string;
+  isNew: boolean;
 }
 
 interface SkillSearchMatch {
@@ -769,6 +794,46 @@ export class SkillManager {
           idempotentHint: true,
           openWorldHint: false
         }
+      },
+      {
+        name: "fetch_skill",
+        title: "Fetch Remote Skill",
+        description: "Fetch a skill from a remote URL (GitHub raw content, HTTP endpoint) and install it locally in the SKILLS directory.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            url: { type: "string", description: "URL to fetch the skill from (must be a raw markdown file)" },
+            category: { type: "string", description: "Category directory to install into (e.g., 'Remote Skills')" },
+            name: { type: "string", description: "Optional name override for the skill file" },
+            overwrite: { type: "boolean", description: "Allow overwriting an existing skill (default: false)" }
+          },
+          required: ["url"]
+        },
+        annotations: {
+          title: "Fetch Remote Skill",
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: true
+        }
+      },
+      {
+        name: "list_registry",
+        title: "List Registry Skills",
+        description: "List available skills from configured remote skill registries. Registries are defined in mcp.config.json under skillRegistries.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            registry: { type: "string", description: "Optional registry name to query. If omitted, queries all configured registries." }
+          }
+        },
+        annotations: {
+          title: "List Registry Skills",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: true
+        }
       }
     ];
   }
@@ -946,7 +1011,238 @@ export class SkillManager {
         };
     }
 
+    if (name === "fetch_skill") {
+        const url = typeof args.url === "string" ? args.url.trim() : "";
+        if (!url) {
+            return {
+                content: [{ type: "text", text: "The 'url' argument is required." }],
+                isError: true
+            };
+        }
+        const category = typeof args.category === "string" ? args.category.trim() : undefined;
+        const nameOverride = typeof args.name === "string" ? args.name.trim() : undefined;
+        const overwrite = args.overwrite === true;
+
+        try {
+            const result = await this.fetchRemoteSkill(url, category, nameOverride, overwrite);
+            return {
+                content: [{
+                    type: "text",
+                    text: 'Skill "' + result.name + '" ' + (result.isNew ? "installed" : "updated") + " at " + result.path + ". Use refresh_skills to update the index."
+                }]
+            };
+        } catch (error: any) {
+            return {
+                content: [{ type: "text", text: "Failed to fetch skill: " + error.message }],
+                isError: true
+            };
+        }
+    }
+
+    if (name === "list_registry") {
+        const registryName = typeof args.registry === "string" ? args.registry.trim() : undefined;
+
+        try {
+            const entries = await this.listRegistrySkills(registryName);
+            if (entries.length === 0) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: registryName
+                            ? "No skills found in registry '" + registryName + "', or registry is not configured."
+                            : "No skill registries are configured in mcp.config.json, or no skills were found."
+                    }]
+                };
+            }
+
+            const lines = entries.map(e => {
+                const verSuffix = e.version ? " (v" + e.version + ")" : "";
+                const catSuffix = e.category ? " [" + e.category + "]" : "";
+                return "- **" + e.name + "**" + verSuffix + catSuffix + ": " + e.description + "\n  URL: " + e.url;
+            });
+
+            return {
+                content: [{
+                    type: "text",
+                    text: "Available skills from registries (" + entries.length + " total):\n\n" + lines.join("\n")
+                }]
+            };
+        } catch (error: any) {
+            return {
+                content: [{ type: "text", text: "Failed to list registry skills: " + error.message }],
+                isError: true
+            };
+        }
+    }
+
     throw new McpError(ErrorCode.MethodNotFound, "Unknown tool: " + name);
+  }
+
+  async fetchRemoteSkill(url: string, category?: string, nameOverride?: string, overwrite = false): Promise<FetchSkillResult> {
+    // Validate URL
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch {
+      throw new Error("Invalid URL: " + url);
+    }
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      throw new Error("Only HTTP/HTTPS URLs are supported, got: " + parsedUrl.protocol);
+    }
+
+    // Fetch content
+    const content = await this.httpGet(url);
+
+    // Validate it looks like a skill (must have frontmatter)
+    const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+    if (!fmMatch) {
+      throw new Error("Invalid skill format: fetched content does not contain valid YAML frontmatter.");
+    }
+
+    let frontmatter: any;
+    try {
+      frontmatter = yaml.parse(fmMatch[1]);
+    } catch {
+      throw new Error("Invalid skill format: frontmatter YAML could not be parsed.");
+    }
+
+    const skillName = nameOverride || frontmatter?.name || path.basename(parsedUrl.pathname, ".md");
+    const targetCategory = category || frontmatter?.category || "Remote Skills";
+
+    // Sanitize directory/file names to prevent path traversal
+    const sanitized = (input: string) => input.replace(/[<>:"|?*\x00-\x1f]/g, "_").replace(/\.\./g, "_");
+    const safeCategory = sanitized(targetCategory);
+    const safeName = sanitized(skillName);
+
+    const categoryDir = path.join(SKILLS_DIR, safeCategory);
+    const skillDir = path.join(categoryDir, safeName);
+
+    // Validate the resulting path is still within SKILLS_DIR
+    const resolvedSkillDir = path.resolve(skillDir);
+    if (!resolvedSkillDir.startsWith(path.resolve(SKILLS_DIR))) {
+      throw new Error("Path traversal detected: resolved path escapes SKILLS directory.");
+    }
+
+    const targetPath = path.join(skillDir, "SKILL.md");
+    const isNew = !fsSync.existsSync(targetPath);
+
+    if (!isNew && !overwrite) {
+      throw new Error(
+        'Skill "' + safeName + '" already exists at ' + targetPath + '. Pass overwrite: true to replace it.'
+      );
+    }
+
+    if (!fsSync.existsSync(skillDir)) {
+      fsSync.mkdirSync(skillDir, { recursive: true });
+    }
+
+    fsSync.writeFileSync(targetPath, content, "utf-8");
+    console.error("[EVOKORE] Fetched remote skill '" + safeName + "' -> " + targetPath);
+
+    return { name: safeName, path: targetPath, isNew };
+  }
+
+  async listRegistrySkills(registryName?: string): Promise<RegistrySkillEntry[]> {
+    const registries = this.loadRegistriesFromConfig();
+    if (registries.length === 0) return [];
+
+    const targets = registryName
+      ? registries.filter(r => r.name.toLowerCase() === registryName.toLowerCase())
+      : registries;
+
+    const allEntries: RegistrySkillEntry[] = [];
+
+    for (const registry of targets) {
+      try {
+        const indexUrl = registry.baseUrl.replace(/\/$/, "") + "/" + registry.index;
+        const raw = await this.httpGet(indexUrl);
+        const parsed = JSON.parse(raw);
+
+        const skills: any[] = Array.isArray(parsed) ? parsed : (parsed?.skills || []);
+        for (const entry of skills) {
+          if (!entry.name || !entry.url) continue;
+          allEntries.push({
+            name: String(entry.name),
+            description: String(entry.description || "No description"),
+            url: String(entry.url).startsWith("http")
+              ? String(entry.url)
+              : registry.baseUrl.replace(/\/$/, "") + "/" + String(entry.url),
+            category: entry.category ? String(entry.category) : undefined,
+            version: entry.version ? String(entry.version) : undefined
+          });
+        }
+      } catch (err: any) {
+        console.error("[EVOKORE] Failed to fetch registry '" + registry.name + "': " + err.message);
+      }
+    }
+
+    return allEntries;
+  }
+
+  private loadRegistriesFromConfig(): SkillRegistry[] {
+    try {
+      const raw = fsSync.readFileSync(CONFIG_PATH, "utf-8");
+      const config = JSON.parse(raw);
+      const registries = config?.skillRegistries;
+      if (!Array.isArray(registries)) return [];
+
+      return registries
+        .filter((r: any) => r && typeof r.name === "string" && typeof r.baseUrl === "string" && typeof r.index === "string")
+        .map((r: any) => ({
+          name: String(r.name),
+          baseUrl: String(r.baseUrl),
+          index: String(r.index)
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  private httpGet(url: string, redirectDepth = 0): Promise<string> {
+    if (redirectDepth > MAX_REDIRECT_DEPTH) {
+      return Promise.reject(new Error("Too many redirects (max " + MAX_REDIRECT_DEPTH + ")"));
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      const mod = url.startsWith("https") ? https : http;
+      const req = mod.get(url, { headers: { "User-Agent": "EVOKORE-MCP" } }, (res) => {
+        // Follow redirects
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          this.httpGet(res.headers.location, redirectDepth + 1).then(resolve).catch(reject);
+          return;
+        }
+
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error("HTTP " + res.statusCode + " from " + url));
+          return;
+        }
+
+        let data = "";
+        let byteCount = 0;
+
+        res.on("data", (chunk: Buffer) => {
+          byteCount += chunk.length;
+          if (byteCount > MAX_FETCH_SIZE) {
+            res.destroy();
+            reject(new Error("Response too large (exceeds " + (MAX_FETCH_SIZE / 1024 / 1024) + "MB limit)"));
+            return;
+          }
+          data += chunk.toString("utf-8");
+        });
+
+        res.on("end", () => resolve(data));
+        res.on("error", reject);
+      });
+
+      req.on("error", reject);
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error("Request timed out after 30s"));
+      });
+    });
   }
 
   getSkillCount(): number {
