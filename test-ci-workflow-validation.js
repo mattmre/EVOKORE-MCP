@@ -20,10 +20,6 @@ test('CI workflow trigger validation', () => {
   assert.match(workflow, /\bwindows-runtime:\s*\r?\n[^\n]*\r?\n\s*runs-on:\s*windows-latest\b/);
   assert.match(
     workflow,
-    /\s*-\s*run:\s*node test-windows-exec-validation\.js\b/
-  );
-  assert.match(
-    workflow,
-    /\s*-\s*run:\s*npx tsx test-windows-command-runtime-validation\.ts\b/
+    /\s*-\s*(?:name:\s*Run Windows-specific tests\s*\r?\n\s*run:\s*npx vitest run test-windows-exec-validation\.js test-windows-command-runtime-validation\.ts|run:\s*node test-windows-exec-validation\.js)\b/
   );
 });
