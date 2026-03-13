@@ -4,3 +4,9 @@ node_modules/
 .orchestrator/
 mcp-research-tmp/
 dist/
+
+# Compiled TypeScript artifacts in src/ (output goes to dist/)
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+src/**/*.d.ts.map
