@@ -179,20 +179,182 @@ class EvokoreMCPServer {
             content: [{ type: "text", text: lines.join("\n") }]
         };
     }
+    getServerResources() {
+        return [
+            {
+                uri: "evokore://server/status",
+                name: "Server Status",
+                mimeType: "application/json",
+                description: "Live EVOKORE-MCP server status including version, discovery mode, child server states, and tool counts."
+            },
+            {
+                uri: "evokore://server/config",
+                name: "Server Config (Sanitized)",
+                mimeType: "application/json",
+                description: "EVOKORE-MCP server configuration from mcp.config.json with environment values redacted."
+            },
+            {
+                uri: "evokore://skills/categories",
+                name: "Skill Categories",
+                mimeType: "application/json",
+                description: "Summary of all skill categories with skill counts per category."
+            }
+        ];
+    }
+    async readServerResource(uri) {
+        if (uri === "evokore://server/status") {
+            const serverStates = this.proxyManager.getServerStatusSnapshot();
+            const status = {
+                version: SERVER_VERSION,
+                discoveryMode: this.discoveryMode,
+                toolCount: this.toolCatalog.getAllTools().length,
+                skillCount: this.skillManager.getSkillCount(),
+                childServers: serverStates.map(s => ({
+                    id: s.id,
+                    status: s.status,
+                    connectionType: s.connectionType,
+                    registeredToolCount: s.registeredToolCount,
+                    errorCount: s.errorCount
+                }))
+            };
+            return {
+                contents: [{ uri, mimeType: "application/json", text: JSON.stringify(status, null, 2) }]
+            };
+        }
+        if (uri === "evokore://server/config") {
+            const sanitizedConfig = await this.proxyManager.getSanitizedConfig();
+            return {
+                contents: [{ uri, mimeType: "application/json", text: JSON.stringify(sanitizedConfig, null, 2) }]
+            };
+        }
+        if (uri === "evokore://skills/categories") {
+            const categorySummary = this.skillManager.getCategorySummary();
+            const result = {
+                totalSkills: this.skillManager.getSkillCount(),
+                categories: Object.entries(categorySummary)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([name, count]) => ({ name, count }))
+            };
+            return {
+                contents: [{ uri, mimeType: "application/json", text: JSON.stringify(result, null, 2) }]
+            };
+        }
+        throw new types_js_1.McpError(types_js_1.ErrorCode.InvalidParams, "Unknown evokore resource: " + uri);
+    }
     setupHandlers() {
-        // 1. Resources (Static File Serving)
+        // 1. Resources (Skills + Server-level)
         this.server.setRequestHandler(types_js_1.ListResourcesRequestSchema, async () => {
-            return { resources: this.skillManager.getResources() };
+            const skillResources = this.skillManager.getResources();
+            const serverResources = this.getServerResources();
+            return { resources: [...serverResources, ...skillResources] };
         });
         this.server.setRequestHandler(types_js_1.ReadResourceRequestSchema, async (request) => {
-            return this.skillManager.readResource(request.params.uri);
+            const uri = request.params.uri;
+            if (uri.startsWith("evokore://")) {
+                return await this.readServerResource(uri);
+            }
+            return this.skillManager.readResource(uri);
         });
-        // 2. Prompts (Deprecated in V2: Exposing via Tool instead to prevent Context Bloat)
+        // 2. Prompts (Skill-backed prompt templates)
         this.server.setRequestHandler(types_js_1.ListPromptsRequestSchema, async () => {
-            return { prompts: [] }; // Return empty to prevent massive context payloads in V2
+            return {
+                prompts: [
+                    {
+                        name: "resolve-workflow",
+                        description: "Find the best matching skill/workflow for a given objective",
+                        arguments: [
+                            { name: "objective", description: "What you want to accomplish", required: true }
+                        ]
+                    },
+                    {
+                        name: "skill-help",
+                        description: "Get detailed help for a specific skill",
+                        arguments: [
+                            { name: "skill_name", description: "Name of the skill", required: true }
+                        ]
+                    },
+                    {
+                        name: "server-overview",
+                        description: "Get an overview of this EVOKORE-MCP server instance",
+                        arguments: []
+                    }
+                ]
+            };
         });
-        this.server.setRequestHandler(types_js_1.GetPromptRequestSchema, async () => {
-            throw new types_js_1.McpError(types_js_1.ErrorCode.MethodNotFound, "Prompts are disabled in EVOKORE v2. Use the 'resolve_workflow' tool instead.");
+        this.server.setRequestHandler(types_js_1.GetPromptRequestSchema, async (request) => {
+            const { name, arguments: args } = request.params;
+            switch (name) {
+                case "resolve-workflow": {
+                    const objective = args?.objective;
+                    if (!objective) {
+                        throw new types_js_1.McpError(types_js_1.ErrorCode.InvalidParams, "The 'objective' argument is required for the resolve-workflow prompt.");
+                    }
+                    const resultText = this.skillManager.resolveWorkflowText(objective);
+                    return {
+                        messages: [
+                            {
+                                role: "user",
+                                content: { type: "text", text: "Find workflows for: " + objective }
+                            },
+                            {
+                                role: "assistant",
+                                content: { type: "text", text: resultText }
+                            }
+                        ]
+                    };
+                }
+                case "skill-help": {
+                    const skillName = args?.skill_name;
+                    if (!skillName) {
+                        throw new types_js_1.McpError(types_js_1.ErrorCode.InvalidParams, "The 'skill_name' argument is required for the skill-help prompt.");
+                    }
+                    const helpText = this.skillManager.getSkillHelpText(skillName);
+                    return {
+                        messages: [
+                            {
+                                role: "user",
+                                content: { type: "text", text: "Help for skill: " + skillName }
+                            },
+                            {
+                                role: "assistant",
+                                content: { type: "text", text: helpText }
+                            }
+                        ]
+                    };
+                }
+                case "server-overview": {
+                    const toolCount = this.toolCatalog.getAllTools().length;
+                    const skillCount = this.skillManager.getSkillCount();
+                    const serverStates = this.proxyManager.getServerStatusSnapshot();
+                    const categorySummary = this.skillManager.getCategorySummary();
+                    const childServerLines = serverStates.map(s => "  - " + s.id + ": " + s.status + " (" + s.connectionType + ", " + s.registeredToolCount + " tools)");
+                    const categoryLines = Object.entries(categorySummary)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([cat, count]) => "  - " + cat + ": " + count + " skills");
+                    const overviewText = [
+                        "EVOKORE-MCP v" + SERVER_VERSION,
+                        "Discovery mode: " + this.discoveryMode,
+                        "Total tools: " + toolCount,
+                        "Total skills: " + skillCount,
+                        "",
+                        "Child servers (" + serverStates.length + "):",
+                        ...(childServerLines.length > 0 ? childServerLines : ["  (none connected)"]),
+                        "",
+                        "Skill categories:",
+                        ...(categoryLines.length > 0 ? categoryLines : ["  (none loaded)"])
+                    ].join("\n");
+                    return {
+                        messages: [
+                            {
+                                role: "assistant",
+                                content: { type: "text", text: overviewText }
+                            }
+                        ]
+                    };
+                }
+                default:
+                    throw new types_js_1.McpError(types_js_1.ErrorCode.MethodNotFound, "Unknown prompt: " + name);
+            }
         });
         // 3. Tools (Dynamic Injection & Proxied Actions)
         this.server.setRequestHandler(types_js_1.ListToolsRequestSchema, async (_request, extra) => {

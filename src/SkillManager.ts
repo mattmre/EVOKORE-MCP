@@ -810,6 +810,68 @@ export class SkillManager {
     throw new McpError(ErrorCode.MethodNotFound, "Unknown tool: " + name);
   }
 
+  getSkillCount(): number {
+    return this.skillsCache.size;
+  }
+
+  getCategorySummary(): Record<string, number> {
+    const summary: Record<string, number> = {};
+    for (const skill of this.skillsCache.values()) {
+      summary[skill.category] = (summary[skill.category] || 0) + 1;
+    }
+    return summary;
+  }
+
+  findSkillByName(name: string): SkillMetadata | null {
+    const normalizedName = name.toLowerCase();
+
+    // Try composite key first
+    const byKey = this.skillsCache.get(normalizedName);
+    if (byKey) return byKey;
+
+    // Scan for bare name match
+    for (const skill of this.skillsCache.values()) {
+      if (skill.name.toLowerCase() === normalizedName) {
+        return skill;
+      }
+    }
+
+    // Fuzzy fallback via fuse
+    if (this.fuseIndex) {
+      const matches = this.fuseIndex.search(normalizedName, { limit: 1 });
+      if (matches.length > 0) return matches[0].item;
+    }
+
+    return null;
+  }
+
+  resolveWorkflowText(objective: string): string {
+    if (!this.fuseIndex) return "Skills not loaded. Call loadSkills() first.";
+
+    const results = this.searchSkills(objective, 3);
+    if (results.length === 0) {
+      return "No specific workflows found for '" + objective + "'. Proceed using your general knowledge.";
+    }
+
+    return results.map(r => {
+      const subcatLabel = r.skill.subcategory ? " > " + r.skill.subcategory : "";
+      const whyMatched = r.reasons.length > 0
+        ? "Why matched: " + r.reasons.join("; ")
+        : "Why matched: description/content similarity";
+      return "--- WORKFLOW: " + r.skill.name + " [" + r.skill.category + subcatLabel + "] ---\nDescription: " + r.skill.description + "\n" + whyMatched + "\n\n" + r.skill.content.slice(0, 2000);
+    }).join("\n\n");
+  }
+
+  getSkillHelpText(name: string): string {
+    const skill = this.findSkillByName(name);
+    if (!skill) {
+      return "Could not find a skill named '" + name + "'.";
+    }
+
+    const subcatLine = skill.subcategory ? "\nSubcategory: " + skill.subcategory : "";
+    return "Skill: " + skill.name + "\nCategory: " + skill.category + subcatLine + "\nDescription: " + skill.description + "\n\n" + skill.content;
+  }
+
   getResources(): Resource[] {
       return Array.from(this.skillsCache.values()).map(skill => {
         const subcatSegment = skill.subcategory
