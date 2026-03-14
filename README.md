@@ -7,7 +7,8 @@ Current package/runtime version: `3.0.0`.
 ## Current operator snapshot
 
 - **Runtime shape:** stdio MCP router plus multi-server child aggregation
-- **Native tool surface:** `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`
+- **Native tool surface:** `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`, `refresh_skills`, `fetch_skill`, `execute_skill`, `list_registry`
+- **v3.0 capabilities:** RBAC permissions, rate limiting, HTTP transport, MCP resources/prompts, tool annotations, skill ecosystem (versioning, registry, sandbox), session dashboard, async proxy boot
 - **Continuity surfaces:** canonical session manifest, managed Claude memory sync, manifest-backed status line, repo-state audit CLI
 - **Voice surfaces:** proxied ElevenLabs tools, VoiceMode guidance, standalone VoiceSidecar with persona-aware hook forwarding
 - **Recent change report:** [docs/RECENT_ADDITIONS_2026-03-12.md](docs/RECENT_ADDITIONS_2026-03-12.md)
@@ -23,14 +24,22 @@ EVOKORE exists to solve three common MCP operator problems:
 ## Current capabilities
 
 - **Single stdio MCP endpoint** for native EVOKORE tools plus proxied child servers.
-- **Native workflow tooling**: `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`.
-- **Proxied server aggregation** from `mcp.config.json`, currently `github`, `fs`, and optional `elevenlabs`.
+- **11 native tools**: `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`, `refresh_skills`, `fetch_skill`, `execute_skill`, `list_registry`.
+- **Proxied server aggregation** from `mcp.config.json`, currently `github`, `fs`, optional `elevenlabs`, and optional `supabase`.
 - **Prefixed proxied tools** in the form `${serverId}_${tool.name}` to avoid collisions.
 - **Tool discovery modes**:
   - `legacy` (default): full native + proxied tool listing
   - `dynamic`: always-visible native tools plus session-activated proxied tools
 - **Exact-name compatibility in dynamic mode**: hidden proxied tools still remain callable by exact prefixed name.
 - **HITL approval flow** using `_evokore_approval_token`, with one-time, exact-args, short-lived retries.
+- **RBAC permissions** with `admin`, `developer`, and `readonly` roles via `EVOKORE_ROLE` env var. Backwards-compatible with flat permissions when unset.
+- **Rate limiting** with configurable per-server and per-tool token bucket rate limits via `rateLimit` in `mcp.config.json`.
+- **HTTP transport** for child servers via `StreamableHTTPClientTransport`. Configure with `"transport": "http"` and `"url"` in `mcp.config.json`.
+- **MCP resources and prompts**: `resources/list` returns skill URIs and server-level resources; `prompts/list` returns `resolve-workflow`, `skill-help`, and `server-overview`.
+- **Tool annotations**: all native tools carry MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
+- **Skill ecosystem**: versioned skills with dependency resolution, remote skill registries, and sandboxed skill execution.
+- **Session dashboard** at `127.0.0.1:8899` via `npm run dashboard`, with HITL approval UI at `/approvals`.
+- **Async proxy boot**: child servers boot in the background so the MCP handshake completes immediately.
 - **Operator continuity tooling** through session manifests, Claude memory sync, manifest-backed status summaries, and `npm run repo:audit`.
 - **Voice integrations** across proxied ElevenLabs tools, VoiceMode guidance, and the standalone VoiceSidecar.
 - **Ops and governance hardening** for docs integrity, release flow, PR metadata, submodule cleanliness, tracker consistency, and Windows runtime behavior.
@@ -43,13 +52,15 @@ flowchart LR
     Router[EVOKORE-MCP Router<br/>src/index.ts]
     Native[Native EVOKORE tools<br/>SkillManager]
     Catalog[ToolCatalogIndex<br/>legacy or dynamic projection]
-    Security[SecurityManager<br/>permissions.yml + HITL token flow]
-    Proxy[ProxyManager<br/>prefixing + child routing]
+    Security[SecurityManager<br/>permissions.yml + RBAC]
+    Proxy[ProxyManager<br/>prefixing + child routing + rate limiting]
     GitHub[github child server]
     FS[fs child server]
     Eleven[optional elevenlabs child server]
+    Supa[optional supabase child server]
     Hooks[Hooks + observability<br/>scripts/* + ~/.evokore]
     Sidecar[VoiceSidecar<br/>ws://localhost:8888]
+    Dashboard[Session Dashboard<br/>127.0.0.1:8899]
 
     Client --> Router
     Router --> Native
@@ -59,8 +70,10 @@ flowchart LR
     Proxy --> GitHub
     Proxy --> FS
     Proxy --> Eleven
+    Proxy --> Supa
     Client -. hook payloads .-> Hooks
     Hooks -. voice payloads .-> Sidecar
+    Dashboard -. reads .-> Hooks
 ```
 
 ## Quick start
@@ -79,11 +92,13 @@ Copy `.env.example` to `.env` and set the values you need:
 ```bash
 GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here
 ELEVENLABS_API_KEY=your_key_here
+SUPABASE_ACCESS_TOKEN=your_token_here
 
 # Optional
 EVOKORE_TOOL_DISCOVERY_MODE=legacy
-# or
-EVOKORE_TOOL_DISCOVERY_MODE=dynamic
+EVOKORE_ROLE=developer
+EVOKORE_SKILL_WATCHER=true
+EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS=30000
 ```
 
 ### 3. Register EVOKORE with your MCP client
@@ -146,27 +161,28 @@ Use this before a new multi-slice session or cleanup wave to surface branch dive
 
 | Module | Role |
 |---|---|
-| `src/index.ts` | Main stdio MCP server, request handlers, discovery-mode projection, session activation state |
-| `src/SkillManager.ts` | Native EVOKORE tools and skill indexing over `SKILLS/` |
-| `src/ProxyManager.ts` | Child-server boot, prefixing, proxy execution, cooldown handling, env interpolation |
+| `src/index.ts` | Main stdio MCP server, request handlers, discovery-mode projection, MCP resources/prompts, session activation state |
+| `src/SkillManager.ts` | Native EVOKORE tools (11 total), skill indexing, versioning, remote fetch, and sandboxed execution |
+| `src/ProxyManager.ts` | Child-server boot (stdio + HTTP), prefixing, proxy execution, rate limiting, cooldown, env interpolation, async boot |
 | `src/ToolCatalogIndex.ts` | Unified native + proxied tool catalog, search index, projected tool listing |
-| `permissions.yml` | HITL/allow/deny policy for proxied tools |
-| `mcp.config.json` | Child-server registry for `github`, `fs`, and optional `elevenlabs` |
+| `src/SecurityManager.ts` | HITL/allow/deny policy with RBAC role support (`admin`, `developer`, `readonly`) |
+| `permissions.yml` | Flat and role-based permission rules for proxied tools |
+| `mcp.config.json` | Child-server registry for `github`, `fs`, optional `elevenlabs`, and optional `supabase`; rate limit config |
 | `src/VoiceSidecar.ts` | Standalone WebSocket voice runtime for hook-driven speech |
-| `scripts/` | Config sync, hook observability, replay viewers, benchmark tooling, and governance helpers |
+| `scripts/` | Config sync, hook observability, replay viewers, session dashboard, benchmark tooling, and governance helpers |
 
 ## Recent implementation and research highlights
 
+- **v3.0.0 shipped** with RBAC, rate limiting, HTTP transport, MCP resources/prompts, tool annotations, skill versioning, remote registries, sandboxed execution, session dashboard, and async proxy boot.
+- **11 native tools** now include `refresh_skills`, `fetch_skill`, `execute_skill`, and `list_registry` for a complete skill ecosystem.
+- **Supabase integration** added as a proxied child server with tiered permissions (10 allow, 4 require_approval, 3 deny).
+- **Session dashboard** at `127.0.0.1:8899` with HITL approval UI at `/approvals`.
 - **Dynamic tool discovery MVP landed** with `legacy` default mode, opt-in `dynamic` mode, session-scoped activation, and exact-name compatibility for hidden proxied tools.
 - **Recursive skill indexing and semantic workflow resolution landed** with metadata-aware search, performance monitoring, and actionable reranking in `resolve_workflow`.
-- **Canonical hook entrypoints, fail-safe bootstrap, and universal HITL schema injection landed** to harden the operator/runtime contract.
 - **Session continuity, Claude memory sync, manifest-backed status line, and repo-state audit landed** so repo work can restart safely with less context drift.
-- **Discovery benchmarking now emits deterministic JSON by default**, with optional `--output` artifact writing and opt-in `--live-timings`.
-- **HITL approval guidance and hardening were expanded** around `_evokore_approval_token`: one-time use, exact same arguments, and short-lived retry windows.
 - **VoiceSidecar matured into a standalone runtime** on `ws://localhost:8888`, with `voices.json` hot-reload per new connection, playback disable support, and audio artifact saving.
-- **Damage-control rules and repo hygiene tooling expanded** with broader shell/path protections and `npm run repo:audit` for cleanup planning and verification.
 - **Windows runtime behavior is now explicit**: EVOKORE remaps only `npx` to `npx.cmd`; `uv` and `uvx` must resolve directly on PATH.
-- **Governance and continuity docs are first-class** through PR metadata validation, tracker consistency checks, next-session freshness validation, docs link validation, release gating, and research/session logs.
+- **Governance and continuity docs are first-class** through PR metadata validation, tracker consistency checks, docs link validation, release gating, and research/session logs.
 
 ## Detailed documentation
 
@@ -181,13 +197,9 @@ Use this before a new multi-slice session or cleanup wave to surface branch dive
 
 ## Validation references
 
-- Full regression: `npm test`
+- Full regression: `npm test` (vitest, 73 files, 180+ tests)
 - Build: `npm run build`
-- Tool discovery contract: `node test-tool-discovery-validation.js`
-- Discovery benchmark contract: `node test-tool-discovery-benchmark-validation.js`
-- Voice sidecar and hook coverage: `node test-voice-sidecar-smoke-validation.js`, `node test-voice-sidecar-hotreload-validation.js`, `node hook-e2e-validation.js`
-- Windows command/runtime coverage: `node test-windows-exec-validation.js`, `npx tsx test-windows-command-runtime-validation.ts`
-- Governance/docs coverage: `node test-pr-metadata-validation.js`, `node test-docs-canonical-links.js`, `node test-version-contract-consistency.js`
+- Repo audit: `npm run repo:audit`
 
 ## Contributing
 

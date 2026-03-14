@@ -19,6 +19,7 @@ This guide covers installation, environment setup, child-server configuration, c
 
 - `GITHUB_PERSONAL_ACCESS_TOKEN` for GitHub operations
 - `ELEVENLABS_API_KEY` for ElevenLabs proxy tools and VoiceSidecar
+- `SUPABASE_ACCESS_TOKEN` for Supabase proxy tools
 - `OPENAI_API_KEY` if you want to use VoiceMode
 
 ## Install and build
@@ -61,12 +62,22 @@ Key values:
 ```bash
 GITHUB_PERSONAL_ACCESS_TOKEN=your_github_pat_here
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+SUPABASE_ACCESS_TOKEN=your_supabase_access_token_here
 
 # Optional
 EVOKORE_TOOL_DISCOVERY_MODE=legacy
-# or
-EVOKORE_TOOL_DISCOVERY_MODE=dynamic
 ```
+
+### v3.0 environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `EVOKORE_ROLE` | (unset = flat permissions) | RBAC role: `admin`, `developer`, or `readonly`. When unset, flat per-tool rules in `permissions.yml` apply. |
+| `EVOKORE_SKILL_WATCHER` | `false` | Set to `true` to enable filesystem watcher for automatic skill index hot-reload. |
+| `EVOKORE_REPO_AUDIT_HOOK` | `false` | Set to `true` to enable the pre-session repo audit hook (warns about branch drift, stale worktrees). |
+| `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` | `30000` | Timeout in milliseconds for child server boot during async proxy bootstrap. |
+| `EVOKORE_TOOL_DISCOVERY_MODE` | `legacy` | Tool discovery mode: `legacy` or `dynamic`. |
+| `EVOKORE_MCP_CONFIG_PATH` | `mcp.config.json` (project root) | Override path to the child server config file. |
 
 Important behavior:
 
@@ -96,10 +107,14 @@ Current repo configuration:
 
 ```json
 {
+  "skillRegistries": [],
   "servers": {
     "github": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-github"]
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
     },
     "fs": {
       "command": "npx",
@@ -112,6 +127,13 @@ Current repo configuration:
         "ELEVENLABS_API_KEY": "${ELEVENLABS_API_KEY}",
         "ELEVENLABS_MCP_OUTPUT_MODE": "both"
       }
+    },
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase", "--read-only"],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+      }
     }
   }
 }
@@ -119,10 +141,79 @@ Current repo configuration:
 
 Walkthrough:
 
-- `github` and `fs` are booted through `npx`
+- `github`, `fs`, and `supabase` are booted through `npx`
 - `elevenlabs` is optional and booted through `uvx`
-- child env values can interpolate shell environment variables
-- `ELEVENLABS_MCP_OUTPUT_MODE` is currently set to `both`
+- `supabase` is optional and requires `SUPABASE_ACCESS_TOKEN`
+- child env values can interpolate shell environment variables via `${VAR}` syntax
+- `skillRegistries` array configures remote skill registry URLs for `list_registry`
+
+### HTTP transport for child servers
+
+Child servers that expose an HTTP endpoint instead of stdio can be configured with:
+
+```json
+{
+  "servers": {
+    "my-http-server": {
+      "transport": "http",
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+EVOKORE uses `StreamableHTTPClientTransport` from the MCP SDK for HTTP-based child servers. All other child server features (prefixing, permissions, rate limiting) work identically.
+
+### Rate limiting
+
+Add a `rateLimit` block to any server definition:
+
+```json
+{
+  "servers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "rateLimit": {
+        "maxTokens": 10,
+        "refillRate": 2,
+        "refillIntervalMs": 1000
+      }
+    }
+  }
+}
+```
+
+- **Algorithm**: token bucket
+- **`maxTokens`**: burst capacity (max calls before throttling)
+- **`refillRate`**: tokens restored per interval
+- **`refillIntervalMs`**: refill period in milliseconds
+- Rate limiting is separate from error-triggered cooldown
+
+### RBAC setup
+
+1. Set `EVOKORE_ROLE` in your `.env`:
+
+   ```bash
+   EVOKORE_ROLE=developer
+   ```
+
+2. Role definitions live in `permissions.yml` under `roles:`:
+
+   - **`admin`**: `default_permission: allow` (full access)
+   - **`developer`**: `default_permission: require_approval` with per-tool overrides for read operations
+   - **`readonly`**: `default_permission: deny` with per-tool overrides for safe read operations
+
+3. When `EVOKORE_ROLE` is unset, flat per-tool rules under `rules:` apply (original v2 behavior).
+
+### Async proxy boot
+
+Child servers boot asynchronously in the background so the MCP handshake completes immediately. This means:
+
+- Your client connects and receives the native tool list without waiting for child servers
+- Proxied tools become available as each child server finishes booting
+- Boot progress is emitted to stderr: `"Proxy bootstrap complete"` or `"Background proxy bootstrap failed"`
+- Configure the boot timeout via `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` (default: 30000ms)
 
 If you need to point EVOKORE at another config file, set:
 
