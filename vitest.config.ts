@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    include: ['test-*.{js,ts}', 'e2e-test.js', 'hook-test-suite.js', 'hook-e2e-validation.js'],
+    include: ['test-*.{js,ts}', 'e2e-test.js', 'hook-test-suite.js', 'hook-e2e-validation.js', 'tests/integration/*.test.ts'],
     testTimeout: 60000,
     hookTimeout: 30000,
     pool: 'forks',
