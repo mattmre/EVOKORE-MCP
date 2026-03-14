@@ -67,7 +67,7 @@ Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks
 
 ## v3.0 Runtime Additions
 
-- **Test Suite:** Tests now use vitest (72 files, 179 tests). Run with `npx vitest run`. Old `node test-*.js` chaining is removed.
+- **Test Suite:** Tests now use vitest (72 files, 180 tests). Run with `npx vitest run`. Old `node test-*.js` chaining is removed.
 - **Tool Annotations:** All native tools have MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
 - **Server Instructions:** The MCP Server constructor includes an `instructions` string for client-side display.
 - **HTTP Client Transport:** ProxyManager supports `StreamableHTTPClientTransport` for HTTP-based child servers. Configure with `"transport": "http"` and `"url"` in mcp.config.json.
@@ -83,3 +83,4 @@ Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks
 - **Supabase Integration:** Supabase MCP added as proxied child server with tiered permissions (10 allow, 4 require_approval, 3 deny).
 - **RBAC Permissions:** Role-based permission model with `admin`, `developer`, `readonly` roles. Activated via `EVOKORE_ROLE` env var. Backwards-compatible when unset (flat permissions still work).
 - **Build Hygiene:** Compiled artifacts no longer tracked in `src/`. Only `dist/` has compiled output, and it's gitignored.
+- **Async Proxy Boot:** `ProxyManager.loadServers()` runs asynchronously in the background so the MCP handshake completes immediately. The boot emits `"Proxy bootstrap complete"` or `"Background proxy bootstrap failed"` sentinels to stderr. Use `.catch()` on the background promise, never `void` fire-and-forget, so boot errors are visible. Integration tests that call proxied tools must await `waitForProxyBoot(transport)` from `tests/helpers/wait-for-proxy-boot.js` after `client.connect()` before asserting on tool results. Boot timeout is configurable via `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` (default 30000).
