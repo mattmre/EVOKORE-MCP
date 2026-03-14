@@ -78,15 +78,58 @@
 - Ran `npm run build` and `npx vitest run` — 180/180 tests passing
 - Confirmed no regressions
 
-## Evidence
+## Session Evidence
 
-| Check | Result |
-|-------|--------|
-| Build | Pass |
-| Type Check | Pass |
-| Test Suite | 180/180 pass |
-| Windows Runtime | Pass |
-| PR Metadata | Pass |
+### Commands Run
+
+| Command | Output Summary | Exit Code |
+|---------|---------------|-----------|
+| `npm run build` | TypeScript compiled cleanly, no errors | 0 |
+| `npx vitest run` | 73 files, 180 tests passed in 117.48s | 0 |
+| `npx vitest run` (post-merge on main) | 73 files, 180 tests passed in 105.05s | 0 |
+| `gh pr review 124 --comment` | Review posted with 8 blocking issues, 4 suggestions | 0 |
+| `gh pr edit 124 --body-file` | PR body updated with required template sections | 0 |
+| `git push origin fix/mcp-startup-handshake` (fixes) | bd544d8 pushed, 19 files changed | 0 |
+| `git push origin fix/mcp-startup-handshake` (sync) | 3af5acc empty sync commit for fresh CI | 0 |
+| `gh run watch 23096843992` | CI run 23096843992 completed successfully | 0 |
+| `gh pr merge 124 --squash --delete-branch` | Squash-merged as bbb03a0, branch deleted | 0 |
+| `git push origin main` (session artifacts) | f18ab32 pushed to main | 0 |
+
+### CI Results (run 23096843992)
+
+| Job | Conclusion |
+|-----|-----------|
+| Build | success |
+| Type Check | success |
+| Test Suite | success |
+| Windows Runtime Validation | success |
+
+### Diff Summary
+
+| Files Changed | Lines +/- | Rationale |
+|---------------|-----------|-----------|
+| `src/ProxyManager.ts` | +3 -1 | Version fix 2.0.0→3.0.0, remove unused spawn import |
+| `src/index.ts` | +4 -1 | Replace void with .catch(), fix indentation |
+| `.env.example` | +3 | Add EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS |
+| `dist/*.js` (7 files) | -2986 | Untrack gitignored compiled artifacts |
+| `test-hitl.js` | +8 -1 | Add waitForProxyBoot, pipe stderr |
+| `test-hitl-hardening.js` | +8 -1 | Add waitForProxyBoot, pipe stderr |
+| `test-skill-manager.js` | +10 -1 | Add waitForProxyBoot, pipe stderr, boot timeout |
+| `test-hitl-schema-injection-validation.js` | +4 -1 | Add waitForProxyBoot |
+| `test-proxy-server-status-validation.js` | +4 -1 | Add waitForProxyBoot |
+| `test-tool-discovery-validation.js` | +4 -1 | Add waitForProxyBoot |
+| `test-tool-discovery-list-changed-validation.js` | +4 -1 | Add waitForProxyBoot |
+| `test-startup-handshake-validation.js` | +8 -0 | Tighten timing, move stderr assertions |
+| `tests/helpers/wait-for-proxy-boot.js` | +42 | New shared helper for async boot wait |
+
+### Evidence Checklist
+
+- [x] Commands recorded with exact CLI
+- [x] Outputs captured (summary + full CI job results)
+- [x] Diff summary documented
+- [x] Tests recorded with pass/fail count (180/180)
+- [x] Review outcomes captured (review posted, changes requested then fixed)
+- [x] Artifacts linked (session log, CI run 23096843992)
 
 ## Key Decisions
 

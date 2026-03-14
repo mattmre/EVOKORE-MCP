@@ -67,7 +67,7 @@ Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks
 
 ## v3.0 Runtime Additions
 
-- **Test Suite:** Tests now use vitest (72 files, 180 tests). Run with `npx vitest run`. Old `node test-*.js` chaining is removed.
+- **Test Suite:** Tests now use vitest (73 files, 180 tests). Run with `npx vitest run`. Old `node test-*.js` chaining is removed.
 - **Tool Annotations:** All native tools have MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
 - **Server Instructions:** The MCP Server constructor includes an `instructions` string for client-side display.
 - **HTTP Client Transport:** ProxyManager supports `StreamableHTTPClientTransport` for HTTP-based child servers. Configure with `"transport": "http"` and `"url"` in mcp.config.json.

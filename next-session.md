@@ -6,7 +6,7 @@ Last Updated (UTC): 2026-03-14
 - **Main branch:** `bbb03a0` — PR #124 merged (MCP startup handshake fix)
 - **Open PRs:** none
 - **Version:** 3.0.0
-- **Test suite:** 72 files, 180 tests, all passing via vitest
+- **Test suite:** 73 files, 180 tests, all passing via vitest
 - **Session log:** `docs/session-logs/session-2026-03-14-pr124-startup-handshake.md`
 
 ## Completed This Session (PR #124)
