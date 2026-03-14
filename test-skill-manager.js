@@ -2,6 +2,7 @@ const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
 const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio.js");
 const path = require("path");
 const fs = require("fs");
+const { waitForProxyBoot } = require("./tests/helpers/wait-for-proxy-boot");
 
 test('SkillManager integration', async () => {
   console.log("Starting SkillManager Integration Client...");
@@ -9,15 +10,20 @@ test('SkillManager integration', async () => {
   const transport = new StdioClientTransport({
     command: "node",
     args: ["dist/index.js"],
-    stderr: "inherit"
+    stderr: "pipe",
+    env: {
+      ...process.env,
+      EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS: "5000"
+    }
   });
-  
+
   const client = new Client(
     { name: "skillmanager-validator", version: "1.0.0" },
     { capabilities: {} }
   );
 
   await client.connect(transport);
+  await waitForProxyBoot(transport);
   console.log("Connected to EVOKORE-MCP Server!");
 
   const toolsResponse = await client.listTools();

@@ -4,6 +4,7 @@ const os = require("os");
 const path = require("path");
 const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
 const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio.js");
+const { waitForProxyBoot } = require("./tests/helpers/wait-for-proxy-boot");
 
 const distEntry = path.resolve(__dirname, "dist", "index.js");
 const mockServerPath = path.resolve(__dirname, "tests", "helpers", "mock-tool-discovery-server.js");
@@ -24,7 +25,7 @@ async function connectClient(mode) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [distEntry],
-    stderr: "inherit",
+    stderr: "pipe",
     env: {
       ...process.env,
       EVOKORE_MCP_CONFIG_PATH: tempConfigPath,
@@ -38,6 +39,7 @@ async function connectClient(mode) {
   );
 
   await client.connect(transport);
+  await waitForProxyBoot(transport);
   return { client, transport };
 }
 
