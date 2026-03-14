@@ -4,16 +4,16 @@ This document describes the current runtime shape of EVOKORE-MCP as shipped in `
 
 ## Runtime in one sentence
 
-EVOKORE-MCP is a stdio MCP server that merges six native EVOKORE tools with a configurable set of proxied child MCP servers, then projects that combined tool surface in either `legacy` or `dynamic` discovery mode.
+EVOKORE-MCP is a stdio MCP server that merges eleven native EVOKORE tools with a configurable set of proxied child MCP servers, then projects that combined tool surface in either `legacy` or `dynamic` discovery mode, with RBAC permissions, rate limiting, and async proxy boot.
 
 ## Core runtime layers
 
 | Layer | Current implementation | Responsibility |
 |---|---|---|
-| MCP server | `src/index.ts` | Owns stdio transport, MCP request handlers, discovery mode, and session-scoped tool activation |
-| Native tool layer | `src/SkillManager.ts` | Provides EVOKORE-native tools and skill retrieval over `SKILLS/` |
-| Proxy layer | `src/ProxyManager.ts` | Boots child servers from `mcp.config.json`, prefixes tools, forwards calls, and manages cooldown/error state |
-| Security layer | `src/SecurityManager.ts` + `permissions.yml` | Applies `allow`, `require_approval`, and `deny` policy before proxied execution |
+| MCP server | `src/index.ts` | Owns stdio transport, MCP request handlers, MCP resources/prompts, discovery mode, tool annotations, and session-scoped tool activation |
+| Native tool layer | `src/SkillManager.ts` | Provides 11 EVOKORE-native tools, skill retrieval, versioning, remote fetch, and sandboxed execution |
+| Proxy layer | `src/ProxyManager.ts` | Boots child servers (stdio + HTTP) from `mcp.config.json`, prefixes tools, forwards calls, manages rate limiting, cooldown/error state, and async boot |
+| Security layer | `src/SecurityManager.ts` + `permissions.yml` | Applies `allow`, `require_approval`, and `deny` policy with RBAC role support before proxied execution |
 | Catalog/search layer | `src/ToolCatalogIndex.ts` | Merges native + proxied tools, indexes them, and builds projected tool lists |
 | Continuity/operator layer | `scripts/session-continuity.js`, `scripts/status-runtime.js`, `scripts/claude-memory.js`, `scripts/repo-state-audit.js` | Keeps repo work restartable through session manifests, managed memory, status summaries, and repo-state preflight auditing |
 | Voice side runtime | `src/VoiceSidecar.ts` | Separate standalone WebSocket voice server, not part of stdio routing |
@@ -43,8 +43,14 @@ These are always part of the EVOKORE runtime:
 5. `get_skill_help`
 6. `discover_tools`
 7. `proxy_server_status`
+8. `refresh_skills`
+9. `fetch_skill`
+10. `execute_skill`
+11. `list_registry`
 
 Native tools are always visible, even in `dynamic` mode.
+
+All native tools carry MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and human-readable `title` fields, allowing MCP clients to render appropriate UI hints.
 
 `resolve_workflow` and `search_skills` now share the same semantic resolution layer:
 
@@ -62,12 +68,14 @@ Current configured child servers:
 - `github`
 - `fs`
 - `elevenlabs` (optional, requires `ELEVENLABS_API_KEY`)
+- `supabase` (optional, requires `SUPABASE_ACCESS_TOKEN`)
 
 Observed research/runtime snapshots have treated the proxied surface as roughly:
 
 - `github_*`: about 26 tools
 - `fs_*`: about 14 tools
 - `elevenlabs_*`: about 24 tools when configured successfully
+- `supabase_*`: about 17 tools (10 allow, 4 require_approval, 3 deny)
 
 Exact counts still depend on the upstream child server versions present at runtime.
 
@@ -101,18 +109,23 @@ In `dynamic` mode:
 
 ## Startup lifecycle
 
-At startup, EVOKORE performs these steps in order:
+At startup, EVOKORE performs these steps:
 
 1. Load `.env`
-2. Initialize MCP server capabilities
-3. Load permissions from `permissions.yml`
-4. Index skills from `SKILLS/`
-5. Load child server definitions from `mcp.config.json`
-6. Resolve child env placeholders like `${ELEVENLABS_API_KEY}`
-7. Boot each child server over stdio
-8. Fetch child tool lists and register prefixed proxies
-9. Rebuild the merged tool catalog
-10. Connect the stdio transport and begin serving requests
+2. Initialize MCP server capabilities (including resources, prompts, and server instructions)
+3. Load permissions from `permissions.yml` (with RBAC role resolution if `EVOKORE_ROLE` is set)
+4. Index skills from `SKILLS/` (with optional filesystem watcher if `EVOKORE_SKILL_WATCHER=true`)
+5. Connect the stdio transport and begin serving requests (MCP handshake completes here)
+6. **Async proxy boot** (runs in background after handshake):
+   a. Load child server definitions from `mcp.config.json`
+   b. Resolve child env placeholders like `${ELEVENLABS_API_KEY}`
+   c. Boot each child server over stdio or HTTP transport
+   d. Initialize rate limiters from `rateLimit` config
+   e. Fetch child tool lists and register prefixed proxies
+   f. Rebuild the merged tool catalog
+   g. Emit `"Proxy bootstrap complete"` or `"Background proxy bootstrap failed"` to stderr
+
+The async boot design ensures the MCP handshake completes immediately. Native tools are available right away; proxied tools become available as each child server finishes booting. The boot timeout is configurable via `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` (default: 30000ms).
 
 ## Module breakdown
 
@@ -120,15 +133,18 @@ At startup, EVOKORE performs these steps in order:
 
 Owns:
 
-- server name/version (`3.0.0`)
-- MCP capability registration
-- `tools/list`, `tools/call`, resources, and prompt handling
+- server name/version (`3.0.0`) with `instructions` string for client-side display
+- MCP capability registration (tools, resources, prompts)
+- `tools/list`, `tools/call` with tool annotations
+- `resources/list`, `resources/read` for skill URIs and server-level resources
+- `prompts/list`, `prompts/get` for `resolve-workflow`, `skill-help`, `server-overview`
 - session activation state for dynamic discovery
 - `discover_tools` activation flow
 
 Notable current behavior:
 
-- prompts are intentionally disabled in favor of tool-based retrieval
+- `resources/list` returns skills as `skill://` URIs plus server-level resources (`evokore://server/status`, `evokore://server/config`, `evokore://skills/categories`)
+- `prompts/list` returns 3 prompts: `resolve-workflow`, `skill-help`, `server-overview`
 - default dynamic-session key falls back to `__stdio_default_session__`
 - tool-list change notifications are best-effort, not required for correctness
 - dynamic activation state is bounded in memory and stale session state is reset/pruned opportunistically
@@ -151,20 +167,25 @@ It also actively uses proxied filesystem tools in `docs_architect` and `skill_cr
 Owns:
 
 - reading `mcp.config.json`
-- booting child servers over stdio
+- booting child servers over stdio or HTTP (`StreamableHTTPClientTransport`)
+- async background boot with configurable timeout (`EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS`)
 - Windows-aware command resolution
 - env placeholder interpolation with fail-fast error reporting
 - proxied tool registry
+- rate limiting via token bucket algorithm (per-server and per-tool)
 - cooldown tracking keyed by normalized tool arguments
 - proxied execution dispatch
 
 Notable current behavior:
 
+- HTTP child servers use `"transport": "http"` and `"url"` in config
+- rate limits are configured per-server via `rateLimit` in `mcp.config.json`
 - on Windows, only `npx` is remapped to `npx.cmd`
 - `uv` and `uvx` must already resolve on PATH
 - unresolved `${VAR}` placeholders fail fast for that child server
 - a proxied tool can be on cooldown after repeated/bad upstream failures
 - the in-memory child-server registry can now be inspected through the native `proxy_server_status` tool
+- boot emits `"Proxy bootstrap complete"` or `"Background proxy bootstrap failed"` sentinels to stderr
 
 ### `src/ToolCatalogIndex.ts`
 
@@ -212,18 +233,20 @@ flowchart TB
     Client[AI client / MCP host]
     Stdio[stdio transport]
     Server[EvokoreMCPServer]
-    Skill[SkillManager]
+    Skill[SkillManager<br/>11 native tools + skill ecosystem]
     Catalog[ToolCatalogIndex]
-    Security[SecurityManager]
-    Proxy[ProxyManager]
+    Security[SecurityManager<br/>RBAC + flat permissions]
+    Proxy[ProxyManager<br/>async boot + rate limiting]
     Config[mcp.config.json]
     Perms[permissions.yml]
     Skills[SKILLS/]
     GitHub[github child server]
     FS[fs child server]
     Eleven[optional elevenlabs child server]
+    Supa[optional supabase child server]
     Voice[VoiceSidecar]
     Hooks[scripts + ~/.evokore state]
+    Dashboard[Session Dashboard<br/>127.0.0.1:8899]
 
     Client --> Stdio --> Server
     Server --> Skill
@@ -236,8 +259,10 @@ flowchart TB
     Proxy --> GitHub
     Proxy --> FS
     Proxy --> Eleven
+    Proxy --> Supa
     Client -. hook payloads .-> Hooks
     Hooks -. ws payloads .-> Voice
+    Dashboard -. reads .-> Hooks
 ```
 
 ## Request routing and information flow
@@ -294,6 +319,93 @@ sequenceDiagram
 | `~/.evokore/sessions/*-tasks.json` | TillDone task state |
 | `~/.evokore/cache/location.json` | Cached geolocation for status surfaces |
 | `~/.evokore/cache/weather.json` | Cached weather for status surfaces |
+
+## RBAC permission model
+
+EVOKORE supports role-based access control as an overlay on top of flat per-tool permissions.
+
+**Roles** (defined in `permissions.yml` under `roles:`):
+
+| Role | Default permission | Behavior |
+|---|---|---|
+| `admin` | `allow` | Full access to all proxied tools |
+| `developer` | `require_approval` | Read operations allowed, write operations gated, destructive operations denied |
+| `readonly` | `deny` | Only explicitly overridden read operations are allowed |
+
+**Resolution order:**
+
+1. If `EVOKORE_ROLE` is set, find the matching role definition
+2. Check for a per-tool override in the role's `overrides` map
+3. Fall back to the role's `default_permission`
+4. If no role is active, fall back to flat `rules:` (original v2 behavior)
+
+This design is backwards-compatible: when `EVOKORE_ROLE` is unset, the runtime behaves identically to v2.
+
+## Rate limiting architecture
+
+Rate limiting uses a token bucket algorithm, configured per-server in `mcp.config.json`.
+
+- Each server with a `rateLimit` block gets its own token bucket
+- `maxTokens` defines burst capacity; `refillRate` and `refillIntervalMs` control sustained throughput
+- Rate limiting is independent of the error-triggered cooldown mechanism
+- When tokens are exhausted, the tool call returns an error instructing the client to retry
+
+## Session dashboard architecture
+
+The session dashboard is a zero-dependency HTTP server:
+
+- **Port**: `127.0.0.1:8899`
+- **Launch**: `npm run dashboard`
+- **Routes**:
+  - `/` — session replay viewer
+  - `/approvals` — HITL approval UI with deny buttons
+- **Data sources**: reads JSONL files from `~/.evokore/sessions/` and approval state from `~/.evokore/pending-approvals.json`
+- **Design**: serves inline HTML/CSS/JS with no external dependencies
+
+## MCP resources architecture
+
+`resources/list` returns:
+
+- **Skill resources**: each indexed skill is exposed as a `skill://{category}/{name}` URI
+- **Server-level resources**:
+  - `evokore://server/status` — aggregated child server status
+  - `evokore://server/config` — sanitized server configuration
+  - `evokore://skills/categories` — skill category taxonomy
+
+`resources/read` returns the content for any listed resource URI.
+
+## MCP prompts architecture
+
+`prompts/list` returns 3 prompts:
+
+| Prompt | Description |
+|---|---|
+| `resolve-workflow` | Resolve a natural-language objective to matching skills |
+| `skill-help` | Get detailed help for a specific skill |
+| `server-overview` | Get a summary of the EVOKORE server state |
+
+Prompts accept arguments and return structured message arrays for client rendering.
+
+## Tool annotations architecture
+
+All 11 native tools declare MCP-standard annotations:
+
+- `readOnlyHint` — whether the tool only reads data
+- `destructiveHint` — whether the tool modifies state destructively
+- `idempotentHint` — whether repeated calls produce the same result
+- `openWorldHint` — whether the tool interacts with external systems
+
+These annotations allow MCP clients to render confirmation dialogs, group tools by safety level, or filter tool lists. Each tool also carries a human-readable `title` field.
+
+## Skill versioning and dependency resolution
+
+Skills can declare versioning metadata in YAML frontmatter:
+
+- `version`: semver string
+- `requires`: list of skill dependencies with optional version constraints (e.g., `core-utils@>=1.0.0`)
+- `conflicts`: list of incompatible skill names
+
+`SkillManager.validateDependencies()` checks that all `requires` are satisfied and no `conflicts` are present in the loaded skill index. Validation results are reported but do not block skill loading.
 
 ## Historical design references
 

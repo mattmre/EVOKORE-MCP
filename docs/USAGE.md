@@ -42,6 +42,10 @@ Once connected, your AI assistant will automatically have access to the followin
 - **`get_skill_help`**: If you want to know what a specific skill does, ask the AI to explain it. (e.g., *"What does the 'arch-aep-runner' skill do? Show me some examples."*)
 - **`discover_tools`**: Search the merged EVOKORE catalog of native and proxied tools. In `dynamic` mode, matching proxied tools become visible for the current session.
 - **`proxy_server_status`**: Inspect the aggregated child-server registry, including server status, connection type, error counts, registered tool counts, and last-seen timestamps.
+- **`refresh_skills`**: Rescan the `SKILLS/` directory and rebuild the skill index. Use this after adding or modifying skill files during a live session. An optional filesystem watcher can be enabled via `EVOKORE_SKILL_WATCHER=true` for automatic hot-reload.
+- **`fetch_skill`**: Download a skill from a remote URL (GitHub raw content, HTTP endpoint) and install it locally in the `SKILLS/` directory.
+- **`list_registry`**: List available skills from configured remote skill registries. Registries are defined in `mcp.config.json` under `skillRegistries`.
+- **`execute_skill`**: Execute code blocks extracted from a skill file in a sandboxed subprocess. Supports `bash`, `js`, `python`, and `ts` with a 30-second timeout and 1 MB output limit.
 
 When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructions to the LLM, enabling the LLM to understand exactly what the skill is capable of and explain it to you in plain English.
 
@@ -156,7 +160,106 @@ On Windows, EVOKORE runtime command resolution remaps **only** `npx` to `npx.cmd
 - `uv` and `uvx` are **not** remapped to `.cmd` by EVOKORE.
 - Ensure your shell PATH can resolve `uv --version` / `uvx --version` directly when used in child-server configs.
 
-## 4. Voice Integration
+## 4. Skill Ecosystem
+
+### 4.1 Skill versioning
+
+Skills can declare optional versioning metadata in their YAML frontmatter:
+
+```yaml
+---
+name: my-skill
+version: 1.2.0
+requires:
+  - core-utils@>=1.0.0
+conflicts:
+  - legacy-helper
+---
+```
+
+- `version`: semver string for the skill
+- `requires`: list of skill dependencies with optional version constraints
+- `conflicts`: list of skill names that are incompatible
+
+EVOKORE validates dependencies at load time via `validateDependencies()`. Unsatisfied requirements are reported but do not block skill loading.
+
+### 4.2 Remote skill registries
+
+Configure registries in `mcp.config.json`:
+
+```json
+{
+  "skillRegistries": [
+    "https://example.com/skills/registry.json"
+  ]
+}
+```
+
+Use the `list_registry` tool to browse available remote skills, and `fetch_skill` to download and install them locally.
+
+### 4.3 Skill execution sandbox
+
+The `execute_skill` tool extracts fenced code blocks from a skill file and runs them in a sandboxed child process:
+
+- Supported languages: `bash`, `js`, `python`, `ts`
+- Timeout: 30 seconds per execution
+- Output limit: 1 MB
+- Isolation: runs in a subprocess, not in the MCP server process
+
+Example usage through your AI client: *"Execute the setup steps from the 'project-bootstrap' skill."*
+
+### 4.4 Skill hot-reload
+
+Two mechanisms for refreshing the skill index:
+
+1. **Manual**: call `refresh_skills` to trigger an immediate rescan of `SKILLS/`
+2. **Automatic**: set `EVOKORE_SKILL_WATCHER=true` to enable a filesystem watcher that auto-refreshes when skill files change
+
+## 5. Rate Limiting
+
+EVOKORE supports configurable rate limits per server and per tool via `mcp.config.json`:
+
+```json
+{
+  "servers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "rateLimit": {
+        "maxTokens": 10,
+        "refillRate": 2,
+        "refillIntervalMs": 1000
+      }
+    }
+  }
+}
+```
+
+- **Algorithm**: token bucket
+- **`maxTokens`**: maximum burst capacity
+- **`refillRate`**: tokens added per interval
+- **`refillIntervalMs`**: interval in milliseconds between refills
+- Rate limiting is separate from the error-triggered cooldown mechanism
+
+When a tool call is rate-limited, EVOKORE returns an error instructing the client to retry after a short delay.
+
+## 6. Session Dashboard
+
+Launch the zero-dependency session dashboard:
+
+```bash
+npm run dashboard
+```
+
+The dashboard runs on `127.0.0.1:8899` and provides:
+
+- Session replay viewer (reads `~/.evokore/sessions/*-replay.jsonl`)
+- Evidence log viewer (reads `~/.evokore/sessions/*-evidence.jsonl`)
+- HITL approval UI at `/approvals` (reads/writes `~/.evokore/pending-approvals.json`)
+
+The approval page shows pending approval tokens with deny buttons, allowing operators to review and reject HITL approval requests from a browser.
+
+## 7. Voice Integration
 
 EVOKORE-MCP supports voice input/output through two complementary systems:
 
@@ -398,7 +501,7 @@ The sync script:
 - **Config not updating on re-run**: By default, `--preserve-existing` is active. If you need to overwrite a stale `evokore-mcp` entry, use `--force`.
 - **Need to pin a different repo root**: Set `EVOKORE_SYNC_PROJECT_ROOT=/absolute/path/to/EVOKORE-MCP` before running the sync script.
 
-## 5. Hook Observability
+## 8. Hook Observability
 
 EVOKORE hook scripts emit structured JSONL events to:
 
