@@ -10,6 +10,7 @@ import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
 
 const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
+const DEFAULT_CHILD_SERVER_BOOT_TIMEOUT_MS = 15000;
 
 interface RateLimitConfig {
   requestsPerMinute?: number;       // per-server limit
@@ -87,6 +88,32 @@ export class ProxyManager {
   private getConfigFilePath(): string {
     const overridePath = process.env.EVOKORE_MCP_CONFIG_PATH;
     return overridePath ? path.resolve(overridePath) : DEFAULT_CONFIG_FILE;
+  }
+
+  private getChildServerBootTimeoutMs(): number {
+    const configuredTimeoutMs = Number(process.env.EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS);
+    if (Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0) {
+      return configuredTimeoutMs;
+    }
+
+    return DEFAULT_CHILD_SERVER_BOOT_TIMEOUT_MS;
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | undefined;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+        })
+      ]);
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
   }
 
   private normalizeCooldownArgs(value: any): any {
@@ -200,9 +227,13 @@ export class ProxyManager {
       if (!config.servers) return;
 
       for (const [serverId, serverConfig] of Object.entries(config.servers as Record<string, ServerConfig>)) {
+        let client: Client | undefined;
+        let transport: StdioClientTransport | StreamableHTTPClientTransport | undefined;
+
         try {
           const isHttpTransport = serverConfig.transport === "http" && serverConfig.url;
           const connectionType = isHttpTransport ? "http" : "stdio";
+          const childServerBootTimeoutMs = this.getChildServerBootTimeoutMs();
 
           console.error(`[EVOKORE] Booting child server: ${serverId} (${connectionType})`);
 
@@ -217,12 +248,10 @@ export class ProxyManager {
 
           this.initRateLimitBuckets(serverId, serverConfig.rateLimit);
 
-          const client = new Client(
+          client = new Client(
             { name: `evokore-proxy-${serverId}`, version: "2.0.0" },
             { capabilities: {} }
           );
-
-          let transport: StdioClientTransport | StreamableHTTPClientTransport;
 
           if (isHttpTransport) {
             transport = new StreamableHTTPClientTransport(new URL(serverConfig.url!));
@@ -245,7 +274,11 @@ export class ProxyManager {
             });
           }
 
-          await client.connect(transport);
+          await this.withTimeout(
+            client.connect(transport),
+            childServerBootTimeoutMs,
+            `Timed out connecting to child server '${serverId}' after ${childServerBootTimeoutMs}ms`
+          );
 
           this.clients.set(serverId, client);
           this.transports.set(serverId, transport);
@@ -257,7 +290,11 @@ export class ProxyManager {
           }
 
           // Fetch tools from child and register them
-          const { tools } = await client.listTools();
+          const { tools } = await this.withTimeout(
+            client.listTools(),
+            childServerBootTimeoutMs,
+            `Timed out listing tools from child server '${serverId}' after ${childServerBootTimeoutMs}ms`
+          );
           let registeredCount = 0;
           let skippedDuplicates = 0;
           for (const tool of tools) {
@@ -309,6 +346,20 @@ export class ProxyManager {
           }
         } catch (e: any) {
           console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
+          if (transport) {
+            try {
+              await transport.close();
+            } catch {
+              // Best-effort cleanup for timed-out or failed child transports.
+            }
+          }
+          if (client) {
+            try {
+              await client.close();
+            } catch {
+              // Best-effort cleanup for timed-out or failed child clients.
+            }
+          }
           const serverState = this.serverRegistry.get(serverId);
           if (serverState) {
             serverState.status = 'error';

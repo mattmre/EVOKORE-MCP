@@ -13,6 +13,7 @@ const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const resolveCommandForPlatform_1 = require("./utils/resolveCommandForPlatform");
 const DEFAULT_CONFIG_FILE = path_1.default.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
+const DEFAULT_CHILD_SERVER_BOOT_TIMEOUT_MS = 15000;
 class TokenBucket {
     tokens;
     lastRefill;
@@ -61,6 +62,29 @@ class ProxyManager {
     getConfigFilePath() {
         const overridePath = process.env.EVOKORE_MCP_CONFIG_PATH;
         return overridePath ? path_1.default.resolve(overridePath) : DEFAULT_CONFIG_FILE;
+    }
+    getChildServerBootTimeoutMs() {
+        const configuredTimeoutMs = Number(process.env.EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS);
+        if (Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0) {
+            return configuredTimeoutMs;
+        }
+        return DEFAULT_CHILD_SERVER_BOOT_TIMEOUT_MS;
+    }
+    async withTimeout(promise, timeoutMs, timeoutMessage) {
+        let timeoutHandle;
+        try {
+            return await Promise.race([
+                promise,
+                new Promise((_, reject) => {
+                    timeoutHandle = setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+                })
+            ]);
+        }
+        finally {
+            if (timeoutHandle) {
+                clearTimeout(timeoutHandle);
+            }
+        }
     }
     normalizeCooldownArgs(value) {
         if (Array.isArray(value)) {
@@ -152,9 +176,12 @@ class ProxyManager {
             if (!config.servers)
                 return;
             for (const [serverId, serverConfig] of Object.entries(config.servers)) {
+                let client;
+                let transport;
                 try {
                     const isHttpTransport = serverConfig.transport === "http" && serverConfig.url;
                     const connectionType = isHttpTransport ? "http" : "stdio";
+                    const childServerBootTimeoutMs = this.getChildServerBootTimeoutMs();
                     console.error(`[EVOKORE] Booting child server: ${serverId} (${connectionType})`);
                     this.serverRegistry.set(serverId, {
                         id: serverId,
@@ -165,8 +192,7 @@ class ProxyManager {
                         registeredToolCount: 0
                     });
                     this.initRateLimitBuckets(serverId, serverConfig.rateLimit);
-                    const client = new index_js_1.Client({ name: `evokore-proxy-${serverId}`, version: "2.0.0" }, { capabilities: {} });
-                    let transport;
+                    client = new index_js_1.Client({ name: `evokore-proxy-${serverId}`, version: "2.0.0" }, { capabilities: {} });
                     if (isHttpTransport) {
                         transport = new streamableHttp_js_1.StreamableHTTPClientTransport(new URL(serverConfig.url));
                     }
@@ -185,7 +211,7 @@ class ProxyManager {
                             stderr: "inherit"
                         });
                     }
-                    await client.connect(transport);
+                    await this.withTimeout(client.connect(transport), childServerBootTimeoutMs, `Timed out connecting to child server '${serverId}' after ${childServerBootTimeoutMs}ms`);
                     this.clients.set(serverId, client);
                     this.transports.set(serverId, transport);
                     const serverState = this.serverRegistry.get(serverId);
@@ -194,7 +220,7 @@ class ProxyManager {
                         serverState.lastPing = Date.now();
                     }
                     // Fetch tools from child and register them
-                    const { tools } = await client.listTools();
+                    const { tools } = await this.withTimeout(client.listTools(), childServerBootTimeoutMs, `Timed out listing tools from child server '${serverId}' after ${childServerBootTimeoutMs}ms`);
                     let registeredCount = 0;
                     let skippedDuplicates = 0;
                     for (const tool of tools) {
@@ -239,6 +265,22 @@ class ProxyManager {
                 }
                 catch (e) {
                     console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
+                    if (transport) {
+                        try {
+                            await transport.close();
+                        }
+                        catch {
+                            // Best-effort cleanup for timed-out or failed child transports.
+                        }
+                    }
+                    if (client) {
+                        try {
+                            await client.close();
+                        }
+                        catch {
+                            // Best-effort cleanup for timed-out or failed child clients.
+                        }
+                    }
                     const serverState = this.serverRegistry.get(serverId);
                     if (serverState) {
                         serverState.status = 'error';

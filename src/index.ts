@@ -160,6 +160,47 @@ export class EvokoreMCPServer {
     }
   }
 
+  private getListedToolNames(extra?: RequestExtra): string[] {
+    const tools = this.discoveryMode === "dynamic"
+      ? this.toolCatalog.getProjectedTools(this.getActivatedTools(extra))
+      : this.toolCatalog.getAllTools();
+
+    return tools.map((tool) => tool.name).sort();
+  }
+
+  private didListedToolSetChange(previous: string[], next: string[]): boolean {
+    if (previous.length !== next.length) {
+      return true;
+    }
+
+    return previous.some((name, index) => name !== next[index]);
+  }
+
+  private async bootProxyServersInBackground(): Promise<void> {
+    const listedToolsBeforeBoot = this.getListedToolNames();
+
+    try {
+      await this.proxyManager.loadServers();
+      this.rebuildToolCatalog();
+
+      const listedToolsAfterBoot = this.getListedToolNames();
+      const listedToolsChanged = this.didListedToolSetChange(listedToolsBeforeBoot, listedToolsAfterBoot);
+      const proxiedToolCount = this.proxyManager.getProxiedTools().length;
+
+      console.error(`[EVOKORE] Proxy bootstrap complete: ${proxiedToolCount} proxied tool(s) registered.`);
+
+      if (listedToolsChanged) {
+        try {
+          await this.server.sendToolListChanged();
+        } catch (error: any) {
+          console.error(`[EVOKORE] sendToolListChanged() failed after proxy bootstrap: ${error?.message || error}`);
+        }
+      }
+    } catch (error: any) {
+      console.error(`[EVOKORE] Background proxy bootstrap failed: ${error?.message || error}`);
+    }
+  }
+
   private async handleDiscoverTools(args: any, extra?: RequestExtra): Promise<any> {
     const query = String(args?.query ?? "").trim();
     const limitValue = typeof args?.limit === "number" ? args.limit : Number(args?.limit);
@@ -518,7 +559,6 @@ export class EvokoreMCPServer {
     await this.skillManager.loadSkills();
     const skillStats = this.skillManager.getStats();
     console.error(`[EVOKORE] Skill stats: ${skillStats.totalSkills} skills, ${skillStats.categories.length} categories, loaded in ${skillStats.loadTimeMs}ms, index ~${skillStats.fuseIndexSizeKb}KB`);
-    await this.proxyManager.loadServers();
     this.rebuildToolCatalog();
 
     // Opt-in filesystem watcher for auto-refreshing skills
@@ -534,7 +574,8 @@ export class EvokoreMCPServer {
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-        console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
+    console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
+    void this.bootProxyServersInBackground();
   }
 }
 
