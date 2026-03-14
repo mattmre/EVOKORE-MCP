@@ -1,7 +1,7 @@
 {
   "name": "evokore-mcp",
   "version": "3.0.0",
-  "description": "",
+  "description": "Multi-server MCP aggregator with skill discovery, HITL approval, RBAC, and session continuity",
   "main": "dist/index.js",
   "files": [
     "dist/",
@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mattmre/EVOKORE-MCP.git"
+    "url": "git+https://github.com/mattmre/EVOKORE-MCP.git"
   },
   "engines": {
     "node": ">=18"
@@ -39,8 +39,18 @@
     "hooks:view": "node scripts/hook-log-view.js",
     "dashboard": "node scripts/dashboard.js"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "aggregator",
+    "multi-server",
+    "skills",
+    "hitl",
+    "rbac",
+    "claude",
+    "ai-tools"
+  ],
+  "author": "EVOKORE",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
