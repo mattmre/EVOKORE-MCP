@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { Client } = require('@modelcontextprotocol/sdk/client/index.js');
 const { StdioClientTransport } = require('@modelcontextprotocol/sdk/client/stdio.js');
+const { waitForProxyBoot } = require('./tests/helpers/wait-for-proxy-boot');
 
 function extractToken(text) {
   const match = String(text || '').match(/_evokore_approval_token' with the value '([^']+)'/);
@@ -22,7 +23,11 @@ test('HITL hardening validation', async () => {
   const transport = new StdioClientTransport({
     command: 'node',
     args: ['dist/index.js'],
-    stderr: 'inherit'
+    stderr: 'pipe',
+    env: {
+      ...process.env,
+      EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS: '5000'
+    }
   });
 
   const client = new Client(
@@ -31,6 +36,7 @@ test('HITL hardening validation', async () => {
   );
 
   await client.connect(transport);
+  await waitForProxyBoot(transport);
 
   const testFile = path.resolve(__dirname, 'test-hitl-hardening-output.txt');
   const baseArgs = { path: testFile, content: 'first write' };

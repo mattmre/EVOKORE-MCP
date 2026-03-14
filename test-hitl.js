@@ -1,12 +1,17 @@
 const { Client } = require("@modelcontextprotocol/sdk/client/index.js");
 const { StdioClientTransport } = require("@modelcontextprotocol/sdk/client/stdio.js");
 const path = require("path");
+const { waitForProxyBoot } = require("./tests/helpers/wait-for-proxy-boot");
 
 test('HITL approval token flow', async () => {
   const transport = new StdioClientTransport({
     command: "node",
     args: ["dist/index.js"],
-    stderr: "inherit"
+    stderr: "pipe",
+    env: {
+      ...process.env,
+      EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS: "5000"
+    }
   });
 
   const client = new Client(
@@ -15,6 +20,7 @@ test('HITL approval token flow', async () => {
   );
 
   await client.connect(transport);
+  await waitForProxyBoot(transport);
 
   const testFile = path.resolve(__dirname, "test-hitl-output.txt");
 

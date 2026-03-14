@@ -575,7 +575,9 @@ export class EvokoreMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
-    void this.bootProxyServersInBackground();
+    this.bootProxyServersInBackground().catch((err) =>
+      console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
+    );
   }
 }
 

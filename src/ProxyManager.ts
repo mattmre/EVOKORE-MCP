@@ -1,6 +1,5 @@
 import fs from "fs/promises";
 import path from "path";
-import { spawn } from "child_process";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -249,7 +248,7 @@ export class ProxyManager {
           this.initRateLimitBuckets(serverId, serverConfig.rateLimit);
 
           client = new Client(
-            { name: `evokore-proxy-${serverId}`, version: "2.0.0" },
+            { name: `evokore-proxy-${serverId}`, version: "3.0.0" },
             { capabilities: {} }
           );
 
