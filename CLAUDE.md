@@ -1,7 +1,7 @@
 # EVOKORE-MCP Developer Context & Learnings
 
 ## System Architecture
-- EVOKORE-MCP v2.0 acts as a Multi-Server MCP Aggregator proxying to child servers (e.g., github, fs) defined in `mcp.config.json` with a JSON-RPC router.
+- EVOKORE-MCP v3.0 acts as a Multi-Server MCP Aggregator proxying to child servers (e.g., github, fs, supabase) defined in `mcp.config.json` with a JSON-RPC router.
 - Tool-prefixing is active to prevent namespace collisions.
 
 ## Key Workflows & Learnings
@@ -63,3 +63,23 @@ Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks
   node scripts/tilldone.js --clear --session <ID>
   ```
 - **Evidence Capture** (`scripts/hooks/evidence-capture.js`, PostToolUse): Auto-captures test results, file changes, and git operations as JSONL evidence to `~/.evokore/sessions/{session_id}-evidence.jsonl`. Sequential evidence IDs (E-001, E-002, etc.).
+- **Repo Audit** (`scripts/hooks/repo-audit-hook.js`, UserPromptSubmit): Optional pre-session hook that warns about branch drift, stale worktrees, and control-plane drift. Enabled via `EVOKORE_REPO_AUDIT_HOOK=true`. Runs once per session (marker file).
+
+## v3.0 Runtime Additions
+
+- **Test Suite:** Tests now use vitest (72 files, 179 tests). Run with `npx vitest run`. Old `node test-*.js` chaining is removed.
+- **Tool Annotations:** All native tools have MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
+- **Server Instructions:** The MCP Server constructor includes an `instructions` string for client-side display.
+- **HTTP Client Transport:** ProxyManager supports `StreamableHTTPClientTransport` for HTTP-based child servers. Configure with `"transport": "http"` and `"url"` in mcp.config.json.
+- **MCP Resources:** `resources/list` returns skills as `skill://` URIs plus server-level resources (`evokore://server/status`, `evokore://server/config`, `evokore://skills/categories`).
+- **MCP Prompts:** `prompts/list` returns 3 prompts: `resolve-workflow`, `skill-help`, `server-overview`.
+- **Skill Hot-Reload:** `refresh_skills` tool rescans SKILLS/ directory. Optional filesystem watcher via `EVOKORE_SKILL_WATCHER=true`.
+- **Rate Limiting:** Configurable per-server and per-tool rate limits via `rateLimit` in mcp.config.json. Token bucket algorithm, separate from error-triggered cooldown.
+- **Session Dashboard:** `npm run dashboard` launches a zero-dependency web UI on `127.0.0.1:8899` for session replay and evidence viewing.
+- **HITL Approval UI:** Dashboard `/approvals` page shows pending approval tokens with deny buttons. File-based state at `~/.evokore/pending-approvals.json`.
+- **Skill Versioning:** Optional `version`, `requires`, `conflicts` fields in skill frontmatter. `validateDependencies()` checks satisfaction.
+- **Remote Skill Fetch:** `fetch_skill` tool downloads skills from URLs. `list_registry` tool reads configured `skillRegistries` from mcp.config.json.
+- **Skill Execution Sandbox:** `execute_skill` tool extracts code blocks from skills and runs them with 30s timeout, 1MB output limit. Supports bash, js, python, ts.
+- **Supabase Integration:** Supabase MCP added as proxied child server with tiered permissions (10 allow, 4 require_approval, 3 deny).
+- **RBAC Permissions:** Role-based permission model with `admin`, `developer`, `readonly` roles. Activated via `EVOKORE_ROLE` env var. Backwards-compatible when unset (flat permissions still work).
+- **Build Hygiene:** Compiled artifacts no longer tracked in `src/`. Only `dist/` has compiled output, and it's gitignored.
