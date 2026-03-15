@@ -142,6 +142,26 @@ export class SessionIsolation {
   }
 
   /**
+   * Check whether a non-expired session exists for the given ID.
+   * Unlike getSession(), this does NOT update lastAccessedAt,
+   * making it safe for use in cleanup/audit paths that should not
+   * inadvertently extend session lifetimes.
+   */
+  hasSession(sessionId: string): boolean {
+    const state = this.sessions.get(sessionId);
+    if (!state) {
+      return false;
+    }
+
+    if (this.isExpired(state)) {
+      this.sessions.delete(sessionId);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * Destroy a session, removing all its state.
    * Returns true if the session existed and was removed.
    */

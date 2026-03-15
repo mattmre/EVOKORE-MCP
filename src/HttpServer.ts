@@ -70,10 +70,28 @@ export class HttpServer {
       await this.handleRequest(req, res);
     });
 
-    // Periodically clean expired sessions (every 60 seconds)
+    // Periodically clean expired sessions and their orphaned transports (every 60 seconds)
     if (this.sessionIsolation) {
       this.cleanupInterval = setInterval(() => {
-        this.sessionIsolation?.cleanExpired();
+        const removed = this.sessionIsolation?.cleanExpired() ?? 0;
+
+        // Close transports whose sessions were just cleaned up.
+        // When cleanExpired() removes a SessionState, the transport entry in
+        // this.transports becomes orphaned — it holds an open SSE connection
+        // and its associated rate limit counters (stored inside SessionState)
+        // are already gone. Pruning these prevents unbounded transport and
+        // counter accumulation for sessions that expired without an explicit
+        // transport close event.
+        if (removed > 0) {
+          for (const [sessionId, transport] of this.transports.entries()) {
+            if (!this.sessionIsolation?.hasSession(sessionId)) {
+              this.transports.delete(sessionId);
+              transport.close().catch((err) => {
+                console.error(`[EVOKORE-HTTP] Error closing orphaned transport for expired session ${sessionId}:`, err.message);
+              });
+            }
+          }
+        }
       }, 60_000);
       // Allow the process to exit even if this interval is pending
       if (this.cleanupInterval.unref) {
