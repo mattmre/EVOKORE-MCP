@@ -35,7 +35,7 @@ describe('Per-Session RBAC for HttpServer', () => {
     const src = fs.readFileSync(proxyTsPath, 'utf8');
 
     it('callProxiedTool signature accepts optional role parameter', () => {
-      expect(src).toMatch(/callProxiedTool\s*\(\s*toolName\s*:\s*string\s*,\s*args\s*:\s*any\s*,\s*role\?\s*:\s*string\s*\|\s*null\s*\)/);
+      expect(src).toMatch(/callProxiedTool\s*\(\s*toolName\s*:\s*string\s*,\s*args\s*:\s*any\s*,\s*role\?\s*:\s*string\s*\|\s*null/);
     });
 
     it('passes role to checkPermission', () => {
@@ -57,7 +57,7 @@ describe('Per-Session RBAC for HttpServer', () => {
     });
 
     it('passes sessionRole to callProxiedTool', () => {
-      expect(src).toMatch(/callProxiedTool\s*\(\s*toolName\s*,\s*args\s*,\s*sessionRole\s*\)/);
+      expect(src).toMatch(/callProxiedTool\s*\(\s*toolName\s*,\s*args\s*,\s*sessionRole/);
     });
   });
 

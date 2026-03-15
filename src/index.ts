@@ -579,7 +579,8 @@ export class EvokoreMCPServer {
           const sessionId = this.getSessionId(extra);
           const session = this.sessionIsolation.getSession(sessionId);
           const sessionRole = session?.role ?? undefined;
-          result = await this.proxyManager.callProxiedTool(toolName, args, sessionRole);
+          const sessionCounters = session?.rateLimitCounters;
+          result = await this.proxyManager.callProxiedTool(toolName, args, sessionRole, sessionCounters);
         } else {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
         }
