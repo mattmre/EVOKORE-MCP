@@ -2,6 +2,7 @@ import http from "http";
 import { randomUUID } from "crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SessionIsolation } from "./SessionIsolation";
 
 const DEFAULT_HTTP_PORT = 3100;
 const DEFAULT_HTTP_HOST = "127.0.0.1";
@@ -9,6 +10,7 @@ const DEFAULT_HTTP_HOST = "127.0.0.1";
 export interface HttpServerOptions {
   port?: number;
   host?: string;
+  sessionIsolation?: SessionIsolation;
 }
 
 /**
@@ -25,12 +27,22 @@ export class HttpServer {
   private port: number;
   private host: string;
   private transports: Map<string, StreamableHTTPServerTransport> = new Map();
+  private sessionIsolation: SessionIsolation | null;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(mcpServer: Server, options?: HttpServerOptions) {
     this.mcpServer = mcpServer;
     const envPort = Number(process.env.EVOKORE_HTTP_PORT);
     this.port = options?.port ?? (Number.isFinite(envPort) && envPort > 0 ? envPort : DEFAULT_HTTP_PORT);
     this.host = options?.host ?? process.env.EVOKORE_HTTP_HOST ?? DEFAULT_HTTP_HOST;
+    this.sessionIsolation = options?.sessionIsolation ?? null;
+  }
+
+  /**
+   * Returns the SessionIsolation instance, if one was provided.
+   */
+  getSessionIsolation(): SessionIsolation | null {
+    return this.sessionIsolation;
   }
 
   /**
@@ -41,6 +53,17 @@ export class HttpServer {
     this.httpServer = http.createServer(async (req, res) => {
       await this.handleRequest(req, res);
     });
+
+    // Periodically clean expired sessions (every 60 seconds)
+    if (this.sessionIsolation) {
+      this.cleanupInterval = setInterval(() => {
+        this.sessionIsolation?.cleanExpired();
+      }, 60_000);
+      // Allow the process to exit even if this interval is pending
+      if (this.cleanupInterval.unref) {
+        this.cleanupInterval.unref();
+      }
+    }
 
     return new Promise<void>((resolve, reject) => {
       this.httpServer!.on("error", (err) => {
@@ -59,6 +82,19 @@ export class HttpServer {
    * Gracefully shuts down the HTTP server and all active transports.
    */
   async stop(): Promise<void> {
+    // Clear the session cleanup interval
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+
+    // Destroy all sessions in SessionIsolation before closing transports
+    if (this.sessionIsolation) {
+      for (const sessionId of this.transports.keys()) {
+        this.sessionIsolation.destroySession(sessionId);
+      }
+    }
+
     // Close all active transports
     const closePromises: Promise<void>[] = [];
     for (const [sessionId, transport] of this.transports.entries()) {
@@ -144,6 +180,7 @@ export class HttpServer {
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId: string) => {
         this.transports.set(newSessionId, transport);
+        this.sessionIsolation?.createSession(newSessionId);
         console.error(`[EVOKORE-HTTP] Session initialized: ${newSessionId}`);
       },
     });
@@ -152,6 +189,7 @@ export class HttpServer {
       const sid = transport.sessionId;
       if (sid) {
         this.transports.delete(sid);
+        this.sessionIsolation?.destroySession(sid);
         console.error(`[EVOKORE-HTTP] Session closed: ${sid}`);
       }
     };
