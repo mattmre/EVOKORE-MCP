@@ -579,3 +579,49 @@ Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
   ForEach-Object { $_ | ConvertFrom-Json } |
   Where-Object { $_.hook -eq "damage-control" }
 ```
+
+## 9. v3.0 Platform Modules
+
+EVOKORE-MCP v3.0 introduces a suite of platform modules that enable HTTP deployment, authentication, multi-tenancy, and extensibility. Each module is covered in detail in its own guide; this section provides a brief overview and cross-references.
+
+### 9.1 HTTP Transport
+
+EVOKORE-MCP can serve MCP over HTTP using the StreamableHTTP transport, enabling remote access, multi-client connections, and integration with load balancers and reverse proxies. Start in HTTP mode with `node dist/index.js --http` or `EVOKORE_HTTP_MODE=true`. The server exposes a `/health` endpoint for monitoring and `/mcp` for all MCP communication via JSON-RPC over HTTP with SSE streaming.
+
+> **Detailed guide:** [HTTP_DEPLOYMENT.md](./HTTP_DEPLOYMENT.md)
+
+### 9.2 Authentication and OAuth
+
+HTTP transport endpoints can be protected with Bearer token authentication in two modes: a simple static shared secret for internal deployments, or JWT validation against a remote JWKS endpoint for production use with identity providers like Auth0 or Keycloak. Enable with `EVOKORE_AUTH_REQUIRED=true` and configure the mode via `EVOKORE_AUTH_MODE` (`static` or `jwt`).
+
+> **Detailed guide:** [OAUTH_SETUP.md](./OAUTH_SETUP.md)
+
+### 9.3 Session Isolation and Multi-Tenancy
+
+In HTTP mode, each client connection receives a fully isolated session with its own tool activation state, rate limit counters, RBAC role, and metadata. Sessions are identified by UUID and managed with a configurable TTL (`EVOKORE_SESSION_TTL_MS`, default 1 hour). Expired sessions are cleaned periodically, and an LRU eviction policy caps the pool at 100 concurrent sessions.
+
+> **Detailed guide:** [HTTP_DEPLOYMENT.md -- Session Lifecycle](./HTTP_DEPLOYMENT.md#session-lifecycle)
+
+### 9.4 RBAC (Role-Based Access Control)
+
+EVOKORE supports three predefined roles -- `admin`, `developer`, and `readonly` -- defined in `permissions.yml`. Each role specifies a default permission level and per-tool overrides. When JWT authentication is active, the `role` claim from the token is threaded into the session and used by the `SecurityManager` for permission checks. Set `EVOKORE_ROLE` as a fallback when JWT is not in use.
+
+> **Detailed guide:** [OAUTH_SETUP.md -- Role Claim Passthrough](./OAUTH_SETUP.md#role-claim-passthrough)
+
+### 9.5 Rate Limiting
+
+Configurable per-server and per-tool rate limits use a token bucket algorithm defined in `mcp.config.json` under each server's `rateLimit` block. Rate limit counters are scoped per-session in HTTP mode, so one client cannot exhaust another's quota. This mechanism is independent of the error-triggered cooldown that temporarily disables failing child servers.
+
+> **Configuration details:** [Section 5 above](#5-rate-limiting)
+
+### 9.6 Webhook Events
+
+EVOKORE emits structured webhook events (tool calls, errors, session lifecycle, HITL approvals, plugin operations) to configured HTTP endpoints with HMAC-SHA256 signatures. Delivery is fire-and-forget with 3 retries and exponential backoff. Sensitive tool arguments are automatically redacted before emission. Enable with `EVOKORE_WEBHOOKS_ENABLED=true` and define subscriptions in the `webhooks` array of `mcp.config.json`.
+
+> **Detailed guide:** [WEBHOOK_GUIDE.md](./WEBHOOK_GUIDE.md)
+
+### 9.7 Plugin System
+
+Plugins extend EVOKORE with custom tools and resources by placing `.js` files in the `plugins/` directory (configurable via `EVOKORE_PLUGINS_DIR`). Plugins are loaded at startup and can be hot-reloaded at runtime via the `reload_plugins` tool without restarting the server. Each plugin exports a manifest with `name`, optional `version`, and a `register(context)` function that uses the `PluginContext` API to register tools, resources, and emit webhook events.
+
+> **Detailed guide:** [PLUGIN_AUTHORING.md](./PLUGIN_AUTHORING.md)
