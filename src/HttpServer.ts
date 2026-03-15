@@ -207,7 +207,7 @@ export class HttpServer {
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId: string) => {
         this.transports.set(newSessionId, transport);
-        this.sessionIsolation?.createSession(newSessionId);
+        this.sessionIsolation?.createSession(newSessionId, process.env.EVOKORE_ROLE || null);
         console.error(`[EVOKORE-HTTP] Session initialized: ${newSessionId}`);
       },
     });
