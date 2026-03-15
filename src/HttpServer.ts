@@ -3,6 +3,12 @@ import { randomUUID } from "crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SessionIsolation } from "./SessionIsolation";
+import {
+  authenticateRequest,
+  sendUnauthorizedResponse,
+  isPublicPath,
+  AuthConfig,
+} from "./auth/OAuthProvider";
 
 const DEFAULT_HTTP_PORT = 3100;
 const DEFAULT_HTTP_HOST = "127.0.0.1";
@@ -11,6 +17,7 @@ export interface HttpServerOptions {
   port?: number;
   host?: string;
   sessionIsolation?: SessionIsolation;
+  authConfig?: AuthConfig;
 }
 
 /**
@@ -28,6 +35,7 @@ export class HttpServer {
   private host: string;
   private transports: Map<string, StreamableHTTPServerTransport> = new Map();
   private sessionIsolation: SessionIsolation | null;
+  private authConfig: AuthConfig | null;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(mcpServer: Server, options?: HttpServerOptions) {
@@ -36,6 +44,7 @@ export class HttpServer {
     this.port = options?.port ?? (Number.isFinite(envPort) && envPort > 0 ? envPort : DEFAULT_HTTP_PORT);
     this.host = options?.host ?? process.env.EVOKORE_HTTP_HOST ?? DEFAULT_HTTP_HOST;
     this.sessionIsolation = options?.sessionIsolation ?? null;
+    this.authConfig = options?.authConfig ?? null;
   }
 
   /**
@@ -43,6 +52,13 @@ export class HttpServer {
    */
   getSessionIsolation(): SessionIsolation | null {
     return this.sessionIsolation;
+  }
+
+  /**
+   * Returns the AuthConfig instance, if one was provided.
+   */
+  getAuthConfig(): AuthConfig | null {
+    return this.authConfig;
   }
 
   /**
@@ -132,11 +148,22 @@ export class HttpServer {
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = req.url ?? "/";
 
-    // Health check endpoint
+    // Health check endpoint -- always public, bypasses auth
     if (url === "/health" && req.method === "GET") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ status: "ok", transport: "streamable-http" }));
       return;
+    }
+
+    // Authentication middleware: reject unauthenticated requests before routing
+    if (this.authConfig && this.authConfig.required) {
+      if (!isPublicPath(url)) {
+        const authResult = authenticateRequest(req, this.authConfig);
+        if (!authResult.authorized) {
+          sendUnauthorizedResponse(res, authResult.error || "Unauthorized");
+          return;
+        }
+      }
     }
 
     // MCP endpoint
