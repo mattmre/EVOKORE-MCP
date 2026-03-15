@@ -24,17 +24,12 @@ import { ToolCatalogIndex } from "./ToolCatalogIndex";
 import { PluginManager } from "./PluginManager";
 import { HttpServer } from "./HttpServer";
 import { WebhookManager } from "./WebhookManager";
+import { SessionIsolation } from "./SessionIsolation";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
-type ActivatedToolSessionState = {
-  tools: Set<string>;
-  lastTouchedAt: number;
-};
 
 const DEFAULT_SESSION_ID = "__stdio_default_session__";
-const ACTIVATED_TOOL_SESSION_TTL_MS = 6 * 60 * 60 * 1000;
-const MAX_ACTIVATED_TOOL_SESSIONS = 100;
 
 const SERVER_VERSION = "3.0.0";
 
@@ -47,7 +42,7 @@ export class EvokoreMCPServer {
   private toolCatalog: ToolCatalogIndex;
   private webhookManager: WebhookManager;
   private discoveryMode: ToolDiscoveryMode;
-  private activatedToolSessionsBySession: Map<string, ActivatedToolSessionState>;
+  private sessionIsolation: SessionIsolation;
 
   constructor() {
     this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
@@ -74,7 +69,7 @@ export class EvokoreMCPServer {
     this.pluginManager = new PluginManager();
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
     this.webhookManager = new WebhookManager();
-    this.activatedToolSessionsBySession = new Map();
+    this.sessionIsolation = new SessionIsolation();
 
     this.setupHandlers();
     this.server.onerror = (error) => console.error("[MCP Error]", error);
@@ -102,58 +97,18 @@ export class EvokoreMCPServer {
     return extra?.sessionId ?? DEFAULT_SESSION_ID;
   }
 
-  private isSessionStateStale(state: ActivatedToolSessionState, now = Date.now()): boolean {
-    return (now - state.lastTouchedAt) > ACTIVATED_TOOL_SESSION_TTL_MS;
-  }
-
-  private pruneActivatedToolSessions(now = Date.now(), reservedSessionId?: string) {
-    for (const [sessionId, state] of this.activatedToolSessionsBySession.entries()) {
-      if (sessionId !== reservedSessionId && this.isSessionStateStale(state, now)) {
-        this.activatedToolSessionsBySession.delete(sessionId);
-      }
-    }
-
-    const overflow = this.activatedToolSessionsBySession.size - MAX_ACTIVATED_TOOL_SESSIONS + 1;
-    if (overflow <= 0) {
-      return;
-    }
-
-    const evictableSessions = Array.from(this.activatedToolSessionsBySession.entries())
-      .filter(([sessionId]) => sessionId !== reservedSessionId)
-      .sort((left, right) => left[1].lastTouchedAt - right[1].lastTouchedAt);
-
-    for (let index = 0; index < overflow && index < evictableSessions.length; index += 1) {
-      this.activatedToolSessionsBySession.delete(evictableSessions[index][0]);
-    }
-  }
-
-  private getActivatedToolSession(extra?: RequestExtra): ActivatedToolSessionState {
-    const sessionId = this.getSessionId(extra);
-    const now = Date.now();
-    const existingState = this.activatedToolSessionsBySession.get(sessionId);
-
-    if (existingState && !this.isSessionStateStale(existingState, now)) {
-      existingState.lastTouchedAt = now;
-      return existingState;
-    }
-
-    if (existingState) {
-      this.activatedToolSessionsBySession.delete(sessionId);
-    }
-
-    this.pruneActivatedToolSessions(now, sessionId);
-
-    const createdState: ActivatedToolSessionState = {
-      tools: new Set<string>(),
-      lastTouchedAt: now
-    };
-
-    this.activatedToolSessionsBySession.set(sessionId, createdState);
-    return createdState;
-  }
-
+  /**
+   * Returns the activated tools set for the given session.
+   * If the session does not exist yet (e.g. first access in stdio mode),
+   * it is created on-demand via SessionIsolation.
+   */
   private getActivatedTools(extra?: RequestExtra): Set<string> {
-    return this.getActivatedToolSession(extra).tools;
+    const sessionId = this.getSessionId(extra);
+    let session = this.sessionIsolation.getSession(sessionId);
+    if (!session) {
+      session = this.sessionIsolation.createSession(sessionId);
+    }
+    return session.activatedTools;
   }
 
   private async notifyToolListChangedIfNeeded(changed: boolean) {
@@ -652,6 +607,9 @@ export class EvokoreMCPServer {
     // Load all subsystems sequentially
     await this.loadSubsystems();
 
+    // Pre-create the default session for stdio mode
+    this.sessionIsolation.createSession(DEFAULT_SESSION_ID);
+
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
@@ -664,7 +622,7 @@ export class EvokoreMCPServer {
   async runHttp(): Promise<HttpServer> {
     await this.loadSubsystems();
 
-    const httpServer = new HttpServer(this.server);
+    const httpServer = new HttpServer(this.server, { sessionIsolation: this.sessionIsolation });
     await httpServer.start();
 
     const addr = httpServer.getAddress();

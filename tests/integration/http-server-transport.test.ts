@@ -123,7 +123,7 @@ describe('T26: StreamableHTTP Server Transport', () => {
     });
 
     it('creates HttpServer with the MCP Server instance in runHttp()', () => {
-      expect(src).toMatch(/new\s+HttpServer\s*\(\s*this\.server\s*\)/);
+      expect(src).toMatch(/new\s+HttpServer\s*\(\s*this\.server/);
     });
 
     it('still has the stdio run() method', () => {

@@ -39,23 +39,36 @@ export interface SessionState {
 export interface SessionIsolationOptions {
   /** Session time-to-live in milliseconds. Defaults to EVOKORE_SESSION_TTL_MS env var or 1 hour. */
   ttlMs?: number;
+
+  /** Maximum number of concurrent sessions. When exceeded, the least-recently-accessed session is evicted. Defaults to 100. */
+  maxSessions?: number;
 }
+
+const DEFAULT_MAX_SESSIONS = 100;
 
 export class SessionIsolation {
   private sessions: Map<string, SessionState> = new Map();
   private ttlMs: number;
+  private maxSessions: number;
 
   constructor(options?: SessionIsolationOptions) {
     const envTtl = Number(process.env.EVOKORE_SESSION_TTL_MS);
     this.ttlMs = options?.ttlMs
       ?? (Number.isFinite(envTtl) && envTtl > 0 ? envTtl : DEFAULT_SESSION_TTL_MS);
+    this.maxSessions = options?.maxSessions ?? DEFAULT_MAX_SESSIONS;
   }
 
   /**
    * Create a new isolated session.
    * If a session with the given ID already exists, it is replaced.
+   * When at capacity, the least-recently-accessed session is evicted (LRU).
    */
   createSession(sessionId: string, role?: string | null): SessionState {
+    // If this session already exists, the set-below will replace it, no eviction needed.
+    if (!this.sessions.has(sessionId)) {
+      this.evictIfAtCapacity();
+    }
+
     const now = Date.now();
     const state: SessionState = {
       sessionId,
@@ -68,6 +81,44 @@ export class SessionIsolation {
     };
     this.sessions.set(sessionId, state);
     return state;
+  }
+
+  /**
+   * If we are at or above maxSessions, evict expired sessions first,
+   * then evict the least-recently-accessed session to make room.
+   */
+  private evictIfAtCapacity(): void {
+    if (this.sessions.size < this.maxSessions) {
+      return;
+    }
+
+    // First pass: remove expired sessions
+    this.cleanExpired();
+
+    if (this.sessions.size < this.maxSessions) {
+      return;
+    }
+
+    // LRU eviction: find the session with the oldest lastAccessedAt
+    let oldestId: string | null = null;
+    let oldestTime = Infinity;
+    for (const [id, state] of this.sessions.entries()) {
+      if (state.lastAccessedAt < oldestTime) {
+        oldestTime = state.lastAccessedAt;
+        oldestId = id;
+      }
+    }
+
+    if (oldestId !== null) {
+      this.sessions.delete(oldestId);
+    }
+  }
+
+  /**
+   * Get the configured max sessions limit.
+   */
+  getMaxSessions(): number {
+    return this.maxSessions;
   }
 
   /**
