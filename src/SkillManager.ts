@@ -22,6 +22,12 @@ const SKIP_DIRS = new Set([
 
 const MAX_DEPTH = 5;
 
+export interface SkillExecutionContext {
+  sessionId: string;
+  role: string | null;
+  metadata: Map<string, unknown>;
+}
+
 export interface SkillDependency {
   name: string;
   minVersion?: string;
@@ -664,7 +670,8 @@ export class SkillManager {
   async executeCodeBlock(
     skillName: string,
     stepIndex: number,
-    userEnv?: Record<string, string>
+    userEnv?: Record<string, string>,
+    context?: SkillExecutionContext
   ): Promise<{stdout: string; stderr: string; exitCode: number; timedOut: boolean}> {
     const blocks = this.extractCodeBlocks(skillName);
     if (stepIndex < 0 || stepIndex >= blocks.length) {
@@ -699,7 +706,9 @@ export class SkillManager {
       const env = {
         ...process.env,
         ...userEnv,
-        EVOKORE_SANDBOX: "true"  // Signal to code it's running in sandbox
+        EVOKORE_SANDBOX: "true",  // Signal to code it's running in sandbox
+        EVOKORE_SESSION_ROLE: context?.role || "",
+        EVOKORE_SESSION_ID: context?.sessionId || "",
       };
 
       const result = execFileSync(executor.command, [...executor.args, tmpFile], {
@@ -944,13 +953,13 @@ export class SkillManager {
     ];
   }
 
-  async handleToolCall(name: string, args: any): Promise<any> {
+  async handleToolCall(name: string, args: any, context?: SkillExecutionContext): Promise<any> {
     if (name === "docs_architect") {
         const targetDir = args.target_dir as string;
         let projectContext = "";
         try {
             const pkgPath = path.join(targetDir, "package.json");
-            const result = await this.proxyManager.callProxiedTool("fs_read_file", { path: pkgPath });
+            const result = await this.proxyManager.callProxiedTool("fs_read_file", { path: pkgPath }, context?.role);
             projectContext = (result as any).content[0].text;
         } catch (e) {
             projectContext = "No package.json found or could not be read.";
@@ -973,7 +982,7 @@ export class SkillManager {
         const skillMdPath = path.join(skillPath, "SKILL.md");
         const skillTemplate = "---\nname: " + skillName + "\ndescription: " + description + "\n---\n\n# " + skillName + "\n\nThis skill provides guidance for " + description + ".\n\n## Usage\n\n(Add instructions here)\n";
         try {
-            await this.proxyManager.callProxiedTool("fs_write_file", { path: skillMdPath, content: skillTemplate });
+            await this.proxyManager.callProxiedTool("fs_write_file", { path: skillMdPath, content: skillTemplate }, context?.role);
 
             return {
                 content: [{
@@ -1235,7 +1244,7 @@ export class SkillManager {
 
         try {
             if (!this.fuseIndex) await this.loadSkills();
-            const result = await this.executeCodeBlock(skillName, stepIndex, userEnv);
+            const result = await this.executeCodeBlock(skillName, stepIndex, userEnv, context);
 
             const parts: string[] = [];
             if (result.timedOut) {
