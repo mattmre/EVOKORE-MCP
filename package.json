@@ -37,7 +37,8 @@
     "sync:dry": "node scripts/sync-configs.js --dry-run",
     "replay": "node scripts/session-replay-view.js --latest",
     "hooks:view": "node scripts/hook-log-view.js",
-    "dashboard": "node scripts/dashboard.js"
+    "dashboard": "node scripts/dashboard.js",
+    "actions:quota": "node scripts/gh-actions-quota.js"
   },
   "keywords": [
     "mcp",
