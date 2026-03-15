@@ -1,0 +1,5 @@
+# Optional: Custom plugins directory (default: plugins/ relative to project root)
+# EVOKORE_PLUGINS_DIR=./plugins
+
+# Optional: Session TTL in milliseconds for multi-tenant HTTP sessions (default: 3600000 = 1 hour)
+# EVOKORE_SESSION_TTL_MS=3600000
