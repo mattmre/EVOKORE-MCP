@@ -27,8 +27,8 @@ test("RBAC: SecurityManager.ts has role-based permission check logic", () => {
   assert.match(src, /this\.activeRole/, "checkPermission must reference activeRole");
   assert.match(src, /this\.roles\.has/, "checkPermission must check if role exists");
   assert.match(src, /this\.roles\.get/, "checkPermission must retrieve role definition");
-  assert.match(src, /role\.overrides/, "checkPermission must check role overrides");
-  assert.match(src, /role\.default_permission/, "checkPermission must fall back to role default");
+  assert.match(src, /roleDef\.overrides/, "checkPermission must check role overrides");
+  assert.match(src, /roleDef\.default_permission/, "checkPermission must fall back to role default");
 });
 
 test("RBAC: SecurityManager.ts has role management methods", () => {

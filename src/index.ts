@@ -576,7 +576,10 @@ export class EvokoreMCPServer {
         } else if (source === "native") {
           result = await this.skillManager.handleToolCall(toolName, args);
         } else if (source === "proxied") {
-          result = await this.proxyManager.callProxiedTool(toolName, args);
+          const sessionId = this.getSessionId(extra);
+          const session = this.sessionIsolation.getSession(sessionId);
+          const sessionRole = session?.role ?? undefined;
+          result = await this.proxyManager.callProxiedTool(toolName, args, sessionRole);
         } else {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
         }

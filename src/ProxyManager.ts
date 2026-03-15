@@ -417,7 +417,7 @@ export class ProxyManager {
     return this.toolRegistry.has(toolName);
   }
 
-  async callProxiedTool(toolName: string, args: any): Promise<any> {
+  async callProxiedTool(toolName: string, args: any, role?: string | null): Promise<any> {
     const registryEntry = this.toolRegistry.get(toolName);
     if (!registryEntry) {
       throw new McpError(ErrorCode.MethodNotFound, `Tool not found in proxy registry: ${toolName}`);
@@ -432,7 +432,7 @@ export class ProxyManager {
     delete toolArgs._evokore_approval_token;
     
     // 1. Security Interceptor Check
-    const permission = this.security.checkPermission(toolName);
+    const permission = this.security.checkPermission(toolName, role);
     
     if (permission === "deny") {
       throw new McpError(ErrorCode.InvalidRequest, `Execution of '${toolName}' is strictly denied by EVOKORE-MCP security policies.`);

@@ -75,14 +75,17 @@ export class SecurityManager {
    *  "require_approval" - The MCP server intercepts and returns an error forcing HITL.
    *  "deny" - Blocked entirely.
    */
-  checkPermission(toolName: string): PermissionLevel {
+  checkPermission(toolName: string, role?: string | null): PermissionLevel {
+    // Resolve effective role: explicit parameter takes precedence, then global activeRole
+    const effectiveRole = role !== undefined ? role : this.activeRole;
+
     // If a role is active, use role-based permissions
-    if (this.activeRole && this.roles.has(this.activeRole)) {
-      const role = this.roles.get(this.activeRole)!;
+    if (effectiveRole && this.roles.has(effectiveRole)) {
+      const roleDef = this.roles.get(effectiveRole)!;
 
       // Check role overrides first
-      if (role.overrides && toolName in role.overrides) {
-        return role.overrides[toolName];
+      if (roleDef.overrides && toolName in roleDef.overrides) {
+        return roleDef.overrides[toolName];
       }
 
       // Then check flat per-tool rules (they act as additional overrides)
@@ -92,7 +95,7 @@ export class SecurityManager {
       }
 
       // Fall back to role default
-      return role.default_permission;
+      return roleDef.default_permission;
     }
 
     // No role active -- use flat permissions (existing behavior)
