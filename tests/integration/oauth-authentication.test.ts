@@ -18,7 +18,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
     });
 
     it('exports authenticateRequest function', () => {
-      expect(src).toMatch(/export function authenticateRequest/);
+      expect(src).toMatch(/export (async )?function authenticateRequest/);
     });
 
     it('exports extractBearerToken function', () => {
@@ -81,7 +81,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
       expect(config.staticToken).toBeNull();
     });
 
-    it('authenticateRequest passes all requests when auth disabled', () => {
+    it('authenticateRequest passes all requests when auth disabled', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -91,11 +91,11 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         headers: {},
       };
 
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
       expect(result.authorized).toBe(true);
     });
 
-    it('authenticateRequest passes requests without token when auth disabled', () => {
+    it('authenticateRequest passes requests without token when auth disabled', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -104,7 +104,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         headers: { authorization: 'Bearer some-token' },
       };
 
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
       expect(result.authorized).toBe(true);
     });
   });
@@ -129,19 +129,19 @@ describe('T27: OAuth Bearer Token Authentication', () => {
       else delete process.env.EVOKORE_AUTH_TOKEN;
     });
 
-    it('rejects requests with no Authorization header', () => {
+    it('rejects requests with no Authorization header', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
       const req = { url: '/mcp', headers: {} };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(false);
       expect(result.statusCode).toBe(401);
       expect(result.error).toBeDefined();
     });
 
-    it('rejects requests with wrong token', () => {
+    it('rejects requests with wrong token', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -149,14 +149,14 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         url: '/mcp',
         headers: { authorization: 'Bearer wrong-token' },
       };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(false);
       expect(result.statusCode).toBe(401);
       expect(result.error).toMatch(/invalid/i);
     });
 
-    it('rejects requests with non-Bearer scheme', () => {
+    it('rejects requests with non-Bearer scheme', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -164,13 +164,13 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         url: '/mcp',
         headers: { authorization: 'Basic dXNlcjpwYXNz' },
       };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(false);
       expect(result.statusCode).toBe(401);
     });
 
-    it('rejects requests with empty Bearer token', () => {
+    it('rejects requests with empty Bearer token', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -178,7 +178,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         url: '/mcp',
         headers: { authorization: 'Bearer ' },
       };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(false);
       expect(result.statusCode).toBe(401);
@@ -205,7 +205,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
       else delete process.env.EVOKORE_AUTH_TOKEN;
     });
 
-    it('allows requests with correct Bearer token', () => {
+    it('allows requests with correct Bearer token', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -213,13 +213,13 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         url: '/mcp',
         headers: { authorization: 'Bearer valid-test-token-xyz' },
       };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(true);
       expect(result.error).toBeUndefined();
     });
 
-    it('handles case-insensitive Bearer scheme', () => {
+    it('handles case-insensitive Bearer scheme', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -227,7 +227,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         url: '/mcp',
         headers: { authorization: 'bearer valid-test-token-xyz' },
       };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(true);
     });
@@ -253,32 +253,32 @@ describe('T27: OAuth Bearer Token Authentication', () => {
       else delete process.env.EVOKORE_AUTH_TOKEN;
     });
 
-    it('/health passes without any token when auth is enabled', () => {
+    it('/health passes without any token when auth is enabled', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
       const req = { url: '/health', headers: {} };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(true);
     });
 
-    it('/health/ with trailing slash also passes', () => {
+    it('/health/ with trailing slash also passes', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
       const req = { url: '/health/', headers: {} };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(true);
     });
 
-    it('/mcp is still protected when auth is enabled', () => {
+    it('/mcp is still protected when auth is enabled', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
       const req = { url: '/mcp', headers: {} };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(false);
       expect(result.statusCode).toBe(401);
@@ -428,7 +428,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
       else delete process.env.EVOKORE_AUTH_TOKEN;
     });
 
-    it('rejects all authenticated requests when no token is configured', () => {
+    it('rejects all authenticated requests when no token is configured', async () => {
       const { loadAuthConfig, authenticateRequest } = require(authModulePath);
       const config = loadAuthConfig();
 
@@ -439,7 +439,7 @@ describe('T27: OAuth Bearer Token Authentication', () => {
         url: '/mcp',
         headers: { authorization: 'Bearer any-token-at-all' },
       };
-      const result = authenticateRequest(req, config);
+      const result = await authenticateRequest(req, config);
 
       expect(result.authorized).toBe(false);
       expect(result.statusCode).toBe(401);
