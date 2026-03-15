@@ -76,6 +76,7 @@ const DELIVERY_TIMEOUT_MS = 10000;
 export class WebhookManager {
   private webhooks: WebhookConfig[] = [];
   private enabled: boolean = false;
+  private subscribers: Map<string, Array<{ pluginId: string; handler: (event: WebhookPayload) => void }>> = new Map();
 
   constructor() {
     this.enabled = process.env.EVOKORE_WEBHOOKS_ENABLED === "true";
@@ -127,7 +128,10 @@ export class WebhookManager {
    * This method is fire-and-forget -- it never throws and never blocks.
    */
   emit(event: WebhookEventType, data: Record<string, unknown>): void {
-    if (!this.enabled || this.webhooks.length === 0) {
+    const hasSubscribers = this.subscribers.has(event) && this.subscribers.get(event)!.length > 0;
+    const hasWebhooks = this.enabled && this.webhooks.length > 0;
+
+    if (!hasWebhooks && !hasSubscribers) {
       return;
     }
 
@@ -138,17 +142,32 @@ export class WebhookManager {
       data,
     };
 
-    for (const webhook of this.webhooks) {
-      if (!webhook.events.includes(event)) {
-        continue;
-      }
+    // Deliver to configured HTTP webhook endpoints
+    if (hasWebhooks) {
+      for (const webhook of this.webhooks) {
+        if (!webhook.events.includes(event)) {
+          continue;
+        }
 
-      // Fire-and-forget: launch delivery in the background
-      this.deliverWithRetry(webhook, payload).catch((err) => {
-        console.error(
-          `[EVOKORE] Webhook delivery to ${webhook.url} failed after retries: ${err?.message || err}`
-        );
-      });
+        // Fire-and-forget: launch delivery in the background
+        this.deliverWithRetry(webhook, payload).catch((err) => {
+          console.error(
+            `[EVOKORE] Webhook delivery to ${webhook.url} failed after retries: ${err?.message || err}`
+          );
+        });
+      }
+    }
+
+    // Notify plugin subscribers (fire-and-forget, errors logged)
+    if (hasSubscribers) {
+      const subs = this.subscribers.get(event)!;
+      for (const sub of subs) {
+        try {
+          sub.handler(payload);
+        } catch (err: any) {
+          console.error(`[EVOKORE] Plugin ${sub.pluginId} webhook handler error:`, err);
+        }
+      }
     }
   }
 
@@ -204,6 +223,26 @@ export class WebhookManager {
    */
   setWebhooks(webhooks: WebhookConfig[]): void {
     this.webhooks = webhooks;
+  }
+
+  /**
+   * Subscribe a plugin to a specific webhook event type.
+   * The handler is called synchronously (fire-and-forget) whenever the event is emitted.
+   */
+  subscribe(eventType: string, pluginId: string, handler: (event: WebhookPayload) => void): void {
+    if (!this.subscribers.has(eventType)) {
+      this.subscribers.set(eventType, []);
+    }
+    this.subscribers.get(eventType)!.push({ pluginId, handler });
+  }
+
+  /**
+   * Remove all subscriptions for a given plugin (used during plugin unload/reload).
+   */
+  unsubscribeAll(pluginId: string): void {
+    for (const [eventType, handlers] of this.subscribers.entries()) {
+      this.subscribers.set(eventType, handlers.filter(h => h.pluginId !== pluginId));
+    }
   }
 
   // ---- Private ----
