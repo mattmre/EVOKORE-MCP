@@ -22,6 +22,7 @@ import { ProxyManager } from "./ProxyManager";
 import { SecurityManager } from "./SecurityManager";
 import { ToolCatalogIndex } from "./ToolCatalogIndex";
 import { HttpServer } from "./HttpServer";
+import { WebhookManager } from "./WebhookManager";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -42,6 +43,7 @@ export class EvokoreMCPServer {
   private securityManager: SecurityManager;
   private proxyManager: ProxyManager;
   private toolCatalog: ToolCatalogIndex;
+  private webhookManager: WebhookManager;
   private discoveryMode: ToolDiscoveryMode;
   private activatedToolSessionsBySession: Map<string, ActivatedToolSessionState>;
 
@@ -68,6 +70,7 @@ export class EvokoreMCPServer {
     this.proxyManager = new ProxyManager(this.securityManager);
     this.skillManager = new SkillManager(this.proxyManager);
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
+    this.webhookManager = new WebhookManager();
     this.activatedToolSessionsBySession = new Map();
 
     this.setupHandlers();
@@ -528,34 +531,55 @@ export class EvokoreMCPServer {
       const toolName = request.params.name;
       const args = request.params.arguments || {};
 
-      if (toolName === "discover_tools") {
-        return await this.handleDiscoverTools(args, extra);
-      }
+      // Emit tool_call event (fire-and-forget)
+      this.webhookManager.emit("tool_call", {
+        tool: toolName,
+        arguments: args,
+        sessionId: this.getSessionId(extra),
+      });
 
-      if (toolName === "refresh_skills") {
-        return await this.handleRefreshSkills();
-      }
+      try {
+        let result: any;
 
-      if (toolName === "fetch_skill") {
-        return await this.handleFetchSkill(args);
-      }
+        if (toolName === "discover_tools") {
+          result = await this.handleDiscoverTools(args, extra);
+        } else if (toolName === "refresh_skills") {
+          result = await this.handleRefreshSkills();
+        } else if (toolName === "fetch_skill") {
+          result = await this.handleFetchSkill(args);
+        } else if (this.toolCatalog.isNativeTool(toolName)) {
+          result = await this.skillManager.handleToolCall(toolName, args);
+        } else if (this.proxyManager.canHandle(toolName)) {
+          result = await this.proxyManager.callProxiedTool(toolName, args);
+        } else {
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
+        }
 
-      // Handle Native Skill Tools
-      if (this.toolCatalog.isNativeTool(toolName)) {
-        return await this.skillManager.handleToolCall(toolName, args);
-      }
+        // Emit tool_error for logical errors returned in-band
+        if (result?.isError) {
+          this.webhookManager.emit("tool_error", {
+            tool: toolName,
+            error: result.content?.[0]?.text || "Unknown error",
+            sessionId: this.getSessionId(extra),
+          });
+        }
 
-      // Handle Proxied Execution Tools
-      if (this.proxyManager.canHandle(toolName)) {
-        return await this.proxyManager.callProxiedTool(toolName, args);
+        return result;
+      } catch (error: any) {
+        // Emit tool_error for thrown exceptions
+        this.webhookManager.emit("tool_error", {
+          tool: toolName,
+          error: error?.message || String(error),
+          sessionId: this.getSessionId(extra),
+        });
+        throw error;
       }
-
-      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
     });
   }
 
   private async loadSubsystems(): Promise<void> {
     await this.securityManager.loadPermissions();
+    this.webhookManager.loadWebhooks();
     await this.skillManager.loadSkills();
     const skillStats = this.skillManager.getStats();
     console.error(`[EVOKORE] Skill stats: ${skillStats.totalSkills} skills, ${skillStats.categories.length} categories, loaded in ${skillStats.loadTimeMs}ms, index ~${skillStats.fuseIndexSizeKb}KB`);
@@ -580,6 +604,11 @@ export class EvokoreMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
+    this.webhookManager.emit("session_start", {
+      version: SERVER_VERSION,
+      transport: "stdio",
+      discoveryMode: this.discoveryMode,
+    });
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
     );
@@ -593,6 +622,12 @@ export class EvokoreMCPServer {
 
     const addr = httpServer.getAddress();
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on HTTP at http://${addr.host}:${addr.port} (tool discovery mode: ${this.discoveryMode})`);
+    this.webhookManager.emit("session_start", {
+      version: SERVER_VERSION,
+      transport: "http",
+      discoveryMode: this.discoveryMode,
+      address: `http://${addr.host}:${addr.port}`,
+    });
 
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
