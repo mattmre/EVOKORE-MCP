@@ -78,6 +78,9 @@ EVOKORE_TOOL_DISCOVERY_MODE=legacy
 | `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` | `30000` | Timeout in milliseconds for child server boot during async proxy bootstrap. |
 | `EVOKORE_TOOL_DISCOVERY_MODE` | `legacy` | Tool discovery mode: `legacy` or `dynamic`. |
 | `EVOKORE_MCP_CONFIG_PATH` | `mcp.config.json` (project root) | Override path to the child server config file. |
+| `EVOKORE_HTTP_MODE` | `false` | Set to `true` to start in HTTP server mode instead of stdio. |
+| `EVOKORE_HTTP_PORT` | `3100` | Port to listen on when running in HTTP mode. |
+| `EVOKORE_HTTP_HOST` | `127.0.0.1` | Host/interface to bind when running in HTTP mode. |
 
 Important behavior:
 
@@ -220,6 +223,59 @@ If you need to point EVOKORE at another config file, set:
 ```bash
 EVOKORE_MCP_CONFIG_PATH=/absolute/path/to/another-mcp.config.json
 ```
+
+## HTTP server mode
+
+EVOKORE can also run as an HTTP server using the MCP StreamableHTTP transport. This enables remote access, multi-client connections, and load-balancer health checks.
+
+### Starting in HTTP mode
+
+```bash
+# Via environment variable
+EVOKORE_HTTP_MODE=true node dist/index.js
+
+# Via CLI flag
+node dist/index.js --http
+
+# With custom port and host
+EVOKORE_HTTP_MODE=true EVOKORE_HTTP_PORT=8080 EVOKORE_HTTP_HOST=0.0.0.0 node dist/index.js
+```
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check probe. Returns `{"status":"ok","transport":"streamable-http"}` |
+| POST | `/mcp` | MCP JSON-RPC messages (creates session on first request) |
+| GET | `/mcp` | SSE stream for server notifications (requires `mcp-session-id` header) |
+| DELETE | `/mcp` | Terminates an existing session |
+
+### Health check
+
+```bash
+curl http://127.0.0.1:3100/health
+```
+
+### Client connection example
+
+```typescript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+const transport = new StreamableHTTPClientTransport(
+  new URL("http://127.0.0.1:3100/mcp")
+);
+const client = new Client({ name: "my-client", version: "1.0" });
+await client.connect(transport);
+const { tools } = await client.listTools();
+```
+
+### Notes
+
+- HTTP and stdio modes are mutually exclusive. A single process uses one transport.
+- Default bind is `127.0.0.1` (loopback only). For remote access, set `EVOKORE_HTTP_HOST=0.0.0.0` and place behind a reverse proxy with TLS.
+- The server handles graceful shutdown on SIGTERM and SIGINT.
+- All MCP features (tools, resources, prompts, HITL, RBAC) work identically over HTTP.
 
 ## Client registration
 
