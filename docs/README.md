@@ -34,6 +34,13 @@ Use this page as the main portal for repository documentation.
 - [V2 Architecture Plan](./V2_ARCHITECTURE_PLAN.md)
 - [V2 Multi-Agent Workflows](./V2_MULTI_AGENT_WORKFLOWS.md)
 
+## v3.0 Platform Modules
+
+- [HTTP Deployment Guide](./HTTP_DEPLOYMENT.md)
+- [OAuth and Authentication Setup](./OAUTH_SETUP.md)
+- [Webhook Configuration Guide](./WEBHOOK_GUIDE.md)
+- [Plugin Authoring Guide](./PLUGIN_AUTHORING.md)
+
 ## Operators & Maintainers
 
 - [TESTING_AND_VALIDATION.md](./TESTING_AND_VALIDATION.md)
@@ -73,6 +80,10 @@ Use this page as the main portal for repository documentation.
 | Voice and hooks | [VOICE_AND_HOOKS.md](./VOICE_AND_HOOKS.md) | [VOICE_CLI_RESEARCH.md](./VOICE_CLI_RESEARCH.md) |
 | Validation and release gates | [TESTING_AND_VALIDATION.md](./TESTING_AND_VALIDATION.md) | [RELEASE_FLOW.md](./RELEASE_FLOW.md) |
 | Continuity, trackers, and session restart | [RESEARCH_AND_HANDOFFS.md](./RESEARCH_AND_HANDOFFS.md) | [ORCHESTRATION_TRACKER.md](./ORCHESTRATION_TRACKER.md), [PRIORITY_STATUS_MATRIX.md](./PRIORITY_STATUS_MATRIX.md) |
+| HTTP deployment and multi-client | [HTTP_DEPLOYMENT.md](./HTTP_DEPLOYMENT.md) | [SETUP.md](./SETUP.md) |
+| Authentication and OAuth | [OAUTH_SETUP.md](./OAUTH_SETUP.md) | [HTTP_DEPLOYMENT.md](./HTTP_DEPLOYMENT.md) |
+| Webhook events | [WEBHOOK_GUIDE.md](./WEBHOOK_GUIDE.md) | -- |
+| Plugin authoring | [PLUGIN_AUTHORING.md](./PLUGIN_AUTHORING.md) | -- |
 
 ## Validation & Governance
 
@@ -110,6 +121,10 @@ Important validation anchors:
 3. [VOICE_AND_HOOKS.md](./VOICE_AND_HOOKS.md)
 4. [TESTING_AND_VALIDATION.md](./TESTING_AND_VALIDATION.md)
 5. [RESEARCH_AND_HANDOFFS.md](./RESEARCH_AND_HANDOFFS.md)
+6. [HTTP_DEPLOYMENT.md](./HTTP_DEPLOYMENT.md)
+7. [OAUTH_SETUP.md](./OAUTH_SETUP.md)
+8. [WEBHOOK_GUIDE.md](./WEBHOOK_GUIDE.md)
+9. [PLUGIN_AUTHORING.md](./PLUGIN_AUTHORING.md)
 
 ## Legacy path mapping
 
