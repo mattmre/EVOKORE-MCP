@@ -156,19 +156,22 @@ export class HttpServer {
     }
 
     // Authentication middleware: reject unauthenticated requests before routing
+    let authClaims: Record<string, unknown> | undefined;
     if (this.authConfig && this.authConfig.required) {
       if (!isPublicPath(url)) {
-        const authResult = authenticateRequest(req, this.authConfig);
+        const authResult = await authenticateRequest(req, this.authConfig);
         if (!authResult.authorized) {
           sendUnauthorizedResponse(res, authResult.error || "Unauthorized");
           return;
         }
+        authClaims = authResult.claims;
       }
     }
 
     // MCP endpoint
     if (url === "/mcp") {
-      await this.handleMcpRequest(req, res);
+      const roleOverride = (authClaims?.role as string | undefined) ?? undefined;
+      await this.handleMcpRequest(req, res, roleOverride);
       return;
     }
 
@@ -177,7 +180,7 @@ export class HttpServer {
     res.end(JSON.stringify({ error: "Not found" }));
   }
 
-  private async handleMcpRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  private async handleMcpRequest(req: http.IncomingMessage, res: http.ServerResponse, roleOverride?: string): Promise<void> {
     // Look up existing session from header
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
@@ -207,7 +210,8 @@ export class HttpServer {
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId: string) => {
         this.transports.set(newSessionId, transport);
-        this.sessionIsolation?.createSession(newSessionId, process.env.EVOKORE_ROLE || null);
+        const role = roleOverride ?? process.env.EVOKORE_ROLE ?? null;
+        this.sessionIsolation?.createSession(newSessionId, role);
         console.error(`[EVOKORE-HTTP] Session initialized: ${newSessionId}`);
       },
     });

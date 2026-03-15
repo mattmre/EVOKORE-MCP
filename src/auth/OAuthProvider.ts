@@ -4,7 +4,11 @@
  * Provides middleware-style token validation for HTTP endpoints.
  * Configured via environment variables:
  *   - EVOKORE_AUTH_REQUIRED: "true" to enforce auth (default: "false")
+ *   - EVOKORE_AUTH_MODE: "static" (default) or "jwt" for JWKS-based validation
  *   - EVOKORE_AUTH_TOKEN: Static bearer token for simple setups
+ *   - EVOKORE_OAUTH_ISSUER: Expected JWT issuer claim (jwt mode)
+ *   - EVOKORE_OAUTH_AUDIENCE: Expected JWT audience claim (jwt mode)
+ *   - EVOKORE_OAUTH_JWKS_URI: JWKS endpoint URL for key fetching (jwt mode)
  *
  * When auth is required, all /mcp requests must include:
  *   Authorization: Bearer <token>
@@ -14,12 +18,31 @@
 
 import { IncomingMessage, ServerResponse } from "http";
 import crypto from "crypto";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 export interface AuthConfig {
   /** Whether authentication is required for /mcp endpoints. */
   required: boolean;
+  /** Authentication mode: "static" for simple token comparison, "jwt" for JWKS-based JWT validation. */
+  mode: "static" | "jwt";
   /** Static bearer token for simple deployments. */
   staticToken: string | null;
+  /** Expected JWT issuer claim (jwt mode only). */
+  issuer?: string;
+  /** Expected JWT audience claim (jwt mode only). */
+  audience?: string;
+  /** JWKS endpoint URL for key fetching (jwt mode only). */
+  jwksUri?: string;
+}
+
+export interface JWTClaims {
+  sub?: string;
+  iss?: string;
+  aud?: string | string[];
+  exp?: number;
+  iat?: number;
+  role?: string;
+  [key: string]: unknown;
 }
 
 export interface AuthResult {
@@ -29,6 +52,8 @@ export interface AuthResult {
   error?: string;
   /** HTTP status code to return if not authorized. */
   statusCode?: number;
+  /** Validated JWT claims (only populated in jwt mode). */
+  claims?: JWTClaims;
 }
 
 /**
@@ -36,20 +61,31 @@ export interface AuthResult {
  */
 export function loadAuthConfig(): AuthConfig {
   const required = process.env.EVOKORE_AUTH_REQUIRED === "true";
+  const mode = process.env.EVOKORE_AUTH_MODE === "jwt" ? "jwt" as const : "static" as const;
   const staticToken = process.env.EVOKORE_AUTH_TOKEN || null;
+  const issuer = process.env.EVOKORE_OAUTH_ISSUER || undefined;
+  const audience = process.env.EVOKORE_OAUTH_AUDIENCE || undefined;
+  const jwksUri = process.env.EVOKORE_OAUTH_JWKS_URI || undefined;
 
-  if (required && !staticToken) {
+  if (required && mode === "static" && !staticToken) {
     console.error(
       "[EVOKORE-AUTH] Warning: EVOKORE_AUTH_REQUIRED=true but no EVOKORE_AUTH_TOKEN set. " +
       "All authenticated requests will be rejected."
     );
   }
 
-  if (required) {
-    console.error("[EVOKORE-AUTH] Bearer token authentication enabled.");
+  if (required && mode === "jwt" && !jwksUri) {
+    console.error(
+      "[EVOKORE-AUTH] Warning: EVOKORE_AUTH_MODE=jwt but no EVOKORE_OAUTH_JWKS_URI set. " +
+      "JWT validation will fail for all requests."
+    );
   }
 
-  return { required, staticToken };
+  if (required) {
+    console.error(`[EVOKORE-AUTH] Bearer token authentication enabled (mode: ${mode}).`);
+  }
+
+  return { required, mode, staticToken, issuer, audience, jwksUri };
 }
 
 /**
@@ -99,17 +135,66 @@ export function isPublicPath(pathname: string): boolean {
   return pathname === "/health" || pathname === "/health/";
 }
 
+// ---- JWKS Cache for JWT mode ----
+
+let cachedJWKS: ReturnType<typeof createRemoteJWKSet> | null = null;
+let cachedJWKSUri: string | null = null;
+
+/**
+ * Clear the cached JWKS client. Useful for tests or when the JWKS URI changes.
+ */
+export function clearJwksCache(): void {
+  cachedJWKS = null;
+  cachedJWKSUri = null;
+}
+
+/**
+ * Validate a JWT token against a remote JWKS endpoint.
+ * Returns validation result with decoded claims on success.
+ */
+export async function validateJwt(
+  token: string,
+  config: AuthConfig
+): Promise<{ valid: boolean; claims?: JWTClaims; error?: string }> {
+  if (!config.jwksUri) {
+    return { valid: false, error: "No JWKS URI configured" };
+  }
+
+  try {
+    // Recreate JWKS client if URI changed
+    if (!cachedJWKS || cachedJWKSUri !== config.jwksUri) {
+      cachedJWKS = createRemoteJWKSet(new URL(config.jwksUri));
+      cachedJWKSUri = config.jwksUri;
+    }
+
+    const { payload } = await jwtVerify(token, cachedJWKS, {
+      issuer: config.issuer,
+      audience: config.audience,
+    });
+
+    return { valid: true, claims: payload as JWTClaims };
+  } catch (err: any) {
+    return { valid: false, error: err.message || "JWT validation failed" };
+  }
+}
+
 /**
  * Authenticate an incoming HTTP request.
  *
- * Returns an AuthResult indicating whether the request should proceed.
+ * Returns a Promise<AuthResult> indicating whether the request should proceed.
  * When auth is disabled (EVOKORE_AUTH_REQUIRED !== "true"), all requests
  * are authorized.
+ *
+ * In jwt mode, the token is validated against the configured JWKS endpoint
+ * and decoded claims are returned on success.
+ *
+ * In static mode (default), the token is compared against the configured
+ * static token using timing-safe comparison.
  */
-export function authenticateRequest(
+export async function authenticateRequest(
   req: IncomingMessage,
   config: AuthConfig
-): AuthResult {
+): Promise<AuthResult> {
   // Auth not required -- pass everything through
   if (!config.required) {
     return { authorized: true };
@@ -132,6 +217,20 @@ export function authenticateRequest(
     };
   }
 
+  // JWT mode: validate against JWKS endpoint
+  if (config.mode === "jwt") {
+    const result = await validateJwt(token, config);
+    if (!result.valid) {
+      return {
+        authorized: false,
+        error: result.error || "Invalid JWT",
+        statusCode: 401,
+      };
+    }
+    return { authorized: true, claims: result.claims };
+  }
+
+  // Static token mode (default): timing-safe comparison
   if (!validateToken(token, config)) {
     return {
       authorized: false,

@@ -65,7 +65,9 @@ describe('Per-Session RBAC for HttpServer', () => {
     const src = fs.readFileSync(httpServerTsPath, 'utf8');
 
     it('passes EVOKORE_ROLE to createSession in onsessioninitialized', () => {
-      expect(src).toMatch(/createSession\s*\(\s*newSessionId\s*,\s*process\.env\.EVOKORE_ROLE\s*\|\|\s*null\s*\)/);
+      // Role is resolved through a variable that supports JWT roleOverride fallback to EVOKORE_ROLE
+      expect(src).toMatch(/roleOverride\s*\?\?\s*process\.env\.EVOKORE_ROLE\s*\?\?\s*null/);
+      expect(src).toMatch(/createSession\s*\(\s*newSessionId\s*,\s*role\s*\)/);
     });
   });
 
