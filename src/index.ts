@@ -65,9 +65,9 @@ export class EvokoreMCPServer {
     );
 
     this.securityManager = new SecurityManager();
-    this.proxyManager = new ProxyManager(this.securityManager);
-    this.skillManager = new SkillManager(this.proxyManager);
     this.webhookManager = new WebhookManager();
+    this.proxyManager = new ProxyManager(this.securityManager, this.webhookManager);
+    this.skillManager = new SkillManager(this.proxyManager);
     this.pluginManager = new PluginManager(this.webhookManager);
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
     this.sessionIsolation = new SessionIsolation();
@@ -636,6 +636,15 @@ export class EvokoreMCPServer {
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
     );
+
+    // Graceful shutdown for stdio mode
+    const shutdown = () => {
+      this.webhookManager.emit("session_end", { transport: "stdio", reason: "shutdown" });
+      // Grace period to allow fire-and-forget webhook delivery
+      setTimeout(() => process.exit(0), 500);
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
   }
 
   async runHttp(): Promise<HttpServer> {
@@ -659,6 +668,9 @@ export class EvokoreMCPServer {
     // Graceful shutdown
     const shutdown = async () => {
       console.error("[EVOKORE] Shutting down HTTP server...");
+      this.webhookManager.emit("session_end", { transport: "http", reason: "shutdown" });
+      // Grace period to allow fire-and-forget webhook delivery
+      await new Promise(resolve => setTimeout(resolve, 500));
       await httpServer.stop();
       process.exit(0);
     };
