@@ -23,6 +23,7 @@ import { SecurityManager } from "./SecurityManager";
 import { ToolCatalogIndex } from "./ToolCatalogIndex";
 import { PluginManager } from "./PluginManager";
 import { HttpServer } from "./HttpServer";
+import { WebhookManager } from "./WebhookManager";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -44,6 +45,7 @@ export class EvokoreMCPServer {
   private proxyManager: ProxyManager;
   private pluginManager: PluginManager;
   private toolCatalog: ToolCatalogIndex;
+  private webhookManager: WebhookManager;
   private discoveryMode: ToolDiscoveryMode;
   private activatedToolSessionsBySession: Map<string, ActivatedToolSessionState>;
 
@@ -71,6 +73,7 @@ export class EvokoreMCPServer {
     this.skillManager = new SkillManager(this.proxyManager);
     this.pluginManager = new PluginManager();
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
+    this.webhookManager = new WebhookManager();
     this.activatedToolSessionsBySession = new Map();
 
     this.setupHandlers();
@@ -426,6 +429,15 @@ export class EvokoreMCPServer {
     throw new McpError(ErrorCode.InvalidParams, "Unknown evokore resource: " + uri);
   }
 
+  private redactSensitiveArgs(args: Record<string, unknown>): Record<string, unknown> {
+    const sensitiveKeys = ['_evokore_approval_token', 'password', 'secret', 'token', 'key', 'credential', 'api_key', 'apiKey', 'access_token', 'accessToken'];
+    const redacted: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(args)) {
+      redacted[k] = sensitiveKeys.some(sk => k.toLowerCase().includes(sk.toLowerCase())) ? '[REDACTED]' : v;
+    }
+    return redacted;
+  }
+
   private setupHandlers() {
     // 1. Resources (Skills + Server-level)
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
@@ -576,38 +588,34 @@ export class EvokoreMCPServer {
       const toolName = request.params.name;
       const args = request.params.arguments || {};
 
-      if (toolName === "discover_tools") {
-        return await this.handleDiscoverTools(args, extra);
-      }
+      try {
+        this.webhookManager.emit("tool_call", { tool: toolName, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
 
-      if (toolName === "refresh_skills") {
-        return await this.handleRefreshSkills();
-      }
+        let result: any;
 
-      if (toolName === "fetch_skill") {
-        return await this.handleFetchSkill(args);
-      }
+        if (toolName === "discover_tools") {
+          result = await this.handleDiscoverTools(args, extra);
+        } else if (toolName === "refresh_skills") {
+          result = await this.handleRefreshSkills();
+        } else if (toolName === "fetch_skill") {
+          result = await this.handleFetchSkill(args);
+        } else if (toolName === "reload_plugins") {
+          result = await this.handleReloadPlugins();
+        } else if (this.pluginManager.isPluginTool(toolName)) {
+          result = await this.pluginManager.handleToolCall(toolName, args);
+        } else if (this.toolCatalog.isNativeTool(toolName)) {
+          result = await this.skillManager.handleToolCall(toolName, args);
+        } else if (this.proxyManager.canHandle(toolName)) {
+          result = await this.proxyManager.callProxiedTool(toolName, args);
+        } else {
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
+        }
 
-      if (toolName === "reload_plugins") {
-        return await this.handleReloadPlugins();
+        return result;
+      } catch (error: any) {
+        this.webhookManager.emit("tool_error", { tool: toolName, arguments: this.redactSensitiveArgs(args as Record<string, unknown>), error: error?.message || String(error) });
+        throw error;
       }
-
-      // Handle Plugin Tools
-      if (this.pluginManager.isPluginTool(toolName)) {
-        return await this.pluginManager.handleToolCall(toolName, args);
-      }
-
-      // Handle Native Skill Tools
-      if (this.toolCatalog.isNativeTool(toolName)) {
-        return await this.skillManager.handleToolCall(toolName, args);
-      }
-
-      // Handle Proxied Execution Tools
-      if (this.proxyManager.canHandle(toolName)) {
-        return await this.proxyManager.callProxiedTool(toolName, args);
-      }
-
-      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
     });
   }
 
@@ -616,6 +624,9 @@ export class EvokoreMCPServer {
     await this.skillManager.loadSkills();
     const skillStats = this.skillManager.getStats();
     console.error(`[EVOKORE] Skill stats: ${skillStats.totalSkills} skills, ${skillStats.categories.length} categories, loaded in ${skillStats.loadTimeMs}ms, index ~${skillStats.fuseIndexSizeKb}KB`);
+
+    // Load webhook subscriptions
+    this.webhookManager.loadWebhooks();
 
     // Load plugins after skills but before proxy boot
     const pluginResult = await this.pluginManager.loadPlugins();
@@ -644,6 +655,7 @@ export class EvokoreMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
+    this.webhookManager.emit("session_start", { transport: "stdio" });
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
     );
@@ -657,6 +669,7 @@ export class EvokoreMCPServer {
 
     const addr = httpServer.getAddress();
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on HTTP at http://${addr.host}:${addr.port} (tool discovery mode: ${this.discoveryMode})`);
+    this.webhookManager.emit("session_start", { transport: "http", host: addr.host, port: addr.port });
 
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
