@@ -1,6 +1,6 @@
 # Repo Audit Hook Guide
 
-The Repo Audit Hook is an optional Claude Code hook that runs at session startup and warns about branch drift, stale worktrees, and control-plane drift. It helps operators stay aware of repo hygiene issues before they cause problems during a session.
+The Repo Audit Hook is a Claude Code hook that runs at session startup and warns about branch drift, stale worktrees, and control-plane drift. It helps operators stay aware of repo hygiene issues before they cause problems during a session. It is enabled by default and can be disabled by setting `EVOKORE_REPO_AUDIT_HOOK=false`.
 
 ## Overview
 
@@ -8,25 +8,25 @@ The Repo Audit Hook is an optional Claude Code hook that runs at session startup
 - **Entrypoint:** `scripts/hooks/repo-audit-hook.js`
 - **Runtime:** `scripts/repo-audit-hook-runtime.js`
 - **Audit engine:** `scripts/repo-state-audit.js`
-- **Default state:** Disabled (opt-in only)
+- **Default state:** Enabled (opt-out via `EVOKORE_REPO_AUDIT_HOOK=false`)
 - **Frequency:** Runs once per session (marker file prevents re-runs)
 
-## How to Enable
+## How to Disable
 
-Set the environment variable before starting Claude Code:
+The hook is enabled by default. To disable it, set the environment variable to `false`:
 
 ```bash
 # In your .env file or shell profile
-export EVOKORE_REPO_AUDIT_HOOK=true
+export EVOKORE_REPO_AUDIT_HOOK=false
 ```
 
 Or in a `.env` file at the project root:
 
 ```
-EVOKORE_REPO_AUDIT_HOOK=true
+EVOKORE_REPO_AUDIT_HOOK=false
 ```
 
-When the variable is not set or set to anything other than `true`, the hook exits immediately without running any audit.
+Only the exact value `false` disables the hook. Any other value (including unset, empty string, or `true`) leaves it enabled.
 
 ## What It Checks
 
@@ -159,7 +159,7 @@ The hook fits into the EVOKORE session lifecycle:
 
 1. User submits first prompt in Claude Code
 2. **Purpose Gate** hook asks for session intent
-3. **Repo Audit** hook (if enabled) checks repo state and injects warnings
+3. **Repo Audit** hook checks repo state and injects warnings (unless disabled)
 4. Session proceeds with the AI aware of any repo hygiene issues
 
 Both hooks run on `UserPromptSubmit`. The audit hook is designed to be non-blocking -- all error paths exit with code 0 and produce no output, so a failure in the audit never prevents the session from starting.
@@ -168,14 +168,14 @@ Both hooks run on `UserPromptSubmit`. The audit hook is designed to be non-block
 
 - The hook loads via `fail-safe-loader.js`, so a missing or broken runtime module does not crash Claude Code.
 - All code paths are wrapped in try/catch with silent fallback.
-- The `EVOKORE_REPO_AUDIT_HOOK=true` gate ensures the hook only runs when explicitly opted in.
+- The `EVOKORE_REPO_AUDIT_HOOK=false` gate allows the hook to be disabled when not wanted.
 - If `git` commands fail (e.g., not in a git repo), the hook exits silently.
 
 ## Troubleshooting
 
 ### Hook not running
 
-- Verify `EVOKORE_REPO_AUDIT_HOOK=true` is in your environment.
+- Verify `EVOKORE_REPO_AUDIT_HOOK` is NOT set to `false` in your environment.
 - Check that `.claude/settings.json` includes the hook in its `UserPromptSubmit` hooks list.
 - The hook only runs once per session. Delete the marker file to re-trigger: `rm ~/.evokore/sessions/{sessionId}-audit-done`
 

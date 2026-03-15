@@ -71,7 +71,7 @@ Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks
   node scripts/tilldone.js --clear --session <ID>
   ```
 - **Evidence Capture** (`scripts/hooks/evidence-capture.js`, PostToolUse): Auto-captures test results, file changes, and git operations as JSONL evidence to `~/.evokore/sessions/{session_id}-evidence.jsonl`. Sequential evidence IDs (E-001, E-002, etc.).
-- **Repo Audit** (`scripts/hooks/repo-audit-hook.js`, UserPromptSubmit): Optional pre-session hook that warns about branch drift, stale worktrees, and control-plane drift. Enabled via `EVOKORE_REPO_AUDIT_HOOK=true`. Runs once per session (marker file).
+- **Repo Audit** (`scripts/hooks/repo-audit-hook.js`, UserPromptSubmit): Pre-session hook that warns about branch drift, stale worktrees, and control-plane drift. Enabled by default; opt-out via `EVOKORE_REPO_AUDIT_HOOK=false`. Runs once per session (marker file).
 
 ## v3.0 Runtime Additions
 
