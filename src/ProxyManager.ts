@@ -5,6 +5,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Tool, CallToolRequestSchema, McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { SecurityManager } from "./SecurityManager";
+import { WebhookManager } from "./WebhookManager";
 import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
 
 const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
@@ -84,12 +85,14 @@ export class ProxyManager {
   private toolRegistry: Map<string, { serverId: string; originalName: string }> = new Map();
   private cachedTools: Tool[] = [];
   private security: SecurityManager;
+  private webhookManager: WebhookManager | null;
   private serverRegistry: Map<string, ServerState> = new Map();
   private toolCooldowns: Map<string, number> = new Map();
   private rateLimitBuckets: Map<string, TokenBucket> = new Map();
 
-  constructor(security: SecurityManager) {
+  constructor(security: SecurityManager, webhookManager?: WebhookManager) {
     this.security = security;
+    this.webhookManager = webhookManager ?? null;
   }
 
   private getConfigFilePath(): string {
@@ -529,6 +532,11 @@ export class ProxyManager {
     if (permission === "require_approval") {
       if (!providedToken || !this.security.validateToken(toolName, providedToken, toolArgs)) {
         const newToken = this.security.generateToken(toolName, toolArgs);
+        this.webhookManager?.emit("approval_requested", {
+          tool: toolName,
+          server: serverId,
+          tokenPrefix: newToken.substring(0, 8) + "..."
+        });
         return {
           content: [{
             type: "text",
@@ -539,6 +547,10 @@ export class ProxyManager {
       }
       // Only consume a valid token once the call is about to be dispatched upstream.
       approvalTokenToConsume = providedToken;
+      this.webhookManager?.emit("approval_granted", {
+        tool: toolName,
+        server: serverId
+      });
     }
 
     // 2. Rate Limit Check (proactive, before the call)

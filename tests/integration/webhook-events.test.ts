@@ -8,6 +8,7 @@ import { WebhookManager, WEBHOOK_EVENT_TYPES, WebhookPayload } from '../../src/W
 const ROOT = path.resolve(__dirname, '../..');
 const webhookManagerTsPath = path.join(ROOT, 'src', 'WebhookManager.ts');
 const indexTsPath = path.join(ROOT, 'src', 'index.ts');
+const proxyManagerTsPath = path.join(ROOT, 'src', 'ProxyManager.ts');
 
 // ---- Source-level structural validation ----
 
@@ -549,6 +550,218 @@ describe('T29: Webhook Event System', () => {
 
     it('redacts sensitive arguments in tool_call emit', () => {
       expect(indexSrc).toMatch(/this\.redactSensitiveArgs\(/);
+    });
+
+    it('emits session_end in HTTP shutdown handler', () => {
+      expect(indexSrc).toMatch(/this\.webhookManager\.emit\("session_end",\s*\{\s*transport:\s*"http"/);
+    });
+
+    it('emits session_end in stdio shutdown handler', () => {
+      expect(indexSrc).toMatch(/this\.webhookManager\.emit\("session_end",\s*\{\s*transport:\s*"stdio"/);
+    });
+
+    it('passes webhookManager to ProxyManager constructor', () => {
+      expect(indexSrc).toMatch(/new ProxyManager\(this\.securityManager,\s*this\.webhookManager\)/);
+    });
+
+    it('creates WebhookManager before ProxyManager', () => {
+      const wmIndex = indexSrc.indexOf('this.webhookManager = new WebhookManager()');
+      const pmIndex = indexSrc.indexOf('new ProxyManager(this.securityManager, this.webhookManager)');
+      expect(wmIndex).toBeGreaterThan(-1);
+      expect(pmIndex).toBeGreaterThan(-1);
+      expect(wmIndex).toBeLessThan(pmIndex);
+    });
+  });
+
+  describe('ProxyManager webhook integration (source-level)', () => {
+    const proxySrc = fs.readFileSync(proxyManagerTsPath, 'utf8');
+
+    it('imports WebhookManager', () => {
+      expect(proxySrc).toMatch(/import.*WebhookManager.*from.*"\.\/WebhookManager"/);
+    });
+
+    it('constructor accepts optional WebhookManager parameter', () => {
+      expect(proxySrc).toMatch(/constructor\(security:\s*SecurityManager,\s*webhookManager\?\s*:\s*WebhookManager\)/);
+    });
+
+    it('stores webhookManager as private field', () => {
+      expect(proxySrc).toMatch(/private webhookManager:\s*WebhookManager\s*\|\s*null/);
+    });
+
+    it('emits approval_requested when HITL token is generated', () => {
+      expect(proxySrc).toMatch(/\.emit\("approval_requested"/);
+    });
+
+    it('approval_requested includes tool, server, and tokenPrefix', () => {
+      expect(proxySrc).toMatch(/emit\("approval_requested",\s*\{[^}]*tool:\s*toolName/);
+      expect(proxySrc).toMatch(/emit\("approval_requested",\s*\{[^}]*server:\s*serverId/);
+      expect(proxySrc).toMatch(/emit\("approval_requested",\s*\{[^}]*tokenPrefix:/);
+    });
+
+    it('emits approval_granted when a valid token is consumed', () => {
+      expect(proxySrc).toMatch(/\.emit\("approval_granted"/);
+    });
+
+    it('approval_granted includes tool and server', () => {
+      expect(proxySrc).toMatch(/emit\("approval_granted",\s*\{[^}]*tool:\s*toolName/);
+      expect(proxySrc).toMatch(/emit\("approval_granted",\s*\{[^}]*server:\s*serverId/);
+    });
+  });
+
+  describe('ProxyManager backward compatibility', () => {
+    it('can be constructed without WebhookManager (backward compatible)', () => {
+      const { ProxyManager } = require('../../dist/ProxyManager.js');
+      const { SecurityManager } = require('../../dist/SecurityManager.js');
+
+      const sm = new SecurityManager();
+      const pm = new ProxyManager(sm);
+      expect(pm).toBeDefined();
+      expect(pm.canHandle('nonexistent_tool')).toBe(false);
+    });
+
+    it('can be constructed with a WebhookManager', () => {
+      const { ProxyManager } = require('../../dist/ProxyManager.js');
+      const { SecurityManager } = require('../../dist/SecurityManager.js');
+      const { WebhookManager } = require('../../dist/WebhookManager.js');
+
+      const sm = new SecurityManager();
+      const wm = new WebhookManager();
+      const pm = new ProxyManager(sm, wm);
+      expect(pm).toBeDefined();
+    });
+  });
+
+  describe('session_end event unit tests', () => {
+    it('WebhookManager can emit session_end with correct payload', async () => {
+      let receivedBody: any = null;
+
+      const server = http.createServer((req, res) => {
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => {
+          receivedBody = JSON.parse(Buffer.concat(chunks).toString());
+          res.writeHead(200);
+          res.end();
+        });
+      });
+
+      const port = await new Promise<number>((resolve) => {
+        server.listen(0, '127.0.0.1', () => {
+          const addr = server.address() as { port: number };
+          resolve(addr.port);
+        });
+      });
+
+      try {
+        const manager = new WebhookManager();
+        manager.setEnabled(true);
+        manager.setWebhooks([
+          { url: `http://127.0.0.1:${port}/webhook`, events: ['session_end'] }
+        ]);
+
+        manager.emit('session_end', { transport: 'http', reason: 'shutdown' });
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        expect(receivedBody).not.toBeNull();
+        expect(receivedBody.event).toBe('session_end');
+        expect(receivedBody.data.transport).toBe('http');
+        expect(receivedBody.data.reason).toBe('shutdown');
+        expect(receivedBody.id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(receivedBody.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      } finally {
+        server.close();
+      }
+    });
+  });
+
+  describe('approval event unit tests', () => {
+    it('WebhookManager can emit approval_requested with correct payload', async () => {
+      let receivedBody: any = null;
+
+      const server = http.createServer((req, res) => {
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => {
+          receivedBody = JSON.parse(Buffer.concat(chunks).toString());
+          res.writeHead(200);
+          res.end();
+        });
+      });
+
+      const port = await new Promise<number>((resolve) => {
+        server.listen(0, '127.0.0.1', () => {
+          const addr = server.address() as { port: number };
+          resolve(addr.port);
+        });
+      });
+
+      try {
+        const manager = new WebhookManager();
+        manager.setEnabled(true);
+        manager.setWebhooks([
+          { url: `http://127.0.0.1:${port}/webhook`, events: ['approval_requested'] }
+        ]);
+
+        manager.emit('approval_requested', {
+          tool: 'supabase_run_query',
+          server: 'supabase',
+          tokenPrefix: 'abcd1234...'
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        expect(receivedBody).not.toBeNull();
+        expect(receivedBody.event).toBe('approval_requested');
+        expect(receivedBody.data.tool).toBe('supabase_run_query');
+        expect(receivedBody.data.server).toBe('supabase');
+        expect(receivedBody.data.tokenPrefix).toBe('abcd1234...');
+      } finally {
+        server.close();
+      }
+    });
+
+    it('WebhookManager can emit approval_granted with correct payload', async () => {
+      let receivedBody: any = null;
+
+      const server = http.createServer((req, res) => {
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => {
+          receivedBody = JSON.parse(Buffer.concat(chunks).toString());
+          res.writeHead(200);
+          res.end();
+        });
+      });
+
+      const port = await new Promise<number>((resolve) => {
+        server.listen(0, '127.0.0.1', () => {
+          const addr = server.address() as { port: number };
+          resolve(addr.port);
+        });
+      });
+
+      try {
+        const manager = new WebhookManager();
+        manager.setEnabled(true);
+        manager.setWebhooks([
+          { url: `http://127.0.0.1:${port}/webhook`, events: ['approval_granted'] }
+        ]);
+
+        manager.emit('approval_granted', {
+          tool: 'supabase_run_query',
+          server: 'supabase'
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        expect(receivedBody).not.toBeNull();
+        expect(receivedBody.event).toBe('approval_granted');
+        expect(receivedBody.data.tool).toBe('supabase_run_query');
+        expect(receivedBody.data.server).toBe('supabase');
+      } finally {
+        server.close();
+      }
     });
   });
 });
