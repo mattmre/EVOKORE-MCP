@@ -106,3 +106,4 @@ No new dependencies. Uses Node.js built-in `http`, `https`, and `crypto` modules
 - Emit `approval_requested` and `approval_granted` from SecurityManager
 - Webhook delivery metrics (success/failure counts) exposed via `evokore://server/status` resource
 - Dead letter queue for persistently failing webhooks
+# CI sync
