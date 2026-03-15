@@ -17,7 +17,7 @@ import path from "path";
 // Load Vault Secrets before any proxy spawns
 dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 
-import { SkillManager } from "./SkillManager";
+import { SkillManager, SkillExecutionContext } from "./SkillManager";
 import { ProxyManager } from "./ProxyManager";
 import { SecurityManager } from "./SecurityManager";
 import { ToolCatalogIndex } from "./ToolCatalogIndex";
@@ -574,7 +574,14 @@ export class EvokoreMCPServer {
         } else if (source === "plugin") {
           result = await this.pluginManager.handleToolCall(toolName, args);
         } else if (source === "native") {
-          result = await this.skillManager.handleToolCall(toolName, args);
+          const nativeSessionId = this.getSessionId(extra);
+          const nativeSession = this.sessionIsolation.getSession(nativeSessionId);
+          const skillContext: SkillExecutionContext = {
+            sessionId: nativeSessionId,
+            role: nativeSession?.role ?? null,
+            metadata: nativeSession?.metadata ?? new Map(),
+          };
+          result = await this.skillManager.handleToolCall(toolName, args, skillContext);
         } else if (source === "proxied") {
           const sessionId = this.getSessionId(extra);
           const session = this.sessionIsolation.getSession(sessionId);
