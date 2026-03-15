@@ -429,6 +429,15 @@ export class EvokoreMCPServer {
     throw new McpError(ErrorCode.InvalidParams, "Unknown evokore resource: " + uri);
   }
 
+  private redactSensitiveArgs(args: Record<string, unknown>): Record<string, unknown> {
+    const sensitiveKeys = ['_evokore_approval_token', 'password', 'secret', 'token', 'key', 'credential', 'api_key', 'apiKey', 'access_token', 'accessToken'];
+    const redacted: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(args)) {
+      redacted[k] = sensitiveKeys.some(sk => k.toLowerCase().includes(sk.toLowerCase())) ? '[REDACTED]' : v;
+    }
+    return redacted;
+  }
+
   private setupHandlers() {
     // 1. Resources (Skills + Server-level)
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
@@ -580,6 +589,8 @@ export class EvokoreMCPServer {
       const args = request.params.arguments || {};
 
       try {
+        this.webhookManager.emit("tool_call", { tool: toolName, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
+
         let result: any;
 
         if (toolName === "discover_tools") {
@@ -600,10 +611,9 @@ export class EvokoreMCPServer {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
         }
 
-        this.webhookManager.emit("tool_call", { tool: toolName, arguments: args });
         return result;
       } catch (error: any) {
-        this.webhookManager.emit("tool_error", { tool: toolName, error: error?.message || String(error) });
+        this.webhookManager.emit("tool_error", { tool: toolName, arguments: this.redactSensitiveArgs(args as Record<string, unknown>), error: error?.message || String(error) });
         throw error;
       }
     });

@@ -3,10 +3,10 @@ import fs from 'fs';
 import path from 'path';
 import http from 'http';
 import crypto from 'crypto';
+import { WebhookManager, WEBHOOK_EVENT_TYPES, WebhookPayload } from '../../src/WebhookManager';
 
 const ROOT = path.resolve(__dirname, '../..');
 const webhookManagerTsPath = path.join(ROOT, 'src', 'WebhookManager.ts');
-const webhookManagerJsPath = path.join(ROOT, 'dist', 'WebhookManager.js');
 const indexTsPath = path.join(ROOT, 'src', 'index.ts');
 
 // ---- Source-level structural validation ----
@@ -17,14 +17,9 @@ describe('T29: Webhook Event System', () => {
       expect(fs.existsSync(webhookManagerTsPath)).toBe(true);
     });
 
-    it('WebhookManager.js compiled file exists', () => {
-      expect(fs.existsSync(webhookManagerJsPath)).toBe(true);
-    });
-
     it('exports WebhookManager class', () => {
-      const mod = require(webhookManagerJsPath);
-      expect(mod.WebhookManager).toBeDefined();
-      expect(typeof mod.WebhookManager).toBe('function');
+      expect(WebhookManager).toBeDefined();
+      expect(typeof WebhookManager).toBe('function');
     });
   });
 
@@ -60,21 +55,19 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('exports WEBHOOK_EVENT_TYPES array', () => {
-      const mod = require(webhookManagerJsPath);
-      expect(Array.isArray(mod.WEBHOOK_EVENT_TYPES)).toBe(true);
-      expect(mod.WEBHOOK_EVENT_TYPES).toContain('tool_call');
-      expect(mod.WEBHOOK_EVENT_TYPES).toContain('tool_error');
-      expect(mod.WEBHOOK_EVENT_TYPES).toContain('session_start');
-      expect(mod.WEBHOOK_EVENT_TYPES).toContain('session_end');
-      expect(mod.WEBHOOK_EVENT_TYPES).toContain('approval_requested');
-      expect(mod.WEBHOOK_EVENT_TYPES).toContain('approval_granted');
-      expect(mod.WEBHOOK_EVENT_TYPES.length).toBe(6);
+      expect(Array.isArray(WEBHOOK_EVENT_TYPES)).toBe(true);
+      expect(WEBHOOK_EVENT_TYPES).toContain('tool_call');
+      expect(WEBHOOK_EVENT_TYPES).toContain('tool_error');
+      expect(WEBHOOK_EVENT_TYPES).toContain('session_start');
+      expect(WEBHOOK_EVENT_TYPES).toContain('session_end');
+      expect(WEBHOOK_EVENT_TYPES).toContain('approval_requested');
+      expect(WEBHOOK_EVENT_TYPES).toContain('approval_granted');
+      expect(WEBHOOK_EVENT_TYPES.length).toBe(6);
     });
   });
 
   describe('webhook config parsing', () => {
     it('loadWebhooks reads from a config file with webhooks key', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const tmpConfig = path.join(ROOT, '.test-webhook-config.json');
 
       try {
@@ -93,16 +86,15 @@ describe('T29: Webhook Event System', () => {
         expect(hooks.length).toBe(2);
         expect(hooks[0].url).toBe('https://example.com/hook');
         expect(hooks[0].events).toEqual(['tool_call']);
-        expect(hooks[0].secret).toBe('test-secret');
+        expect(hooks[0].hasSecret).toBe(true);
         expect(hooks[1].url).toBe('https://example.com/hook2');
-        expect(hooks[1].secret).toBeUndefined();
+        expect(hooks[1].hasSecret).toBe(false);
       } finally {
         if (fs.existsSync(tmpConfig)) fs.unlinkSync(tmpConfig);
       }
     });
 
     it('loadWebhooks gracefully handles missing config file', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const manager = new WebhookManager();
       manager.setEnabled(true);
       manager.loadWebhooks('/nonexistent/path.json');
@@ -110,7 +102,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('loadWebhooks gracefully handles config without webhooks key', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const tmpConfig = path.join(ROOT, '.test-webhook-config-no-key.json');
 
       try {
@@ -126,7 +117,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('loadWebhooks filters invalid webhook entries', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const tmpConfig = path.join(ROOT, '.test-webhook-config-invalid.json');
 
       try {
@@ -153,7 +143,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('loadWebhooks is skipped when disabled', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const tmpConfig = path.join(ROOT, '.test-webhook-config-disabled.json');
 
       try {
@@ -175,7 +164,6 @@ describe('T29: Webhook Event System', () => {
 
   describe('HMAC signature generation', () => {
     it('computeSignature produces a valid HMAC-SHA256 hex digest', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const body = '{"event":"tool_call","data":{}}';
       const secret = 'test-secret-123';
 
@@ -192,7 +180,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('different secrets produce different signatures', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const body = '{"test":true}';
 
       const sig1 = WebhookManager.computeSignature(body, 'secret-a');
@@ -202,7 +189,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('different payloads produce different signatures', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const secret = 'shared-secret';
 
       const sig1 = WebhookManager.computeSignature('{"a":1}', secret);
@@ -212,10 +198,52 @@ describe('T29: Webhook Event System', () => {
     });
   });
 
+  describe('signature verification', () => {
+    it('verifySignature returns true for valid signature', () => {
+      const body = '{"test":true}';
+      const secret = 'test-secret';
+      const sig = WebhookManager.computeSignature(body, secret);
+      expect(WebhookManager.verifySignature(body, secret, sig)).toBe(true);
+    });
+
+    it('verifySignature returns false for invalid signature', () => {
+      const body = '{"test":true}';
+      const secret = 'test-secret';
+      expect(WebhookManager.verifySignature(body, secret, 'invalid-hex')).toBe(false);
+    });
+  });
+
+  describe('URL scheme validation', () => {
+    it('rejects non-HTTP webhook URLs', () => {
+      const tmpConfig = path.join(ROOT, '.test-webhook-config-url-scheme.json');
+
+      try {
+        fs.writeFileSync(tmpConfig, JSON.stringify({
+          webhooks: [
+            { url: 'ftp://example.com/hook', events: ['tool_call'] },
+            { url: 'file:///etc/passwd', events: ['tool_call'] },
+            { url: 'javascript:alert(1)', events: ['tool_call'] },
+            { url: 'https://valid.com/hook', events: ['tool_call'] },
+            { url: 'http://localhost:8080/hook', events: ['tool_error'] }
+          ]
+        }));
+
+        const manager = new WebhookManager();
+        manager.setEnabled(true);
+        manager.loadWebhooks(tmpConfig);
+
+        const hooks = manager.getWebhooks();
+        expect(hooks.length).toBe(2);
+        expect(hooks[0].url).toBe('https://valid.com/hook');
+        expect(hooks[1].url).toBe('http://localhost:8080/hook');
+      } finally {
+        if (fs.existsSync(tmpConfig)) fs.unlinkSync(tmpConfig);
+      }
+    });
+  });
+
   describe('event payload format', () => {
     it('emit constructs a well-formed payload and delivers it', async () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
-
       // Start a local HTTP server to capture the webhook delivery
       let receivedBody: any = null;
       let receivedHeaders: http.IncomingHttpHeaders = {};
@@ -274,8 +302,6 @@ describe('T29: Webhook Event System', () => {
 
   describe('fire-and-forget delivery', () => {
     it('emit does not block the caller even when webhook is slow', async () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
-
       // Create a slow server that takes 3 seconds to respond
       const server = http.createServer((req, res) => {
         req.resume();
@@ -313,7 +339,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('emit does not throw when no webhooks are configured', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       const manager = new WebhookManager();
       manager.setEnabled(true);
 
@@ -324,8 +349,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('emit skips webhooks that do not subscribe to the event type', async () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
-
       let hitCount = 0;
       const server = http.createServer((req, res) => {
         hitCount++;
@@ -363,8 +386,6 @@ describe('T29: Webhook Event System', () => {
 
   describe('retry logic', () => {
     it('retries failed deliveries up to 3 times', async () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
-
       let attemptCount = 0;
       const server = http.createServer((req, res) => {
         attemptCount++;
@@ -407,8 +428,6 @@ describe('T29: Webhook Event System', () => {
     }, 10000);
 
     it('gives up after 3 failed attempts', async () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
-
       let attemptCount = 0;
       const server = http.createServer((req, res) => {
         attemptCount++;
@@ -448,7 +467,6 @@ describe('T29: Webhook Event System', () => {
 
   describe('disabled state (EVOKORE_WEBHOOKS_ENABLED=false)', () => {
     it('isEnabled returns false by default', () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
       // Save and clear env
       const saved = process.env.EVOKORE_WEBHOOKS_ENABLED;
       delete process.env.EVOKORE_WEBHOOKS_ENABLED;
@@ -464,8 +482,6 @@ describe('T29: Webhook Event System', () => {
     });
 
     it('emit is a no-op when disabled', async () => {
-      const { WebhookManager } = require(webhookManagerJsPath);
-
       let hitCount = 0;
       const server = http.createServer((req, res) => {
         hitCount++;
@@ -529,6 +545,10 @@ describe('T29: Webhook Event System', () => {
 
     it('emits session_start event in run methods', () => {
       expect(indexSrc).toMatch(/this\.webhookManager\.emit\("session_start"/);
+    });
+
+    it('redacts sensitive arguments in tool_call emit', () => {
+      expect(indexSrc).toMatch(/this\.redactSensitiveArgs\(/);
     });
   });
 });

@@ -157,6 +157,17 @@ export class WebhookManager {
   }
 
   /**
+   * Verify an HMAC-SHA256 signature using timing-safe comparison.
+   */
+  static verifySignature(body: string, secret: string, receivedSignature: string): boolean {
+    const expected = WebhookManager.computeSignature(body, secret);
+    const expectedBuf = Buffer.from(expected, 'hex');
+    const receivedBuf = Buffer.from(receivedSignature, 'hex');
+    if (expectedBuf.length !== receivedBuf.length) return false;
+    return crypto.timingSafeEqual(expectedBuf, receivedBuf);
+  }
+
+  /**
    * Whether webhooks are enabled.
    */
   isEnabled(): boolean {
@@ -165,9 +176,14 @@ export class WebhookManager {
 
   /**
    * Get loaded webhook configs (for diagnostics).
+   * Secrets are omitted; only a boolean `hasSecret` flag is exposed.
    */
-  getWebhooks(): ReadonlyArray<WebhookConfig> {
-    return this.webhooks;
+  getWebhooks(): ReadonlyArray<Omit<WebhookConfig, 'secret'> & { hasSecret: boolean }> {
+    return this.webhooks.map(w => ({
+      url: w.url,
+      events: [...w.events],
+      hasSecret: !!w.secret,
+    }));
   }
 
   /**
@@ -190,6 +206,12 @@ export class WebhookManager {
     if (!entry || typeof entry !== "object") return false;
     if (typeof entry.url !== "string" || !entry.url) return false;
     if (!Array.isArray(entry.events) || entry.events.length === 0) return false;
+    try {
+      const u = new URL(entry.url);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    } catch {
+      return false;
+    }
     return true;
   }
 
@@ -224,6 +246,11 @@ export class WebhookManager {
     payload: WebhookPayload
   ): Promise<DeliveryResult> {
     return new Promise((resolve) => {
+      let settled = false;
+      const settle = (result: DeliveryResult) => {
+        if (!settled) { settled = true; resolve(result); }
+      };
+
       try {
         const body = JSON.stringify(payload);
         const url = new URL(webhook.url);
@@ -258,9 +285,9 @@ export class WebhookManager {
           res.on("end", () => {
             const statusCode = res.statusCode ?? 0;
             if (statusCode >= 200 && statusCode < 300) {
-              resolve({ success: true, statusCode });
+              settle({ success: true, statusCode });
             } else {
-              resolve({
+              settle({
                 success: false,
                 statusCode,
                 error: `HTTP ${statusCode}`,
@@ -270,18 +297,18 @@ export class WebhookManager {
         });
 
         req.on("error", (err) => {
-          resolve({ success: false, error: err.message });
+          settle({ success: false, error: err.message });
         });
 
         req.on("timeout", () => {
           req.destroy(new Error("Request timeout"));
-          resolve({ success: false, error: "Request timeout" });
+          settle({ success: false, error: "Request timeout" });
         });
 
         req.write(body);
         req.end();
       } catch (err: any) {
-        resolve({ success: false, error: err?.message || String(err) });
+        settle({ success: false, error: err?.message || String(err) });
       }
     });
   }

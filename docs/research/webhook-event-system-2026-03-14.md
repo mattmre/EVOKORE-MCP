@@ -45,7 +45,9 @@ Each subscription specifies which events it listens to. Events not in the subscr
 
 - Payloads are signed with HMAC-SHA256 using the webhook's `secret`.
 - The signature is included in the `X-EVOKORE-Signature` header.
-- Consumers verify by computing `HMAC-SHA256(body, secret)` and comparing.
+- Consumers verify using `WebhookManager.verifySignature(body, secret, receivedSignature)`, which uses `crypto.timingSafeEqual` for constant-time comparison to prevent timing attacks.
+- Sensitive tool arguments (tokens, passwords, secrets, API keys, credentials) are automatically redacted to `[REDACTED]` in webhook payloads before delivery.
+- The `getWebhooks()` diagnostic method returns sanitized copies with `hasSecret: boolean` instead of exposing raw secret values.
 
 ### Delivery Model
 
@@ -72,6 +74,8 @@ Webhooks are disabled by default. Set `EVOKORE_WEBHOOKS_ENABLED=true` in the env
   }
 }
 ```
+
+**Note:** Arguments containing sensitive keys (e.g., `_evokore_approval_token`, `password`, `secret`, `token`, `key`, `credential`, `api_key`, `apiKey`, `access_token`, `accessToken`) are automatically replaced with `[REDACTED]` before inclusion in webhook payloads.
 
 ## Architecture
 
@@ -106,4 +110,3 @@ No new dependencies. Uses Node.js built-in `http`, `https`, and `crypto` modules
 - Emit `approval_requested` and `approval_granted` from SecurityManager
 - Webhook delivery metrics (success/failure counts) exposed via `evokore://server/status` resource
 - Dead letter queue for persistently failing webhooks
-# CI sync
