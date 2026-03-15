@@ -11,8 +11,8 @@ const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
  * Repo Audit Hook Runtime (UserPromptSubmit)
  *
  * Runs repo-state-audit on the first prompt of a session and injects any
- * warnings as additionalContext.  Opt-in only: requires
- * EVOKORE_REPO_AUDIT_HOOK=true in the environment.
+ * warnings as additionalContext.  Enabled by default; opt-out by setting
+ * EVOKORE_REPO_AUDIT_HOOK=false in the environment.
  *
  * Fail-safe: every error path exits 0 so the session is never blocked.
  */
@@ -21,8 +21,8 @@ let input = '';
 process.stdin.on('data', (chunk) => input += chunk);
 process.stdin.on('end', () => {
   try {
-    // Opt-in gate — disabled by default
-    if (process.env.EVOKORE_REPO_AUDIT_HOOK !== 'true') {
+    // Opt-out gate — enabled by default
+    if (process.env.EVOKORE_REPO_AUDIT_HOOK === 'false') {
       process.exit(0);
     }
 

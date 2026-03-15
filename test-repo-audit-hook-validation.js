@@ -35,10 +35,10 @@ check('runtime integrates with repo-state-audit', () => {
   assert.match(runtime, /collectAudit/, 'runtime should call collectAudit');
 });
 
-check('runtime is opt-in via EVOKORE_REPO_AUDIT_HOOK', () => {
+check('runtime is enabled by default with opt-out via EVOKORE_REPO_AUDIT_HOOK=false', () => {
   const runtime = fs.readFileSync(path.resolve(__dirname, 'scripts', 'repo-audit-hook-runtime.js'), 'utf8');
   assert.match(runtime, /EVOKORE_REPO_AUDIT_HOOK/, 'runtime should check EVOKORE_REPO_AUDIT_HOOK env var');
-  assert.match(runtime, /!== 'true'/, 'runtime should require explicit true value');
+  assert.match(runtime, /=== 'false'/, 'runtime should only disable on explicit false value');
 });
 
 check('runtime only runs once per session via marker file', () => {
@@ -85,12 +85,12 @@ check('settings.json includes repo-audit-hook in UserPromptSubmit', () => {
   assert.ok(found, 'repo-audit-hook should be registered in UserPromptSubmit hooks');
 });
 
-check('hook exits silently when EVOKORE_REPO_AUDIT_HOOK is not set', () => {
+check('hook exits silently when EVOKORE_REPO_AUDIT_HOOK is set to false', () => {
   const hookPath = path.resolve(__dirname, 'scripts', 'hooks', 'repo-audit-hook.js');
   const result = spawnSync(process.execPath, [hookPath], {
     input: JSON.stringify({ session_id: 'test-audit-disabled' }),
     encoding: 'utf8',
-    env: Object.assign({}, process.env, { EVOKORE_REPO_AUDIT_HOOK: '' }),
+    env: Object.assign({}, process.env, { EVOKORE_REPO_AUDIT_HOOK: 'false' }),
     timeout: 10000
   });
   assert.strictEqual(result.status, 0, 'hook should exit 0 when disabled');
