@@ -1,60 +1,47 @@
 # Next Session Priorities
 
-Last Updated (UTC): 2026-03-14
+Last Updated (UTC): 2026-03-15
 
 ## Current Handoff State
-- **Main branch:** `bbb03a0` — PR #124 merged (MCP startup handshake fix)
+- **Main branch:** `15bd495` — PRs #142-#156 merged (15 total across two sprint sessions)
 - **Open PRs:** none
 - **Version:** 3.0.0
-- **Test suite:** 73 files, 180 tests, all passing via vitest
-- **Session log:** `docs/session-logs/session-2026-03-14-pr124-startup-handshake.md`
+- **Test suite:** 106 files, 1224 tests via vitest
+- **Session log:** `docs/session-logs/session-2026-03-15-v3-hardening-sprint-2.md`
 
-## Completed This Session (PR #124)
-- fix: unblock MCP startup from child server boot (#124)
-  - ProxyManager.loadServers() now boots child servers asynchronously in background
-  - MCP handshake completes immediately without waiting for proxy connections
-  - Configurable boot timeout via EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS
-  - Created shared test helper `tests/helpers/wait-for-proxy-boot.js`
-  - Updated 7 integration tests for async boot pattern
-  - Removed tracked dist/ files, cleaned up unused imports
-  - Test count: 179 -> 180
-
-## Previously Completed (PRs #108-#122)
-- T28-T42: v3.0.0 full implementation sprint (15 PRs)
+## Completed This Session
+- PR #146: E2E wired pipeline test (reviewed, 6 fixes applied, merged)
+- PR #147: Plugin authoring guide
+- PR #148: Webhook configuration guide
+- PR #149: OAuth setup guide
+- PR #150: HTTP deployment guide
+- PR #151: USAGE.md + README.md v3.0 update
+- PR #152: Damage control regex coverage tests
+- PR #153: SkillManager session context (RBAC bypass fix)
+- PR #154: GH Actions quota monitoring script
+- PR #155: Plugin webhook subscription API
+- PR #156: Log rotation boundary tests + repo audit hook default enablement
 
 ## Next Actions
 
-### Priority 1: npm Publish
-- Run `npm publish --dry-run` to verify package contents
-- Publish v3.0.0 to npm if ready
-- Create GitHub release with tag `v3.0.0` and changelog
+### Priority 1: npm Publish v3.0.0
+- All implementation phases complete
+- To publish: `git tag v3.0.0 && git push origin v3.0.0`
+- Release workflow creates GitHub Release with auto-generated notes
+- Verify NPM_TOKEN is configured in repo secrets first
 
-### Priority 2: Documentation Refresh
-- Update the main README with new v3.0 capabilities
-- Update docs/USAGE.md with new tools (refresh_skills, fetch_skill, execute_skill)
-- Update docs/SETUP.md with new env vars (EVOKORE_ROLE, EVOKORE_SKILL_WATCHER, EVOKORE_REPO_AUDIT_HOOK, EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS)
-- Update docs/ARCHITECTURE.md with new runtime layers (RBAC, rate limiting, dashboard, async proxy boot)
+### Priority 2: v3.1.0 Planning
+- STT voice input implementation (research completed in PR #130)
+- Live Supabase integration test
+- Further operational hardening based on production feedback
 
-### Priority 3: Integration Testing
-- Test the HTTP transport with a real remote MCP server
-- Test Supabase integration with a live project
-- Test skill fetching from a GitHub raw URL
-- Test RBAC role switching in a live session
-- Test async proxy boot behavior under slow/failing child servers
-
-### Priority 4: Future Roadmap Candidates
-- StreamableHTTP server transport (expose EVOKORE over HTTP, not just stdio)
-- OAuth authentication for HTTP transport
-- Plugin system for custom tool providers
-- Webhook/event system for external notifications
-- Multi-tenant session isolation
-- STT (speech-to-text) integration for voice input
+### Priority 3: Consider
+- Live Supabase integration test with real database
+- Performance benchmarking for the full wired pipeline
+- Plugin ecosystem documentation and registry
 
 ## Guardrails
+- GitHub Actions CI may be quota-limited — check before expecting CI to run
+- Run `npx vitest run` locally before pushing PRs
 - Run `npm run repo:audit` before new work
-- Use `npx vitest run` for testing (not the old chained scripts)
-- The dashboard (`npm run dashboard`) is a separate process on port 8899
-- RBAC is opt-in via `EVOKORE_ROLE` env var — flat permissions still work by default
-- Skill watcher is opt-in via `EVOKORE_SKILL_WATCHER=true`
-- Repo audit hook is opt-in via `EVOKORE_REPO_AUDIT_HOOK=true`
-- Integration tests that call proxied tools must use `waitForProxyBoot()` after `client.connect()`
+- Agent worktrees need cleanup after sprint sessions
