@@ -25,6 +25,7 @@ import { PluginManager } from "./PluginManager";
 import { HttpServer } from "./HttpServer";
 import { WebhookManager } from "./WebhookManager";
 import { SessionIsolation } from "./SessionIsolation";
+import { loadAuthConfig } from "./auth/OAuthProvider";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -622,7 +623,11 @@ export class EvokoreMCPServer {
   async runHttp(): Promise<HttpServer> {
     await this.loadSubsystems();
 
-    const httpServer = new HttpServer(this.server, { sessionIsolation: this.sessionIsolation });
+    const authConfig = loadAuthConfig();
+    const httpServer = new HttpServer(this.server, {
+      sessionIsolation: this.sessionIsolation,
+      authConfig,
+    });
     await httpServer.start();
 
     const addr = httpServer.getAddress();
