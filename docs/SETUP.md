@@ -78,6 +78,8 @@ EVOKORE_TOOL_DISCOVERY_MODE=legacy
 | `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` | `30000` | Timeout in milliseconds for child server boot during async proxy bootstrap. |
 | `EVOKORE_TOOL_DISCOVERY_MODE` | `legacy` | Tool discovery mode: `legacy` or `dynamic`. |
 | `EVOKORE_MCP_CONFIG_PATH` | `mcp.config.json` (project root) | Override path to the child server config file. |
+| `EVOKORE_AUTH_REQUIRED` | `false` | Set to `true` to require Bearer token authentication on HTTP transport endpoints. |
+| `EVOKORE_AUTH_TOKEN` | (unset) | Static bearer token for HTTP transport authentication. Required when `EVOKORE_AUTH_REQUIRED=true`. |
 
 Important behavior:
 
@@ -189,6 +191,39 @@ Add a `rateLimit` block to any server definition:
 - **`refillRate`**: tokens restored per interval
 - **`refillIntervalMs`**: refill period in milliseconds
 - Rate limiting is separate from error-triggered cooldown
+
+### HTTP transport authentication
+
+When exposing EVOKORE-MCP over HTTP (instead of stdio), you can enable Bearer token authentication to protect the `/mcp` endpoint.
+
+1. Set the environment variables in your `.env`:
+
+   ```bash
+   EVOKORE_AUTH_REQUIRED=true
+   EVOKORE_AUTH_TOKEN=your-secret-token-here
+   ```
+
+2. All requests to `/mcp` must include the token:
+
+   ```bash
+   curl -X POST http://localhost:3000/mcp \
+     -H "Content-Type: application/json" \
+     -H "Authorization: Bearer your-secret-token-here" \
+     -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+   ```
+
+3. The `/health` endpoint is always unauthenticated (for load balancer probes):
+
+   ```bash
+   curl http://localhost:3000/health
+   ```
+
+Behavior notes:
+
+- When `EVOKORE_AUTH_REQUIRED` is unset or `false`, no authentication is enforced (default).
+- When `EVOKORE_AUTH_REQUIRED=true` but `EVOKORE_AUTH_TOKEN` is unset, all requests to protected endpoints are rejected and a warning is logged on startup.
+- Unauthorized requests receive a 401 response with a JSON-RPC error body and `WWW-Authenticate: Bearer` header.
+- Token comparison uses timing-safe equality to prevent timing attacks.
 
 ### RBAC setup
 
