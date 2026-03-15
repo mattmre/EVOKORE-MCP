@@ -67,9 +67,9 @@ export class EvokoreMCPServer {
     this.securityManager = new SecurityManager();
     this.proxyManager = new ProxyManager(this.securityManager);
     this.skillManager = new SkillManager(this.proxyManager);
-    this.pluginManager = new PluginManager();
-    this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
     this.webhookManager = new WebhookManager();
+    this.pluginManager = new PluginManager(this.webhookManager);
+    this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
     this.sessionIsolation = new SessionIsolation();
 
     this.setupHandlers();
@@ -545,7 +545,21 @@ export class EvokoreMCPServer {
       const args = request.params.arguments || {};
 
       try {
-        this.webhookManager.emit("tool_call", { tool: toolName, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
+        // Determine tool source for webhook metadata
+        let source: string;
+        if (toolName === "discover_tools" || toolName === "refresh_skills" || toolName === "fetch_skill" || toolName === "reload_plugins") {
+          source = "builtin";
+        } else if (this.pluginManager.isPluginTool(toolName)) {
+          source = "plugin";
+        } else if (this.toolCatalog.isNativeTool(toolName)) {
+          source = "native";
+        } else if (this.proxyManager.canHandle(toolName)) {
+          source = "proxied";
+        } else {
+          source = "unknown";
+        }
+
+        this.webhookManager.emit("tool_call", { tool: toolName, source, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
 
         let result: any;
 
@@ -557,11 +571,11 @@ export class EvokoreMCPServer {
           result = await this.handleFetchSkill(args);
         } else if (toolName === "reload_plugins") {
           result = await this.handleReloadPlugins();
-        } else if (this.pluginManager.isPluginTool(toolName)) {
+        } else if (source === "plugin") {
           result = await this.pluginManager.handleToolCall(toolName, args);
-        } else if (this.toolCatalog.isNativeTool(toolName)) {
+        } else if (source === "native") {
           result = await this.skillManager.handleToolCall(toolName, args);
-        } else if (this.proxyManager.canHandle(toolName)) {
+        } else if (source === "proxied") {
           result = await this.proxyManager.callProxiedTool(toolName, args);
         } else {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);

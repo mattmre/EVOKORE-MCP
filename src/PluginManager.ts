@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { WebhookManager, WebhookEventType } from "./WebhookManager";
 
 const DEFAULT_PLUGINS_DIR = path.resolve(__dirname, "../plugins");
 
@@ -25,6 +26,7 @@ export interface PluginContext {
   addTool(name: string, schema: { description: string; inputSchema: Record<string, any>; annotations?: Record<string, any> }, handler: (args: any) => Promise<any>): void;
   addResource(uri: string, resource: { name: string; mimeType?: string; description?: string }, handler: () => Promise<{ text: string }>): void;
   log(message: string): void;
+  emitWebhook(event: string, data: Record<string, unknown>): void;
 }
 
 export interface PluginManifest {
@@ -54,11 +56,13 @@ export interface PluginLoadResult {
 export class PluginManager {
   private plugins: Map<string, LoadedPlugin> = new Map();
   private pluginsDir: string;
+  private webhookManager: WebhookManager | null;
 
-  constructor() {
+  constructor(webhookManager?: WebhookManager) {
     this.pluginsDir = process.env.EVOKORE_PLUGINS_DIR
       ? path.resolve(process.env.EVOKORE_PLUGINS_DIR)
       : DEFAULT_PLUGINS_DIR;
+    this.webhookManager = webhookManager ?? null;
   }
 
   getPluginsDir(): string {
@@ -75,6 +79,13 @@ export class PluginManager {
       loadTimeMs: 0,
       errors: []
     };
+
+    // Emit plugin_unloaded for each previously loaded plugin before clearing
+    if (this.webhookManager) {
+      for (const [name, plugin] of this.plugins) {
+        this.webhookManager.emit("plugin_unloaded", { plugin: name, version: plugin.version });
+      }
+    }
 
     // Clear previously loaded plugins
     this.plugins.clear();
@@ -102,11 +113,33 @@ export class PluginManager {
       try {
         await this.loadSinglePlugin(filePath);
         result.loaded++;
+
+        // Emit plugin_loaded event for the just-loaded plugin
+        if (this.webhookManager) {
+          // Find the plugin that was just loaded from this file
+          for (const plugin of this.plugins.values()) {
+            if (plugin.filePath === filePath) {
+              this.webhookManager.emit("plugin_loaded", {
+                plugin: plugin.name,
+                version: plugin.version,
+                toolCount: plugin.tools.length,
+                resourceCount: plugin.resources.length,
+              });
+              break;
+            }
+          }
+        }
       } catch (err: any) {
         const errorMsg = err?.message || String(err);
         console.error(`[EVOKORE] Failed to load plugin ${file}: ${errorMsg}`);
         result.failed++;
         result.errors.push({ file, error: errorMsg });
+
+        // Emit plugin_load_error event
+        this.webhookManager?.emit("plugin_load_error", {
+          file: path.basename(filePath),
+          error: errorMsg,
+        });
       }
     }
 
@@ -183,6 +216,11 @@ export class PluginManager {
       },
       log(message: string) {
         console.error(`[EVOKORE][plugin:${pluginName}] ${message}`);
+      },
+      emitWebhook: (event: string, data: Record<string, unknown>) => {
+        if (this.webhookManager) {
+          this.webhookManager.emit(event as WebhookEventType, { ...data, plugin: manifest.name });
+        }
       }
     };
 

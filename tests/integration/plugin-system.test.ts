@@ -616,7 +616,7 @@ describe('T28: Plugin System', () => {
     });
 
     it('creates PluginManager instance', () => {
-      expect(indexSrc).toMatch(/new PluginManager\(\)/);
+      expect(indexSrc).toMatch(/new PluginManager\(/);
     });
 
     it('calls loadPlugins in loadSubsystems', () => {
