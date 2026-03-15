@@ -21,6 +21,7 @@ import { SkillManager } from "./SkillManager";
 import { ProxyManager } from "./ProxyManager";
 import { SecurityManager } from "./SecurityManager";
 import { ToolCatalogIndex } from "./ToolCatalogIndex";
+import { PluginManager } from "./PluginManager";
 import { HttpServer } from "./HttpServer";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
@@ -41,6 +42,7 @@ export class EvokoreMCPServer {
   private skillManager: SkillManager;
   private securityManager: SecurityManager;
   private proxyManager: ProxyManager;
+  private pluginManager: PluginManager;
   private toolCatalog: ToolCatalogIndex;
   private discoveryMode: ToolDiscoveryMode;
   private activatedToolSessionsBySession: Map<string, ActivatedToolSessionState>;
@@ -67,6 +69,7 @@ export class EvokoreMCPServer {
     this.securityManager = new SecurityManager();
     this.proxyManager = new ProxyManager(this.securityManager);
     this.skillManager = new SkillManager(this.proxyManager);
+    this.pluginManager = new PluginManager();
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
     this.activatedToolSessionsBySession = new Map();
 
@@ -88,7 +91,8 @@ export class EvokoreMCPServer {
   }
 
   private rebuildToolCatalog() {
-    this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), this.proxyManager.getProxiedTools());
+    const nativeTools = [...this.skillManager.getTools(), ...this.pluginManager.getTools()];
+    this.toolCatalog = new ToolCatalogIndex(nativeTools, this.proxyManager.getProxiedTools());
   }
 
   private getSessionId(extra?: RequestExtra): string {
@@ -294,6 +298,42 @@ export class EvokoreMCPServer {
     };
   }
 
+  private async handleReloadPlugins(): Promise<any> {
+    const result = await this.pluginManager.loadPlugins();
+    this.rebuildToolCatalog();
+
+    try {
+      await this.server.sendToolListChanged();
+    } catch (error: any) {
+      console.error(`[EVOKORE] sendToolListChanged() failed after plugin reload: ${error?.message || error}`);
+    }
+
+    const lines = [
+      `Plugins reloaded in ${result.loadTimeMs}ms: ${result.loaded} loaded, ${result.failed} failed, ${result.totalTools} tools, ${result.totalResources} resources.`
+    ];
+
+    if (result.errors.length > 0) {
+      lines.push("");
+      lines.push("Errors:");
+      for (const err of result.errors) {
+        lines.push(`  - ${err.file}: ${err.error}`);
+      }
+    }
+
+    const loadedPlugins = this.pluginManager.getLoadedPlugins();
+    if (loadedPlugins.length > 0) {
+      lines.push("");
+      lines.push("Loaded plugins:");
+      for (const p of loadedPlugins) {
+        lines.push(`  - ${p.name} v${p.version} (${p.toolCount} tools, ${p.resourceCount} resources)`);
+      }
+    }
+
+    return {
+      content: [{ type: "text", text: lines.join("\n") }]
+    };
+  }
+
   private async handleFetchSkill(args: any): Promise<any> {
     // Delegate to SkillManager for the fetch, then auto-refresh the index
     const result = await this.skillManager.handleToolCall("fetch_skill", args);
@@ -391,13 +431,21 @@ export class EvokoreMCPServer {
     this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
       const skillResources = this.skillManager.getResources();
       const serverResources = this.getServerResources();
-      return { resources: [...serverResources, ...skillResources] };
+      const pluginResources = this.pluginManager.getResources();
+      return { resources: [...serverResources, ...pluginResources, ...skillResources] };
     });
 
     this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
       const uri = request.params.uri;
       if (uri.startsWith("evokore://")) {
         return await this.readServerResource(uri);
+      }
+      // Check if a plugin owns this resource
+      if (this.pluginManager.isPluginResource(uri)) {
+        const pluginResult = await this.pluginManager.handleResourceRead(uri);
+        if (pluginResult) {
+          return pluginResult;
+        }
       }
       return this.skillManager.readResource(uri);
     });
@@ -540,6 +588,15 @@ export class EvokoreMCPServer {
         return await this.handleFetchSkill(args);
       }
 
+      if (toolName === "reload_plugins") {
+        return await this.handleReloadPlugins();
+      }
+
+      // Handle Plugin Tools
+      if (this.pluginManager.isPluginTool(toolName)) {
+        return await this.pluginManager.handleToolCall(toolName, args);
+      }
+
       // Handle Native Skill Tools
       if (this.toolCatalog.isNativeTool(toolName)) {
         return await this.skillManager.handleToolCall(toolName, args);
@@ -559,6 +616,13 @@ export class EvokoreMCPServer {
     await this.skillManager.loadSkills();
     const skillStats = this.skillManager.getStats();
     console.error(`[EVOKORE] Skill stats: ${skillStats.totalSkills} skills, ${skillStats.categories.length} categories, loaded in ${skillStats.loadTimeMs}ms, index ~${skillStats.fuseIndexSizeKb}KB`);
+
+    // Load plugins after skills but before proxy boot
+    const pluginResult = await this.pluginManager.loadPlugins();
+    if (pluginResult.loaded > 0) {
+      console.error(`[EVOKORE] Plugin stats: ${pluginResult.loaded} plugins, ${pluginResult.totalTools} tools, ${pluginResult.totalResources} resources, loaded in ${pluginResult.loadTimeMs}ms`);
+    }
+
     this.rebuildToolCatalog();
 
     // Opt-in filesystem watcher for auto-refreshing skills
