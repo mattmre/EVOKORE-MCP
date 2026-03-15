@@ -62,6 +62,14 @@ export class TokenBucket {
     return Math.ceil((1 - this.tokens) / this.refillRatePerMs);
   }
 
+  getCapacity(): number {
+    return this.maxTokens;
+  }
+
+  getRefillRatePerMs(): number {
+    return this.refillRatePerMs;
+  }
+
   private refill(): void {
     const now = Date.now();
     const elapsed = now - this.lastRefill;
@@ -161,26 +169,105 @@ export class ProxyManager {
     }
   }
 
-  private checkRateLimit(serverId: string, originalToolName: string): void {
+  /**
+   * Try to consume a token from a session-scoped counter entry.
+   * Returns true if the request is allowed, false if rate-limited.
+   * Initializes the counter lazily from the global bucket's capacity when first accessed.
+   */
+  private tryConsumeSessionCounter(
+    key: string,
+    sessionCounters: Map<string, { tokens: number; lastRefillAt: number }>,
+    globalBucket: TokenBucket
+  ): boolean {
+    let counter = sessionCounters.get(key);
+    if (!counter) {
+      // Lazy initialization: mirror the global bucket's capacity
+      counter = { tokens: globalBucket.getCapacity(), lastRefillAt: Date.now() };
+      sessionCounters.set(key, counter);
+    }
+
+    // Refill tokens based on elapsed time
+    const now = Date.now();
+    const elapsed = now - counter.lastRefillAt;
+    const capacity = globalBucket.getCapacity();
+    const refillRate = globalBucket.getRefillRatePerMs();
+    counter.tokens = Math.min(capacity, counter.tokens + elapsed * refillRate);
+    counter.lastRefillAt = now;
+
+    if (counter.tokens >= 1) {
+      counter.tokens -= 1;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Compute retry-after duration for a session-scoped counter entry.
+   */
+  private getSessionCounterRetryAfterMs(
+    key: string,
+    sessionCounters: Map<string, { tokens: number; lastRefillAt: number }>,
+    globalBucket: TokenBucket
+  ): number {
+    const counter = sessionCounters.get(key);
+    if (!counter) return 0;
+
+    // Refill first
+    const now = Date.now();
+    const elapsed = now - counter.lastRefillAt;
+    const capacity = globalBucket.getCapacity();
+    const refillRate = globalBucket.getRefillRatePerMs();
+    counter.tokens = Math.min(capacity, counter.tokens + elapsed * refillRate);
+    counter.lastRefillAt = now;
+
+    if (counter.tokens >= 1) return 0;
+    return Math.ceil((1 - counter.tokens) / refillRate);
+  }
+
+  private checkRateLimit(
+    serverId: string,
+    originalToolName: string,
+    sessionCounters?: Map<string, { tokens: number; lastRefillAt: number }>
+  ): void {
     // Check tool-level bucket first (more specific)
     const toolBucketKey = `${serverId}/${originalToolName}`;
     const toolBucket = this.rateLimitBuckets.get(toolBucketKey);
-    if (toolBucket && !toolBucket.tryConsume()) {
-      const retryMs = toolBucket.getRetryAfterMs();
-      throw new McpError(
-        ErrorCode.InvalidRequest,
-        `Rate limit exceeded for ${serverId}/${originalToolName}. Retry after ${Math.ceil(retryMs / 1000)}s.`
-      );
+    if (toolBucket) {
+      if (sessionCounters) {
+        if (!this.tryConsumeSessionCounter(toolBucketKey, sessionCounters, toolBucket)) {
+          const retryMs = this.getSessionCounterRetryAfterMs(toolBucketKey, sessionCounters, toolBucket);
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `Rate limit exceeded for ${serverId}/${originalToolName}. Retry after ${Math.ceil(retryMs / 1000)}s.`
+          );
+        }
+      } else if (!toolBucket.tryConsume()) {
+        const retryMs = toolBucket.getRetryAfterMs();
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Rate limit exceeded for ${serverId}/${originalToolName}. Retry after ${Math.ceil(retryMs / 1000)}s.`
+        );
+      }
     }
 
     // Check server-level bucket
     const serverBucket = this.rateLimitBuckets.get(serverId);
-    if (serverBucket && !serverBucket.tryConsume()) {
-      const retryMs = serverBucket.getRetryAfterMs();
-      throw new McpError(
-        ErrorCode.InvalidRequest,
-        `Rate limit exceeded for server '${serverId}'. Retry after ${Math.ceil(retryMs / 1000)}s.`
-      );
+    if (serverBucket) {
+      if (sessionCounters) {
+        if (!this.tryConsumeSessionCounter(serverId, sessionCounters, serverBucket)) {
+          const retryMs = this.getSessionCounterRetryAfterMs(serverId, sessionCounters, serverBucket);
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `Rate limit exceeded for server '${serverId}'. Retry after ${Math.ceil(retryMs / 1000)}s.`
+          );
+        }
+      } else if (!serverBucket.tryConsume()) {
+        const retryMs = serverBucket.getRetryAfterMs();
+        throw new McpError(
+          ErrorCode.InvalidRequest,
+          `Rate limit exceeded for server '${serverId}'. Retry after ${Math.ceil(retryMs / 1000)}s.`
+        );
+      }
     }
   }
 
@@ -417,7 +504,7 @@ export class ProxyManager {
     return this.toolRegistry.has(toolName);
   }
 
-  async callProxiedTool(toolName: string, args: any, role?: string | null): Promise<any> {
+  async callProxiedTool(toolName: string, args: any, role?: string | null, sessionCounters?: Map<string, { tokens: number; lastRefillAt: number }>): Promise<any> {
     const registryEntry = this.toolRegistry.get(toolName);
     if (!registryEntry) {
       throw new McpError(ErrorCode.MethodNotFound, `Tool not found in proxy registry: ${toolName}`);
@@ -455,7 +542,7 @@ export class ProxyManager {
     }
 
     // 2. Rate Limit Check (proactive, before the call)
-    this.checkRateLimit(serverId, originalName);
+    this.checkRateLimit(serverId, originalName, sessionCounters);
 
     // 3. Cooldown Check (reactive, after previous errors)
     const cooldownKey = this.getCooldownKey(toolName, toolArgs);
