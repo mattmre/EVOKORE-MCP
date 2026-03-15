@@ -27,6 +27,7 @@ export interface PluginContext {
   addResource(uri: string, resource: { name: string; mimeType?: string; description?: string }, handler: () => Promise<{ text: string }>): void;
   log(message: string): void;
   emitWebhook(event: string, data: Record<string, unknown>): void;
+  onWebhookEvent(eventType: string, handler: (event: any) => void): void;
 }
 
 export interface PluginManifest {
@@ -80,9 +81,10 @@ export class PluginManager {
       errors: []
     };
 
-    // Emit plugin_unloaded for each previously loaded plugin before clearing
+    // Emit plugin_unloaded and clean up subscriptions for each previously loaded plugin before clearing
     if (this.webhookManager) {
       for (const [name, plugin] of this.plugins) {
+        this.webhookManager.unsubscribeAll(name);
         this.webhookManager.emit("plugin_unloaded", { plugin: name, version: plugin.version });
       }
     }
@@ -220,6 +222,11 @@ export class PluginManager {
       emitWebhook: (event: string, data: Record<string, unknown>) => {
         if (this.webhookManager) {
           this.webhookManager.emit(event as WebhookEventType, { ...data, plugin: manifest.name });
+        }
+      },
+      onWebhookEvent: (eventType: string, handler: (event: any) => void) => {
+        if (this.webhookManager) {
+          this.webhookManager.subscribe(eventType, pluginName, handler);
         }
       }
     };
