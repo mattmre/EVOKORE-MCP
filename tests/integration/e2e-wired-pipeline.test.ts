@@ -40,6 +40,7 @@ function httpRequest(options: {
   method: string;
   headers?: Record<string, string>;
   body?: string;
+  timeout?: number;
 }): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(
@@ -49,6 +50,7 @@ function httpRequest(options: {
         path: options.path,
         method: options.method,
         headers: options.headers,
+        timeout: options.timeout ?? 10000,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -62,6 +64,9 @@ function httpRequest(options: {
         });
       }
     );
+    req.on('timeout', () => {
+      req.destroy(new Error('httpRequest helper: request timed out'));
+    });
     req.on('error', reject);
     if (options.body) {
       req.write(options.body);
@@ -81,6 +86,30 @@ function mcpInitializeBody() {
       clientInfo: { name: 'e2e-pipeline-test', version: '0.0.1' },
     },
   });
+}
+
+function tryConsumeSessionCounter(
+  key: string,
+  counters: Map<string, { tokens: number; lastRefillAt: number }>,
+  bucket: { getCapacity(): number; getRefillRatePerMs(): number }
+): boolean {
+  let counter = counters.get(key);
+  if (!counter) {
+    counter = { tokens: bucket.getCapacity(), lastRefillAt: Date.now() };
+    counters.set(key, counter);
+  }
+  const now = Date.now();
+  const elapsed = now - counter.lastRefillAt;
+  counter.tokens = Math.min(
+    bucket.getCapacity(),
+    counter.tokens + elapsed * bucket.getRefillRatePerMs()
+  );
+  counter.lastRefillAt = now;
+  if (counter.tokens >= 1) {
+    counter.tokens -= 1;
+    return true;
+  }
+  return false;
 }
 
 // ============================================================================
@@ -443,19 +472,12 @@ describe('E2E Wired Pipeline', () => {
         // A session should now exist in SessionIsolation
         const sessions = sessionIsolation.listSessions();
         expect(sessions.length).toBe(1);
-      });
-
-      it('session was registered in SessionIsolation with correct properties', () => {
-        // Verify the session created by the previous test has the expected structure
-        const sessions = sessionIsolation.listSessions();
-        expect(sessions.length).toBe(1);
 
         const sessionId = sessions[0];
         const session = sessionIsolation.getSession(sessionId);
         expect(session).not.toBeNull();
         expect(session.rateLimitCounters).toBeInstanceOf(Map);
         expect(session.activatedTools).toBeInstanceOf(Set);
-        // Role comes from EVOKORE_ROLE env var or null (no JWT claims in static mode)
         expect(session.role).toBe(process.env.EVOKORE_ROLE || null);
       });
     });
@@ -621,24 +643,26 @@ describe('E2E Wired Pipeline', () => {
         });
         await server2.start();
 
-        const addr = server2.getAddress();
-        const res = await httpRequest({
-          hostname: '127.0.0.1',
-          port: addr.port,
-          path: '/mcp',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json, text/event-stream',
-          },
-          body: mcpInitializeBody(),
-        });
+        try {
+          const addr = server2.getAddress();
+          const res = await httpRequest({
+            hostname: '127.0.0.1',
+            port: addr.port,
+            path: '/mcp',
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json, text/event-stream',
+            },
+            body: mcpInitializeBody(),
+          });
 
-        expect(res.statusCode).toBe(200);
-        expect(server2.getAuthConfig()).toBeNull();
-        expect(iso2.listSessions().length).toBe(1);
-
-        await server2.stop();
+          expect(res.statusCode).toBe(200);
+          expect(server2.getAuthConfig()).toBeNull();
+          expect(iso2.listSessions().length).toBe(1);
+        } finally {
+          await server2.stop();
+        }
       });
     });
 
@@ -775,41 +799,17 @@ describe('E2E Wired Pipeline', () => {
         // Simulate rate limiting using the token bucket pattern
         const globalBucket = new TokenBucket(2); // 2 requests per minute
 
-        function tryConsume(
-          key: string,
-          counters: Map<string, { tokens: number; lastRefillAt: number }>,
-          bucket: typeof globalBucket
-        ): boolean {
-          let counter = counters.get(key);
-          if (!counter) {
-            counter = { tokens: bucket.getCapacity(), lastRefillAt: Date.now() };
-            counters.set(key, counter);
-          }
-          const now = Date.now();
-          const elapsed = now - counter.lastRefillAt;
-          counter.tokens = Math.min(
-            bucket.getCapacity(),
-            counter.tokens + elapsed * bucket.getRefillRatePerMs()
-          );
-          counter.lastRefillAt = now;
-          if (counter.tokens >= 1) {
-            counter.tokens -= 1;
-            return true;
-          }
-          return false;
-        }
-
         const toolKey = 'testserver/some_tool';
 
         // Session A: use up both tokens
-        expect(tryConsume(toolKey, sessionA.rateLimitCounters, globalBucket)).toBe(true);
-        expect(tryConsume(toolKey, sessionA.rateLimitCounters, globalBucket)).toBe(true);
-        expect(tryConsume(toolKey, sessionA.rateLimitCounters, globalBucket)).toBe(false);
+        expect(tryConsumeSessionCounter(toolKey, sessionA.rateLimitCounters, globalBucket)).toBe(true);
+        expect(tryConsumeSessionCounter(toolKey, sessionA.rateLimitCounters, globalBucket)).toBe(true);
+        expect(tryConsumeSessionCounter(toolKey, sessionA.rateLimitCounters, globalBucket)).toBe(false);
 
         // Session B: should still have full capacity
-        expect(tryConsume(toolKey, sessionB.rateLimitCounters, globalBucket)).toBe(true);
-        expect(tryConsume(toolKey, sessionB.rateLimitCounters, globalBucket)).toBe(true);
-        expect(tryConsume(toolKey, sessionB.rateLimitCounters, globalBucket)).toBe(false);
+        expect(tryConsumeSessionCounter(toolKey, sessionB.rateLimitCounters, globalBucket)).toBe(true);
+        expect(tryConsumeSessionCounter(toolKey, sessionB.rateLimitCounters, globalBucket)).toBe(true);
+        expect(tryConsumeSessionCounter(toolKey, sessionB.rateLimitCounters, globalBucket)).toBe(false);
       });
     });
 
@@ -954,34 +954,17 @@ describe('E2E Wired Pipeline', () => {
         // Rate limiting: both have independent counters
         const bucket = new TokenBucket(1); // 1 req/min
 
-        function tryConsume(
-          key: string,
-          counters: Map<string, { tokens: number; lastRefillAt: number }>,
-          b: typeof bucket
-        ): boolean {
-          let counter = counters.get(key);
-          if (!counter) {
-            counter = { tokens: b.getCapacity(), lastRefillAt: Date.now() };
-            counters.set(key, counter);
-          }
-          if (counter.tokens >= 1) {
-            counter.tokens -= 1;
-            return true;
-          }
-          return false;
-        }
-
         // Admin can read (RBAC allows + rate limit allows first call)
         expect(sm.checkPermission('fs_read_file', adminSession.role)).toBe('allow');
-        expect(tryConsume('server/fs_read_file', adminSession.rateLimitCounters, bucket)).toBe(true);
+        expect(tryConsumeSessionCounter('server/fs_read_file', adminSession.rateLimitCounters, bucket)).toBe(true);
         // Admin exhausted
-        expect(tryConsume('server/fs_read_file', adminSession.rateLimitCounters, bucket)).toBe(false);
+        expect(tryConsumeSessionCounter('server/fs_read_file', adminSession.rateLimitCounters, bucket)).toBe(false);
 
         // Readonly can still read (RBAC allows via override + rate limit has own counter)
         expect(sm.checkPermission('fs_read_file', readonlySession.role)).toBe('allow');
-        expect(tryConsume('server/fs_read_file', readonlySession.rateLimitCounters, bucket)).toBe(true);
+        expect(tryConsumeSessionCounter('server/fs_read_file', readonlySession.rateLimitCounters, bucket)).toBe(true);
         // Readonly exhausted
-        expect(tryConsume('server/fs_read_file', readonlySession.rateLimitCounters, bucket)).toBe(false);
+        expect(tryConsumeSessionCounter('server/fs_read_file', readonlySession.rateLimitCounters, bucket)).toBe(false);
       });
     });
   });
@@ -1063,7 +1046,7 @@ describe('E2E Wired Pipeline', () => {
     });
 
     describe('Session state survives multiple accesses', () => {
-      it('getSession updates lastAccessedAt and preserves state', () => {
+      it('getSession updates lastAccessedAt and preserves state', async () => {
         const { SessionIsolation } = require(sessionIsolationJsPath);
 
         const iso = new SessionIsolation({ ttlMs: 60000 });
@@ -1074,10 +1057,7 @@ describe('E2E Wired Pipeline', () => {
         const originalLastAccess = session.lastAccessedAt;
 
         // Small delay to ensure timestamp changes
-        const start = Date.now();
-        while (Date.now() - start < 5) {
-          // spin-wait
-        }
+        await new Promise(resolve => setTimeout(resolve, 10));
 
         // Access the session
         const retrieved = iso.getSession('persistent');
@@ -1148,7 +1128,8 @@ describe('E2E Wired Pipeline', () => {
 
       it('redacts secrets in getWebhooks output', () => {
         expect(webhookSrc).toMatch(/hasSecret/);
-        expect(webhookSrc).not.toMatch(/getWebhooks.*secret\s*:/);
+        // Verify the return type uses Omit to strip secret
+        expect(webhookSrc).toMatch(/Omit\s*<\s*WebhookConfig\s*,\s*['"]secret['"]\s*>/);
       });
     });
 
@@ -1190,29 +1171,12 @@ describe('E2E Wired Pipeline', () => {
         // 4. RATE LIMIT: Check rate limit using session counters
         const bucket = new TokenBucket(3); // 3 req/min
 
-        function tryConsume(
-          key: string,
-          counters: Map<string, { tokens: number; lastRefillAt: number }>,
-          b: typeof bucket
-        ): boolean {
-          let counter = counters.get(key);
-          if (!counter) {
-            counter = { tokens: b.getCapacity(), lastRefillAt: Date.now() };
-            counters.set(key, counter);
-          }
-          if (counter.tokens >= 1) {
-            counter.tokens -= 1;
-            return true;
-          }
-          return false;
-        }
-
         // First three calls pass
-        expect(tryConsume('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(true);
-        expect(tryConsume('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(true);
-        expect(tryConsume('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(true);
+        expect(tryConsumeSessionCounter('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(true);
+        expect(tryConsumeSessionCounter('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(true);
+        expect(tryConsumeSessionCounter('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(true);
         // Fourth call is rate-limited
-        expect(tryConsume('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(false);
+        expect(tryConsumeSessionCounter('server/fs_read_file', session.rateLimitCounters, bucket)).toBe(false);
 
         // 5. SESSION CLEANUP: Verify session can be destroyed
         expect(iso.destroySession('e2e-flow-session')).toBe(true);
