@@ -21,6 +21,7 @@ import { SkillManager } from "./SkillManager";
 import { ProxyManager } from "./ProxyManager";
 import { SecurityManager } from "./SecurityManager";
 import { ToolCatalogIndex } from "./ToolCatalogIndex";
+import { HttpServer } from "./HttpServer";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -553,8 +554,7 @@ export class EvokoreMCPServer {
     });
   }
 
-  async run() {
-    // Load all subsystems sequentially
+  private async loadSubsystems(): Promise<void> {
     await this.securityManager.loadPermissions();
     await this.skillManager.loadSkills();
     const skillStats = this.skillManager.getStats();
@@ -571,6 +571,11 @@ export class EvokoreMCPServer {
       });
       this.skillManager.enableWatcher();
     }
+  }
+
+  async run() {
+    // Load all subsystems sequentially
+    await this.loadSubsystems();
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
@@ -579,9 +584,40 @@ export class EvokoreMCPServer {
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
     );
   }
+
+  async runHttp(): Promise<HttpServer> {
+    await this.loadSubsystems();
+
+    const httpServer = new HttpServer(this.server);
+    await httpServer.start();
+
+    const addr = httpServer.getAddress();
+    console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on HTTP at http://${addr.host}:${addr.port} (tool discovery mode: ${this.discoveryMode})`);
+
+    this.bootProxyServersInBackground().catch((err) =>
+      console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
+    );
+
+    // Graceful shutdown
+    const shutdown = async () => {
+      console.error("[EVOKORE] Shutting down HTTP server...");
+      await httpServer.stop();
+      process.exit(0);
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
+
+    return httpServer;
+  }
 }
 
 if (require.main === module) {
   const server = new EvokoreMCPServer();
-  server.run().catch(console.error);
+  const isHttpMode = process.env.EVOKORE_HTTP_MODE === "true" || process.argv.includes("--http");
+
+  if (isHttpMode) {
+    server.runHttp().catch(console.error);
+  } else {
+    server.run().catch(console.error);
+  }
 }
