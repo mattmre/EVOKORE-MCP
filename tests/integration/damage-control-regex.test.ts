@@ -475,6 +475,24 @@ describe('Damage Control Regex Coverage', () => {
     it('does NOT block chmod +x script.sh', () => {
       expect(testPattern(pattern, 'chmod +x script.sh')).toBe(false);
     });
+
+    // --- False positive mitigation tests (command-position requirement) ---
+
+    it('does NOT block echo "never chmod 777 files" (passive context)', () => {
+      expect(testPattern(pattern, 'echo "never chmod 777 files"')).toBe(false);
+    });
+
+    it('does NOT block grep "chmod 777" scripts/ (search context)', () => {
+      expect(testPattern(pattern, 'grep "chmod 777" scripts/')).toBe(false);
+    });
+
+    it('blocks echo done && chmod 777 file (command position after &&)', () => {
+      expect(testPattern(pattern, 'echo done && chmod 777 file')).toBe(true);
+    });
+
+    it('blocks echo done ; chmod 777 file (command position after ;)', () => {
+      expect(testPattern(pattern, 'echo done ; chmod 777 file')).toBe(true);
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -506,6 +524,29 @@ describe('Damage Control Regex Coverage', () => {
 
     it('does NOT block "Prettier --format" (no drive letter)', () => {
       expect(testPattern(pattern, 'prettier --format file.ts')).toBe(false);
+    });
+
+    // --- False positive mitigation tests (command-position requirement) ---
+
+    it('does NOT block echo "don\'t run mkfs" (passive context)', () => {
+      expect(testPattern(pattern, 'echo "don\'t run mkfs"')).toBe(false);
+    });
+
+    it('does NOT block man mkfs (documentation lookup)', () => {
+      expect(testPattern(pattern, 'man mkfs')).toBe(false);
+    });
+
+    it('does NOT block grep mkfs /var/log/syslog (search context)', () => {
+      expect(testPattern(pattern, 'grep mkfs /var/log/syslog')).toBe(false);
+    });
+
+    it('blocks echo done && mkfs /dev/sda (command position after &&)', () => {
+      expect(testPattern(pattern, 'echo done && mkfs /dev/sda')).toBe(true);
+    });
+
+    it('blocks echo done ; format C: (command position after ;)', () => {
+      // Note: also caught by DC-19, but DC-12 should still match
+      expect(testPattern(pattern, 'echo done ; format C:')).toBe(true);
     });
   });
 
@@ -755,16 +796,42 @@ describe('Damage Control Regex Coverage', () => {
     });
 
     it('does NOT block "pseudo" (contains "sudo" but is different word)', () => {
-      // \b word boundary prevents matching inside other words
       expect(testPattern(pattern, 'pseudocode')).toBe(false);
     });
 
     it('does NOT block "visudo" (contains "sudo" as suffix)', () => {
-      // \b word boundary should prevent this
-      // Note: "visudo" contains the word boundary before "sudo" only after "vi"
-      // Since \bsudo\b matches word boundaries, and "visudo" has no boundary between vi and sudo,
-      // this should not match
       expect(testPattern(pattern, 'visudo')).toBe(false);
+    });
+
+    // --- False positive mitigation tests (command-position requirement) ---
+
+    it('does NOT block echo "use sudo to install" (passive context)', () => {
+      expect(testPattern(pattern, 'echo "use sudo to install"')).toBe(false);
+    });
+
+    it('does NOT block grep -r "sudo" scripts/ (search context)', () => {
+      expect(testPattern(pattern, 'grep -r "sudo" scripts/')).toBe(false);
+    });
+
+    it('does NOT block echo "run sudo apt install" (documentation)', () => {
+      expect(testPattern(pattern, 'echo "run sudo apt install"')).toBe(false);
+    });
+
+    it('does NOT block cat file | grep sudo (grep in pipeline)', () => {
+      // "sudo" appears after grep, not at command position after |
+      expect(testPattern(pattern, 'cat file | grep sudo')).toBe(false);
+    });
+
+    it('blocks echo hello && sudo rm -rf / (command position after &&)', () => {
+      expect(testPattern(pattern, 'echo hello && sudo rm -rf /')).toBe(true);
+    });
+
+    it('blocks echo hello ; sudo rm (command position after ;)', () => {
+      expect(testPattern(pattern, 'echo hello ; sudo rm')).toBe(true);
+    });
+
+    it('blocks echo hello | sudo tee file (command position after |)', () => {
+      expect(testPattern(pattern, 'echo hello | sudo tee file')).toBe(true);
     });
   });
 
