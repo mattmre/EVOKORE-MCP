@@ -38,7 +38,8 @@
     "replay": "node scripts/session-replay-view.js --latest",
     "hooks:view": "node scripts/hook-log-view.js",
     "dashboard": "node scripts/dashboard.js",
-    "actions:quota": "node scripts/gh-actions-quota.js"
+    "actions:quota": "node scripts/gh-actions-quota.js",
+    "bench": "node scripts/benchmark.js"
   },
   "keywords": [
     "mcp",
