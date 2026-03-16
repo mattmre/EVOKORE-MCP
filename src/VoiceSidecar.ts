@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { spawn, execSync } from "child_process";
+import type { STTProvider, STTResult } from "./STTProvider";
 
 // --- Types ---
 
@@ -29,11 +30,39 @@ interface ClientMessage {
   flush?: boolean;
 }
 
+/** STT request message from a client. */
+interface STTClientMessage {
+  type: "transcribe";
+  /** Base64-encoded audio data. */
+  audio: string;
+  /** Optional language hint (BCP-47). */
+  language?: string;
+  /** Optional model override. */
+  model?: string;
+}
+
+/** STT response sent back to the client. */
+interface STTResponse {
+  type: "stt_result";
+  text: string;
+  confidence?: number;
+  language?: string;
+  duration?: number;
+}
+
+/** Error response for STT failures. */
+interface STTErrorResponse {
+  type: "stt_error";
+  error: string;
+}
+
 interface HealthResponse {
   type: "health";
   status: "ok";
   connections: number;
   uptime: number;
+  sttEnabled: boolean;
+  sttProvider: string | null;
 }
 
 // --- Config ---
@@ -52,6 +81,10 @@ const CONNECT_MAX_RETRIES = 2;
 const FLUSH_TIMEOUT_MS = 30000;
 const SHUTDOWN_DRAIN_MS = 2000;
 const MAX_PAYLOAD_BYTES = 1 * 1024 * 1024; // 1 MB
+
+const STT_ENABLED = process.env.EVOKORE_STT_ENABLED === "true";
+const STT_PROVIDER_NAME = process.env.EVOKORE_STT_PROVIDER || "whisper-api";
+const STT_MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB (Whisper API limit)
 
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
@@ -341,6 +374,38 @@ class ElevenLabsStreamer {
   }
 }
 
+// --- STT Provider Initialization ---
+
+function initSTTProvider(): STTProvider | null {
+  if (!STT_ENABLED) {
+    return null;
+  }
+
+  try {
+    if (STT_PROVIDER_NAME === "local-whisper" || STT_PROVIDER_NAME === "local") {
+      const { LocalSTTProvider } = require("./stt/LocalSTTProvider");
+      const provider = new LocalSTTProvider();
+      if (!provider.isAvailable()) {
+        console.error("[VoiceSidecar] STT: local whisper CLI not found, STT disabled");
+        return null;
+      }
+      return provider;
+    }
+
+    // Default: whisper-api
+    const { WhisperSTTProvider } = require("./stt/WhisperSTTProvider");
+    const provider = new WhisperSTTProvider();
+    if (!provider.isAvailable()) {
+      console.error("[VoiceSidecar] STT: OPENAI_API_KEY not set, STT disabled");
+      return null;
+    }
+    return provider;
+  } catch (err: any) {
+    console.error("[VoiceSidecar] STT: Failed to load provider:", err.message);
+    return null;
+  }
+}
+
 // --- WebSocket Server ---
 
 function startServer(): void {
@@ -349,6 +414,12 @@ function startServer(): void {
   if (!apiKey) {
     console.error("[VoiceSidecar] ELEVENLABS_API_KEY not set. Load via .env or export.");
     process.exit(1);
+  }
+
+  // Initialize STT provider (opt-in via EVOKORE_STT_ENABLED=true)
+  const sttProvider = initSTTProvider();
+  if (sttProvider) {
+    console.error(`[VoiceSidecar] STT enabled: provider=${sttProvider.name}`);
   }
 
   // Cleanup stale temp files from prior runs
@@ -409,8 +480,79 @@ function startServer(): void {
             status: "ok",
             connections: wss.clients.size,
             uptime: Math.floor((Date.now() - startTime) / 1000),
+            sttEnabled: sttProvider !== null,
+            sttProvider: sttProvider ? sttProvider.name : null,
           };
           client.send(JSON.stringify(response));
+          return;
+        }
+
+        // --- STT transcription request ---
+        if ((msg as any).type === "transcribe") {
+          const sttMsg = msg as unknown as STTClientMessage;
+
+          if (!sttProvider) {
+            const errResp: STTErrorResponse = {
+              type: "stt_error",
+              error: "STT is not enabled. Set EVOKORE_STT_ENABLED=true and configure a provider.",
+            };
+            client.send(JSON.stringify(errResp));
+            return;
+          }
+
+          if (!sttMsg.audio || typeof sttMsg.audio !== "string") {
+            const errResp: STTErrorResponse = {
+              type: "stt_error",
+              error: "audio field is required and must be a base64-encoded string",
+            };
+            client.send(JSON.stringify(errResp));
+            return;
+          }
+
+          try {
+            const audioBuffer = Buffer.from(sttMsg.audio, "base64");
+
+            if (audioBuffer.length === 0) {
+              const errResp: STTErrorResponse = {
+                type: "stt_error",
+                error: "audio buffer is empty",
+              };
+              client.send(JSON.stringify(errResp));
+              return;
+            }
+
+            if (audioBuffer.length > STT_MAX_AUDIO_BYTES) {
+              const errResp: STTErrorResponse = {
+                type: "stt_error",
+                error: `audio exceeds maximum size of ${STT_MAX_AUDIO_BYTES} bytes`,
+              };
+              client.send(JSON.stringify(errResp));
+              return;
+            }
+
+            console.error(`[VoiceSidecar] STT: transcribing ${(audioBuffer.length / 1024).toFixed(1)}KB audio`);
+
+            const result: STTResult = await sttProvider.transcribe(audioBuffer, {
+              language: sttMsg.language,
+              model: sttMsg.model,
+            });
+
+            const response: STTResponse = {
+              type: "stt_result",
+              text: result.text,
+              confidence: result.confidence,
+              language: result.language,
+              duration: result.duration,
+            };
+            client.send(JSON.stringify(response));
+          } catch (sttErr: any) {
+            console.error("[VoiceSidecar] STT error:", sttErr.message);
+            const errResp: STTErrorResponse = {
+              type: "stt_error",
+              error: sttErr.message,
+            };
+            client.send(JSON.stringify(errResp));
+          }
           return;
         }
 
