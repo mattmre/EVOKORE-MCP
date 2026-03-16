@@ -551,4 +551,262 @@ describe('T20: Skill Versioning Validation', () => {
       expect(src).toMatch(/c\?\.name/);
     });
   });
+
+  // ---- Runtime: version parsing from frontmatter via parseSkillMarkdown ----
+
+  describe('version parsing from skill frontmatter (runtime)', () => {
+    function createSkillManager() {
+      const { SkillManager } = require(skillManagerJsPath);
+      return new SkillManager(mockProxyManager);
+    }
+
+    it('parses version: 1.2.3 from frontmatter correctly', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: versioned-skill\ndescription: A versioned skill\nversion: 1.2.3\n---\n# Versioned Skill\nContent here.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/versioned-skill/SKILL.md', 'versioned-skill', '');
+      expect(result).not.toBeNull();
+      expect(result.version).toBe('1.2.3');
+      expect(result.name).toBe('versioned-skill');
+    });
+
+    it('parses version from metadata subfield when top-level is absent', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: meta-versioned\ndescription: Uses metadata version\nmetadata:\n  version: 2.0.1\n---\n# Meta Versioned\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/meta-versioned/SKILL.md', 'meta-versioned', '');
+      expect(result).not.toBeNull();
+      expect(result.version).toBe('2.0.1');
+    });
+
+    it('prefers top-level version over metadata.version', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: dual-version\ndescription: Both versions\nversion: 3.0.0\nmetadata:\n  version: 1.0.0\n---\n# Dual Version\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/dual-version/SKILL.md', 'dual-version', '');
+      expect(result).not.toBeNull();
+      expect(result.version).toBe('3.0.0');
+    });
+
+    it('parses requires array with name and minVersion objects', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: with-requires\ndescription: Has requires\nversion: 1.0.0\nrequires:\n  - name: dep-skill\n    minVersion: "2.0.0"\n  - name: another-dep\n---\n# With Requires\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/with-requires/SKILL.md', 'with-requires', '');
+      expect(result).not.toBeNull();
+      expect(result.requires).toHaveLength(2);
+      expect(result.requires[0].name).toBe('dep-skill');
+      expect(result.requires[0].minVersion).toBe('2.0.0');
+      expect(result.requires[1].name).toBe('another-dep');
+      expect(result.requires[1].minVersion).toBeUndefined();
+    });
+
+    it('parses requires array with string-only entries', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: string-requires\ndescription: String requires\nrequires:\n  - basic-dep\n  - other-dep\n---\n# String Requires\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/string-requires/SKILL.md', 'string-requires', '');
+      expect(result).not.toBeNull();
+      expect(result.requires).toHaveLength(2);
+      expect(result.requires[0].name).toBe('basic-dep');
+      expect(result.requires[1].name).toBe('other-dep');
+    });
+
+    it('parses conflicts array from frontmatter', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: with-conflicts\ndescription: Has conflicts\nconflicts:\n  - bad-skill\n  - legacy-skill\n---\n# With Conflicts\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/with-conflicts/SKILL.md', 'with-conflicts', '');
+      expect(result).not.toBeNull();
+      expect(result.conflicts).toHaveLength(2);
+      expect(result.conflicts).toContain('bad-skill');
+      expect(result.conflicts).toContain('legacy-skill');
+    });
+
+    it('defaults gracefully when version field is absent', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: no-version\ndescription: No version field\n---\n# No Version\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/no-version/SKILL.md', 'no-version', '');
+      expect(result).not.toBeNull();
+      expect(result.version).toBeUndefined();
+      // Skill should still parse fine without version
+      expect(result.name).toBe('no-version');
+    });
+
+    it('omits requires key when frontmatter has no requires field', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: no-requires\ndescription: No requires\n---\n# No Requires\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/no-requires/SKILL.md', 'no-requires', '');
+      expect(result).not.toBeNull();
+      expect(result.requires).toBeUndefined();
+    });
+
+    it('omits conflicts key when frontmatter has no conflicts field', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: no-conflicts\ndescription: No conflicts\n---\n# No Conflicts\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/no-conflicts/SKILL.md', 'no-conflicts', '');
+      expect(result).not.toBeNull();
+      expect(result.conflicts).toBeUndefined();
+    });
+
+    it('returns null for content without frontmatter delimiters', () => {
+      const sm = createSkillManager();
+      const markdown = '# Just a heading\nNo frontmatter here.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/bad/SKILL.md', 'bad', '');
+      expect(result).toBeNull();
+    });
+
+    it('returns null for malformed YAML in frontmatter', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: [unterminated\n  bad: yaml: here:\n---\n# Bad YAML\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/bad-yaml/SKILL.md', 'bad-yaml', '');
+      // parseSkillMarkdown catches YAML parse errors and returns null
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---- Invalid version format handling ----
+
+  describe('invalid and unusual version format handling', () => {
+    function createSkillManager() {
+      const { SkillManager } = require(skillManagerJsPath);
+      return new SkillManager(mockProxyManager);
+    }
+
+    it('coerces numeric version to string', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: numeric-version\ndescription: Numeric version\nversion: 1.0\n---\n# Numeric Version\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/numeric-version/SKILL.md', 'numeric-version', '');
+      expect(result).not.toBeNull();
+      // YAML parses 1.0 as number; code uses String(version) to coerce
+      expect(typeof result.version).toBe('string');
+    });
+
+    it('handles version with extra segments (e.g., 1.2.3.4)', () => {
+      const sm = createSkillManager();
+      const markdown = '---\nname: extra-segments\ndescription: Extra version segments\nversion: "1.2.3.4"\n---\n# Extra Segments\nContent.';
+      const result = sm['parseSkillMarkdown'](markdown, 'test-cat', '/fake/extra/SKILL.md', 'extra-segments', '');
+      expect(result).not.toBeNull();
+      expect(result.version).toBe('1.2.3.4');
+    });
+
+    it('semverSatisfies handles versions with missing segments gracefully', () => {
+      const sm = createSkillManager();
+      // semverSatisfies pads missing segments with 0
+      const satisfies = sm['semverSatisfies']('1.0', '1.0.0');
+      expect(satisfies).toBe(true);
+    });
+
+    it('semverSatisfies handles single-segment versions', () => {
+      const sm = createSkillManager();
+      const satisfies = sm['semverSatisfies']('2', '1');
+      expect(satisfies).toBe(true);
+    });
+
+    it('semverSatisfies handles non-numeric version segments as NaN -> 0', () => {
+      const sm = createSkillManager();
+      // "abc".split(".").map(Number) => [NaN], and NaN || 0 => 0
+      const satisfies = sm['semverSatisfies']('abc', '0.0.0');
+      expect(satisfies).toBe(true);
+    });
+
+    it('validateDependencies does not crash with malformed version strings', () => {
+      const sm = createSkillManager();
+      sm['skillsCache'] = new Map([
+        ['test/checker', {
+          name: 'checker',
+          description: 'Checker',
+          category: 'test', subcategory: '', declaredCategory: 'test',
+          tags: [], aliases: [], resolutionHints: [],
+          metadata: {}, metadataText: '', searchableText: '',
+          pathDepth: 0, filePath: '/fake', content: '# checker',
+          requires: [{ name: 'dep', minVersion: 'not-a-version' }]
+        }],
+        ['test/dep', {
+          name: 'dep',
+          description: 'Dep',
+          category: 'test', subcategory: '', declaredCategory: 'test',
+          tags: [], aliases: [], resolutionHints: [],
+          metadata: {}, metadataText: '', searchableText: '',
+          pathDepth: 0, filePath: '/fake', content: '# dep',
+          version: 'also-not-a-version'
+        }]
+      ]);
+
+      // Should not throw, just return a result
+      expect(() => sm.validateDependencies('checker')).not.toThrow();
+      const result = sm.validateDependencies('checker');
+      expect(typeof result.valid).toBe('boolean');
+      expect(Array.isArray(result.errors)).toBe(true);
+    });
+  });
+
+  // ---- getSkillHelpText shows version info ----
+
+  describe('getSkillHelpText displays version and dependency info', () => {
+    function createSkillManager() {
+      const { SkillManager } = require(skillManagerJsPath);
+      return new SkillManager(mockProxyManager);
+    }
+
+    it('includes Version line when skill has version', () => {
+      const sm = createSkillManager();
+      sm['skillsCache'] = new Map([['test/ver-skill', {
+        name: 'ver-skill',
+        description: 'Versioned',
+        category: 'test', subcategory: '', declaredCategory: 'test',
+        tags: [], aliases: [], resolutionHints: [],
+        metadata: {}, metadataText: '', searchableText: '',
+        pathDepth: 0, filePath: '/fake', content: '# ver-skill content',
+        version: '4.5.6'
+      }]]);
+
+      const help = sm.getSkillHelpText('ver-skill');
+      expect(help).toContain('Version: 4.5.6');
+    });
+
+    it('omits Version line when skill has no version', () => {
+      const sm = createSkillManager();
+      sm['skillsCache'] = new Map([['test/no-ver', {
+        name: 'no-ver',
+        description: 'No version',
+        category: 'test', subcategory: '', declaredCategory: 'test',
+        tags: [], aliases: [], resolutionHints: [],
+        metadata: {}, metadataText: '', searchableText: '',
+        pathDepth: 0, filePath: '/fake', content: '# no-ver content',
+      }]]);
+
+      const help = sm.getSkillHelpText('no-ver');
+      expect(help).not.toContain('Version:');
+    });
+
+    it('includes Requires line with formatted dependencies', () => {
+      const sm = createSkillManager();
+      sm['skillsCache'] = new Map([['test/req-skill', {
+        name: 'req-skill',
+        description: 'Has requires',
+        category: 'test', subcategory: '', declaredCategory: 'test',
+        tags: [], aliases: [], resolutionHints: [],
+        metadata: {}, metadataText: '', searchableText: '',
+        pathDepth: 0, filePath: '/fake', content: '# req-skill',
+        requires: [
+          { name: 'dep-a', minVersion: '1.0.0' },
+          { name: 'dep-b' }
+        ]
+      }]]);
+
+      const help = sm.getSkillHelpText('req-skill');
+      expect(help).toContain('Requires: dep-a >= 1.0.0, dep-b');
+    });
+
+    it('includes Conflicts line when conflicts exist', () => {
+      const sm = createSkillManager();
+      sm['skillsCache'] = new Map([['test/con-skill', {
+        name: 'con-skill',
+        description: 'Has conflicts',
+        category: 'test', subcategory: '', declaredCategory: 'test',
+        tags: [], aliases: [], resolutionHints: [],
+        metadata: {}, metadataText: '', searchableText: '',
+        pathDepth: 0, filePath: '/fake', content: '# con-skill',
+        conflicts: ['enemy-a', 'enemy-b']
+      }]]);
+
+      const help = sm.getSkillHelpText('con-skill');
+      expect(help).toContain('Conflicts: enemy-a, enemy-b');
+    });
+  });
 });
