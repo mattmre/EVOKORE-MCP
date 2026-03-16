@@ -109,6 +109,20 @@ export class SkillManager {
   private watcher: fsSync.FSWatcher | null = null;
   private onRefreshCallback: (() => void) | null = null;
 
+  /** Allowlist of environment variable keys safe to pass to sandbox subprocesses. */
+  private static readonly SAFE_ENV_KEYS = new Set([
+    'PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'TERM', 'TMPDIR', 'TMP', 'TEMP',
+    'SYSTEMROOT', 'COMSPEC', 'WINDIR', 'PROGRAMFILES', 'APPDATA', 'LOCALAPPDATA',
+    'NUMBER_OF_PROCESSORS', 'PROCESSOR_ARCHITECTURE', 'OS',
+    'NODE_ENV', 'EVOKORE_SANDBOX', 'EVOKORE_SESSION_ROLE', 'EVOKORE_SESSION_ID'
+  ]);
+
+  /** Keys that userEnv is never allowed to override (prevents PATH hijacking, preload injection, etc). */
+  private static readonly BLOCKED_ENV_OVERRIDES = new Set([
+    'PATH', 'HOME', 'NODE_OPTIONS', 'LD_PRELOAD', 'LD_LIBRARY_PATH',
+    'DYLD_LIBRARY_PATH', 'PYTHONPATH', 'SYSTEMROOT', 'COMSPEC'
+  ]);
+
   constructor(proxyManager: ProxyManager) {
     this.proxyManager = proxyManager;
   }
@@ -678,18 +692,27 @@ export class SkillManager {
       throw new Error(`Step ${stepIndex} out of range (0-${blocks.length - 1})`);
     }
 
+    // Validate userEnv keys against the blocklist before any file I/O
+    if (userEnv) {
+      for (const key of Object.keys(userEnv)) {
+        if (SkillManager.BLOCKED_ENV_OVERRIDES.has(key)) {
+          throw new Error(`Blocked environment variable override: ${key}`);
+        }
+      }
+    }
+
     const block = blocks[stepIndex];
 
     // Determine executor based on language
     const executors: Record<string, {command: string; args: string[]; ext: string}> = {
       "bash": { command: "bash", args: ["-e"], ext: ".sh" },
       "sh": { command: "sh", args: ["-e"], ext: ".sh" },
-      "javascript": { command: "node", args: [], ext: ".js" },
-      "js": { command: "node", args: [], ext: ".js" },
+      "javascript": { command: "node", args: ["--max-old-space-size=128"], ext: ".js" },
+      "js": { command: "node", args: ["--max-old-space-size=128"], ext: ".js" },
       "python": { command: "python3", args: [], ext: ".py" },
       "py": { command: "python3", args: [], ext: ".py" },
-      "typescript": { command: "npx", args: ["tsx"], ext: ".ts" },
-      "ts": { command: "npx", args: ["tsx"], ext: ".ts" },
+      "typescript": { command: "npx", args: ["tsx", "--max-old-space-size=128"], ext: ".ts" },
+      "ts": { command: "npx", args: ["tsx", "--max-old-space-size=128"], ext: ".ts" },
     };
 
     const executor = executors[block.language.toLowerCase()];
@@ -697,25 +720,35 @@ export class SkillManager {
       throw new Error("Unsupported language for execution: " + block.language);
     }
 
-    // Write to temp file
-    const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `evokore-sandbox-${Date.now()}${executor.ext}`);
+    // Create a private temp directory for this execution
+    const sandboxDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'evokore-sandbox-'));
+    const tmpFile = path.join(sandboxDir, `script${executor.ext}`);
     fsSync.writeFileSync(tmpFile, block.code);
 
     try {
-      const env = {
-        ...process.env,
-        ...userEnv,
-        EVOKORE_SANDBOX: "true",  // Signal to code it's running in sandbox
-        EVOKORE_SESSION_ROLE: context?.role || "",
-        EVOKORE_SESSION_ID: context?.sessionId || "",
-      };
+      // Build filtered environment: only safe keys from process.env
+      const env: Record<string, string> = {};
+      for (const key of Object.keys(process.env)) {
+        if (SkillManager.SAFE_ENV_KEYS.has(key)) {
+          env[key] = process.env[key]!;
+        }
+      }
+      // Merge user-provided env (already validated against blocklist above)
+      if (userEnv) {
+        Object.assign(env, userEnv);
+      }
+      // Set sandbox-specific variables
+      env.EVOKORE_SANDBOX = "true";
+      env.EVOKORE_SESSION_ROLE = context?.role || "";
+      env.EVOKORE_SESSION_ID = context?.sessionId || "";
+      env.EVOKORE_SANDBOX_DIR = sandboxDir;
 
       const result = execFileSync(executor.command, [...executor.args, tmpFile], {
         encoding: "utf8",
         timeout: 30000,  // 30s timeout
         maxBuffer: 1024 * 1024,  // 1MB output limit
         env,
+        cwd: sandboxDir,
         stdio: ["pipe", "pipe", "pipe"]
       });
 
@@ -731,7 +764,7 @@ export class SkillManager {
         timedOut: false
       };
     } finally {
-      try { fsSync.unlinkSync(tmpFile); } catch {}
+      try { fsSync.rmSync(sandboxDir, { recursive: true, force: true }); } catch {}
     }
   }
 

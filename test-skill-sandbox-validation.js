@@ -38,9 +38,9 @@ test('skill sandbox - source contains sandbox safety measures', () => {
   // EVOKORE_SANDBOX env signal
   assert.match(src, /EVOKORE_SANDBOX/,
     'Expected EVOKORE_SANDBOX environment variable injection');
-  // Temp file cleanup in finally block
-  assert.match(src, /finally\s*\{[\s\S]*?unlinkSync/,
-    'Expected temp file cleanup in finally block');
+  // Sandbox directory cleanup in finally block
+  assert.match(src, /finally\s*\{[\s\S]*?rmSync/,
+    'Expected sandbox directory cleanup in finally block');
 });
 
 test('skill sandbox - destructiveHint annotation is true', () => {
