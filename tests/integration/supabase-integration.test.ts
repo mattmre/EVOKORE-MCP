@@ -6,9 +6,15 @@ const ROOT = path.resolve(__dirname, '../..');
 const configPath = path.join(ROOT, 'mcp.config.json');
 const permissionsPath = path.join(ROOT, 'permissions.yml');
 const securityJsPath = path.join(ROOT, 'dist', 'SecurityManager.js');
+const proxyManagerTsPath = path.join(ROOT, 'src', 'ProxyManager.ts');
 
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 const permissions = fs.readFileSync(permissionsPath, 'utf8');
+
+// ---- Conditional live tests ----
+
+const SKIP_REASON = 'Supabase credentials not configured. Set SUPABASE_ACCESS_TOKEN and SUPABASE_PROJECT_REF to enable.';
+const hasCredentials = !!(process.env.SUPABASE_ACCESS_TOKEN && process.env.SUPABASE_PROJECT_REF);
 
 describe('T09: Supabase Integration Validation', () => {
   // ---- Config shape validation ----
@@ -158,6 +164,103 @@ describe('T09: Supabase Integration Validation', () => {
       expect(permissions).toMatch(/readonly:/);
       expect(permissions).toMatch(/supabase_list_projects:\s*allow/);
       expect(permissions).toMatch(/supabase_list_tables:\s*allow/);
+    });
+  });
+
+  // ---- ProxyManager knows how to route supabase tools ----
+
+  describe('ProxyManager supabase tool routing', () => {
+    it('ProxyManager source references supabase server config pattern', () => {
+      const proxyManagerSrc = fs.readFileSync(proxyManagerTsPath, 'utf8');
+      // ProxyManager iterates config.servers entries and creates prefixed tool names
+      expect(proxyManagerSrc).toMatch(/config\.servers/);
+      expect(proxyManagerSrc).toMatch(/prefixedName/);
+      expect(proxyManagerSrc).toMatch(/`\$\{serverId\}_\$\{tool\.name\}`/);
+    });
+
+    it('supabase config has stdio transport (default, no explicit transport key)', () => {
+      // Supabase uses the default stdio transport since no "transport" key is set
+      expect(config.servers.supabase.transport).toBeUndefined();
+      expect(config.servers.supabase.command).toBe('npx');
+    });
+  });
+
+  // ---- Expected tool list documentation ----
+
+  describe('expected Supabase MCP server tool list', () => {
+    /**
+     * The @supabase/mcp-server-supabase package exposes these tools
+     * (as documented in the Supabase MCP server README and permissions.yml).
+     * When proxied through EVOKORE, each gets the "supabase_" prefix.
+     *
+     * The expected tool names (as registered in permissions.yml) are:
+     */
+    const expectedSupabaseTools = [
+      // Read operations (allow)
+      'supabase_list_projects',
+      'supabase_get_project',
+      'supabase_list_tables',
+      'supabase_list_migrations',
+      'supabase_list_extensions',
+      'supabase_get_logs',
+      'supabase_get_project_url',
+      'supabase_list_organizations',
+      'supabase_get_organization',
+      'supabase_search_docs',
+      // Write operations (require_approval)
+      'supabase_execute_sql',
+      'supabase_apply_migration',
+      'supabase_restore_project',
+      'supabase_create_branch',
+      'supabase_merge_branch',
+      'supabase_deploy_edge_function',
+      // Destructive operations (deny)
+      'supabase_create_project',
+      'supabase_pause_project',
+      'supabase_delete_branch',
+    ];
+
+    it('permissions.yml covers all expected Supabase tools', () => {
+      for (const tool of expectedSupabaseTools) {
+        expect(permissions).toContain(tool);
+      }
+    });
+
+    it('has 19 total Supabase tool rules in permissions.yml', () => {
+      const supabaseRuleLines = permissions
+        .split('\n')
+        .filter(line => {
+          const trimmed = line.trim();
+          return trimmed.startsWith('supabase_') && trimmed.includes(':');
+        });
+      // Count unique tool names (some may appear in roles section too)
+      const uniqueToolNames = new Set(
+        supabaseRuleLines.map(line => line.trim().split(':')[0].trim())
+      );
+      expect(uniqueToolNames.size).toBeGreaterThanOrEqual(19);
+    });
+  });
+
+  // ---- Live Supabase integration tests (conditional) ----
+
+  describe.skipIf(!hasCredentials)('live Supabase integration', () => {
+    it('has SUPABASE_ACCESS_TOKEN available', () => {
+      expect(process.env.SUPABASE_ACCESS_TOKEN).toBeDefined();
+      expect(process.env.SUPABASE_ACCESS_TOKEN!.length).toBeGreaterThan(0);
+    });
+
+    it('has SUPABASE_PROJECT_REF available', () => {
+      expect(process.env.SUPABASE_PROJECT_REF).toBeDefined();
+      expect(process.env.SUPABASE_PROJECT_REF!.length).toBeGreaterThan(0);
+    });
+
+    it('Supabase access token format looks valid', () => {
+      // Supabase access tokens are typically long strings
+      const token = process.env.SUPABASE_ACCESS_TOKEN!;
+      expect(token.length).toBeGreaterThan(10);
+      // Should not contain obvious placeholder values
+      expect(token).not.toMatch(/^\$\{/);
+      expect(token).not.toBe('your-token-here');
     });
   });
 });
