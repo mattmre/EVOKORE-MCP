@@ -8,6 +8,7 @@ import yaml from "yaml";
 import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { ProxyManager } from "./ProxyManager";
+import { RegistryManager, RegistryEntry, RegistryIndex } from "./RegistryManager";
 import { execFileSync } from "child_process";
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
@@ -87,6 +88,7 @@ export interface FetchSkillResult {
   name: string;
   path: string;
   isNew: boolean;
+  checksumVerified?: boolean;
 }
 
 interface SkillSearchMatch {
@@ -104,13 +106,15 @@ export class SkillManager {
   private skillsCache: Map<string, SkillMetadata> = new Map();
   private fuseIndex: Fuse<SkillMetadata> | null = null;
   private proxyManager: ProxyManager;
+  private registryManager: RegistryManager;
   private _loadTimeMs: number = 0;
   private _lastSearchMs: number = 0;
   private watcher: fsSync.FSWatcher | null = null;
   private onRefreshCallback: (() => void) | null = null;
 
-  constructor(proxyManager: ProxyManager) {
+  constructor(proxyManager: ProxyManager, registryManager?: RegistryManager) {
     this.proxyManager = proxyManager;
+    this.registryManager = registryManager || new RegistryManager();
   }
 
   getStats(): SkillIndexStats {
@@ -892,14 +896,15 @@ export class SkillManager {
       {
         name: "fetch_skill",
         title: "Fetch Remote Skill",
-        description: "Fetch a skill from a remote URL (GitHub raw content, HTTP endpoint) and install it locally in the SKILLS directory.",
+        description: "Fetch a skill from a remote URL (GitHub raw content, HTTP endpoint) and install it locally in the SKILLS directory. Supports SHA-256 checksum verification.",
         inputSchema: {
           type: "object" as const,
           properties: {
             url: { type: "string", description: "URL to fetch the skill from (must be a raw markdown file)" },
             category: { type: "string", description: "Category directory to install into (e.g., 'Remote Skills')" },
             name: { type: "string", description: "Optional name override for the skill file" },
-            overwrite: { type: "boolean", description: "Allow overwriting an existing skill (default: false)" }
+            overwrite: { type: "boolean", description: "Allow overwriting an existing skill (default: false)" },
+            checksum: { type: "string", description: "Optional SHA-256 checksum to verify the fetched content against" }
           },
           required: ["url"]
         },
@@ -914,11 +919,12 @@ export class SkillManager {
       {
         name: "list_registry",
         title: "List Registry Skills",
-        description: "List available skills from configured remote skill registries. Registries are defined in mcp.config.json under skillRegistries.",
+        description: "List available skills from configured remote skill registries. Registries are defined in mcp.config.json under skillRegistries. Supports search queries across name, description, tags, and author.",
         inputSchema: {
           type: "object" as const,
           properties: {
-            registry: { type: "string", description: "Optional registry name to query. If omitted, queries all configured registries." }
+            registry: { type: "string", description: "Optional registry name to query. If omitted, queries all configured registries." },
+            query: { type: "string", description: "Optional search query to filter registry entries by name, description, tags, or author." }
           }
         },
         annotations: {
@@ -1137,13 +1143,18 @@ export class SkillManager {
         const category = typeof args.category === "string" ? args.category.trim() : undefined;
         const nameOverride = typeof args.name === "string" ? args.name.trim() : undefined;
         const overwrite = args.overwrite === true;
+        const expectedChecksum = typeof args.checksum === "string" ? args.checksum.trim() : undefined;
 
         try {
-            const result = await this.fetchRemoteSkill(url, category, nameOverride, overwrite);
+            const result = await this.fetchRemoteSkill(url, category, nameOverride, overwrite, expectedChecksum);
+            let text = 'Skill "' + result.name + '" ' + (result.isNew ? "installed" : "updated") + " at " + result.path + ". Use refresh_skills to update the index.";
+            if (result.checksumVerified) {
+                text += " Checksum verified.";
+            }
             return {
                 content: [{
                     type: "text",
-                    text: 'Skill "' + result.name + '" ' + (result.isNew ? "installed" : "updated") + " at " + result.path + ". Use refresh_skills to update the index."
+                    text
                 }]
             };
         } catch (error: any) {
@@ -1156,10 +1167,12 @@ export class SkillManager {
 
     if (name === "list_registry") {
         const registryName = typeof args.registry === "string" ? args.registry.trim() : undefined;
+        const searchQuery = typeof args.query === "string" ? args.query.trim() : undefined;
 
         try {
-            const entries = await this.listRegistrySkills(registryName);
-            if (entries.length === 0) {
+            // Try RegistryManager-backed fetch for registries that have full URLs
+            const registries = this.loadRegistriesFromConfig();
+            if (registries.length === 0) {
                 return {
                     content: [{
                         type: "text",
@@ -1170,16 +1183,74 @@ export class SkillManager {
                 };
             }
 
+            const targets = registryName
+              ? registries.filter(r => r.name.toLowerCase() === registryName.toLowerCase())
+              : registries;
+
+            if (targets.length === 0) {
+                return {
+                    content: [{
+                        type: "text",
+                        text: "No skills found in registry '" + registryName + "', or registry is not configured."
+                    }]
+                };
+            }
+
+            // Fetch all target registries via RegistryManager (with caching)
+            const fetchedIndexes: RegistryIndex[] = [];
+            const fetchErrors: string[] = [];
+
+            for (const registry of targets) {
+                const indexUrl = registry.baseUrl.replace(/\/$/, "") + "/" + registry.index;
+                try {
+                    const idx = await this.registryManager.fetchRegistry(indexUrl);
+                    fetchedIndexes.push(idx);
+                } catch (err: any) {
+                    fetchErrors.push(registry.name + ": " + (err?.message || String(err)));
+                    console.error("[EVOKORE] Failed to fetch registry '" + registry.name + "': " + err.message);
+                }
+            }
+
+            // Search or list all entries
+            let entries: RegistryEntry[];
+            if (searchQuery) {
+                entries = this.registryManager.searchRegistry(searchQuery, fetchedIndexes);
+            } else {
+                entries = fetchedIndexes.flatMap(idx => idx.entries);
+            }
+
+            if (entries.length === 0) {
+                const errorSuffix = fetchErrors.length > 0
+                    ? "\n\nRegistry errors:\n" + fetchErrors.map(e => "  - " + e).join("\n")
+                    : "";
+                return {
+                    content: [{
+                        type: "text",
+                        text: (registryName
+                            ? "No skills found in registry '" + registryName + "', or registry is not configured."
+                            : "No skill registries are configured in mcp.config.json, or no skills were found.")
+                            + errorSuffix
+                    }]
+                };
+            }
+
             const lines = entries.map(e => {
                 const verSuffix = e.version ? " (v" + e.version + ")" : "";
-                const catSuffix = e.category ? " [" + e.category + "]" : "";
-                return "- **" + e.name + "**" + verSuffix + catSuffix + ": " + e.description + "\n  URL: " + e.url;
+                const authorSuffix = e.author ? " by " + e.author : "";
+                const tagsSuffix = e.tags && e.tags.length > 0 ? " [" + e.tags.join(", ") + "]" : "";
+                const checksumNote = e.checksum ? " (checksum available)" : "";
+                return "- **" + e.name + "**" + verSuffix + authorSuffix + tagsSuffix + ": " + e.description + checksumNote + "\n  URL: " + e.url;
             });
+
+            let resultText = "Available skills from registries (" + entries.length + " total):\n\n" + lines.join("\n");
+            if (fetchErrors.length > 0) {
+                resultText += "\n\nRegistry errors:\n" + fetchErrors.map(e => "  - " + e).join("\n");
+            }
 
             return {
                 content: [{
                     type: "text",
-                    text: "Available skills from registries (" + entries.length + " total):\n\n" + lines.join("\n")
+                    text: resultText
                 }]
             };
         } catch (error: any) {
@@ -1273,7 +1344,7 @@ export class SkillManager {
     throw new McpError(ErrorCode.MethodNotFound, "Unknown tool: " + name);
   }
 
-  async fetchRemoteSkill(url: string, category?: string, nameOverride?: string, overwrite = false): Promise<FetchSkillResult> {
+  async fetchRemoteSkill(url: string, category?: string, nameOverride?: string, overwrite = false, expectedChecksum?: string): Promise<FetchSkillResult> {
     // Validate URL
     let parsedUrl: URL;
     try {
@@ -1288,6 +1359,16 @@ export class SkillManager {
 
     // Fetch content
     const content = await this.httpGet(url);
+
+    // Verify checksum if provided
+    let checksumVerified = false;
+    if (expectedChecksum) {
+      const valid = this.registryManager.verifyChecksum(content, expectedChecksum);
+      if (!valid) {
+        throw new Error("Checksum verification failed for fetched skill. Expected SHA-256: " + expectedChecksum);
+      }
+      checksumVerified = true;
+    }
 
     // Validate it looks like a skill (must have frontmatter)
     const fmMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
@@ -1335,7 +1416,7 @@ export class SkillManager {
     fsSync.writeFileSync(targetPath, content, "utf-8");
     console.error("[EVOKORE] Fetched remote skill '" + safeName + "' -> " + targetPath);
 
-    return { name: safeName, path: targetPath, isNew };
+    return { name: safeName, path: targetPath, isNew, checksumVerified };
   }
 
   async listRegistrySkills(registryName?: string): Promise<RegistrySkillEntry[]> {

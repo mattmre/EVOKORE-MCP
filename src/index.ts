@@ -26,6 +26,8 @@ import { HttpServer } from "./HttpServer";
 import { WebhookManager } from "./WebhookManager";
 import { SessionIsolation } from "./SessionIsolation";
 import { loadAuthConfig } from "./auth/OAuthProvider";
+import { TelemetryManager } from "./TelemetryManager";
+import { RegistryManager } from "./RegistryManager";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -42,6 +44,8 @@ export class EvokoreMCPServer {
   private pluginManager: PluginManager;
   private toolCatalog: ToolCatalogIndex;
   private webhookManager: WebhookManager;
+  private telemetryManager: TelemetryManager;
+  private registryManager: RegistryManager;
   private discoveryMode: ToolDiscoveryMode;
   private sessionIsolation: SessionIsolation;
 
@@ -67,8 +71,10 @@ export class EvokoreMCPServer {
     this.securityManager = new SecurityManager();
     this.webhookManager = new WebhookManager();
     this.proxyManager = new ProxyManager(this.securityManager, this.webhookManager);
-    this.skillManager = new SkillManager(this.proxyManager);
     this.pluginManager = new PluginManager(this.webhookManager);
+    this.telemetryManager = new TelemetryManager();
+    this.registryManager = new RegistryManager();
+    this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
     this.sessionIsolation = new SessionIsolation();
 
@@ -90,7 +96,11 @@ export class EvokoreMCPServer {
   }
 
   private rebuildToolCatalog() {
-    const nativeTools = [...this.skillManager.getTools(), ...this.pluginManager.getTools()];
+    const nativeTools = [
+      ...this.skillManager.getTools(),
+      ...this.pluginManager.getTools(),
+      ...this.telemetryManager.getTools(),
+    ];
     this.toolCatalog = new ToolCatalogIndex(nativeTools, this.proxyManager.getProxiedTools());
   }
 
@@ -549,6 +559,8 @@ export class EvokoreMCPServer {
         let source: string;
         if (toolName === "discover_tools" || toolName === "refresh_skills" || toolName === "fetch_skill" || toolName === "reload_plugins") {
           source = "builtin";
+        } else if (this.telemetryManager.isTelemetryTool(toolName)) {
+          source = "builtin";
         } else if (this.pluginManager.isPluginTool(toolName)) {
           source = "plugin";
         } else if (this.toolCatalog.isNativeTool(toolName)) {
@@ -561,6 +573,7 @@ export class EvokoreMCPServer {
 
         this.webhookManager.emit("tool_call", { tool: toolName, source, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
 
+        const callStartTime = Date.now();
         let result: any;
 
         if (toolName === "discover_tools") {
@@ -571,6 +584,8 @@ export class EvokoreMCPServer {
           result = await this.handleFetchSkill(args);
         } else if (toolName === "reload_plugins") {
           result = await this.handleReloadPlugins();
+        } else if (this.telemetryManager.isTelemetryTool(toolName)) {
+          result = this.telemetryManager.handleToolCall(toolName);
         } else if (source === "plugin") {
           result = await this.pluginManager.handleToolCall(toolName, args);
         } else if (source === "native") {
@@ -592,8 +607,11 @@ export class EvokoreMCPServer {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
         }
 
+        this.telemetryManager.recordToolCall(Date.now() - callStartTime);
         return result;
       } catch (error: any) {
+        this.telemetryManager.recordToolCall();
+        this.telemetryManager.recordToolError();
         this.webhookManager.emit("tool_error", { tool: toolName, arguments: this.redactSensitiveArgs(args as Record<string, unknown>), error: error?.message || String(error) });
         throw error;
       }
@@ -614,6 +632,9 @@ export class EvokoreMCPServer {
     if (pluginResult.loaded > 0) {
       console.error(`[EVOKORE] Plugin stats: ${pluginResult.loaded} plugins, ${pluginResult.totalTools} tools, ${pluginResult.totalResources} resources, loaded in ${pluginResult.loadTimeMs}ms`);
     }
+
+    // Initialize telemetry (no-ops if EVOKORE_TELEMETRY is not "true")
+    this.telemetryManager.initialize();
 
     this.rebuildToolCatalog();
 
@@ -640,6 +661,7 @@ export class EvokoreMCPServer {
     await this.server.connect(transport);
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
     this.webhookManager.emit("session_start", { transport: "stdio" });
+    this.telemetryManager.recordSessionStart();
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
     );
@@ -647,6 +669,7 @@ export class EvokoreMCPServer {
     // Graceful shutdown for stdio mode
     const shutdown = () => {
       this.webhookManager.emit("session_end", { transport: "stdio", reason: "shutdown" });
+      this.telemetryManager.shutdown();
       // Grace period to allow fire-and-forget webhook delivery
       setTimeout(() => process.exit(0), 500);
     };
@@ -667,6 +690,7 @@ export class EvokoreMCPServer {
     const addr = httpServer.getAddress();
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on HTTP at http://${addr.host}:${addr.port} (tool discovery mode: ${this.discoveryMode})`);
     this.webhookManager.emit("session_start", { transport: "http", host: addr.host, port: addr.port });
+    this.telemetryManager.recordSessionStart();
 
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
@@ -676,6 +700,7 @@ export class EvokoreMCPServer {
     const shutdown = async () => {
       console.error("[EVOKORE] Shutting down HTTP server...");
       this.webhookManager.emit("session_end", { transport: "http", reason: "shutdown" });
+      this.telemetryManager.shutdown();
       // Grace period to allow fire-and-forget webhook delivery
       await new Promise(resolve => setTimeout(resolve, 500));
       await httpServer.stop();
