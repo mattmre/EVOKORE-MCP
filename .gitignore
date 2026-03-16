@@ -5,6 +5,9 @@ node_modules/
 mcp-research-tmp/
 dist/
 
+# Generated API documentation (output of typedoc)
+docs/api/
+
 # Compiled TypeScript artifacts in src/ (output goes to dist/)
 src/**/*.js
 src/**/*.js.map
