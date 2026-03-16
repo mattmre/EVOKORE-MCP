@@ -39,7 +39,8 @@
     "hooks:view": "node scripts/hook-log-view.js",
     "dashboard": "node scripts/dashboard.js",
     "actions:quota": "node scripts/gh-actions-quota.js",
-    "bench": "node scripts/benchmark.js"
+    "bench": "node scripts/benchmark.js",
+    "docs:api": "typedoc"
   },
   "keywords": [
     "mcp",
@@ -74,6 +75,7 @@
     "@types/node": "^25.3.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.21.0",
+    "typedoc": "^0.28.17",
     "typescript": "^5.9.3",
     "vitest": "^4.1.0"
   }
