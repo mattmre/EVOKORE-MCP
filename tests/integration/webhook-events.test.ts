@@ -286,11 +286,14 @@ describe('T29: Webhook Event System', () => {
         expect(receivedBody.id).toMatch(/^[0-9a-f-]{36}$/);
         expect(receivedBody.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
-        // Verify HMAC signature header
+        // Verify HMAC signature header (now includes timestamp in HMAC input)
         expect(receivedHeaders['x-evokore-signature']).toBeDefined();
+        const ts = Number(receivedHeaders['x-evokore-timestamp']);
+        expect(ts).toBeGreaterThan(0);
         const expectedSig = WebhookManager.computeSignature(
           JSON.stringify(receivedBody),
-          'payload-test-secret'
+          'payload-test-secret',
+          ts
         );
         expect(receivedHeaders['x-evokore-signature']).toBe(expectedSig);
         expect(receivedHeaders['content-type']).toBe('application/json');
@@ -605,6 +608,148 @@ describe('T29: Webhook Event System', () => {
     it('approval_granted includes tool and server', () => {
       expect(proxySrc).toMatch(/emit\("approval_granted",\s*\{[^}]*tool:\s*toolName/);
       expect(proxySrc).toMatch(/emit\("approval_granted",\s*\{[^}]*server:\s*serverId/);
+    });
+  });
+
+  describe('replay protection', () => {
+    it('delivery includes X-EVOKORE-Timestamp and X-EVOKORE-Nonce headers', async () => {
+      let receivedHeaders: http.IncomingHttpHeaders = {};
+
+      const server = http.createServer((req, res) => {
+        receivedHeaders = req.headers;
+        req.resume();
+        req.on('end', () => {
+          res.writeHead(200);
+          res.end();
+        });
+      });
+
+      const port = await new Promise<number>((resolve) => {
+        server.listen(0, '127.0.0.1', () => {
+          const addr = server.address() as { port: number };
+          resolve(addr.port);
+        });
+      });
+
+      try {
+        const manager = new WebhookManager();
+        manager.setEnabled(true);
+        manager.setWebhooks([
+          { url: `http://127.0.0.1:${port}/hook`, events: ['tool_call'], secret: 'replay-test' }
+        ]);
+
+        manager.emit('tool_call', { tool: 'test_replay' });
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Timestamp header should be a Unix epoch seconds string
+        expect(receivedHeaders['x-evokore-timestamp']).toBeDefined();
+        const ts = Number(receivedHeaders['x-evokore-timestamp']);
+        expect(ts).toBeGreaterThan(0);
+        // Should be within a few seconds of now
+        expect(Math.abs(Date.now() / 1000 - ts)).toBeLessThan(10);
+
+        // Nonce header should be present
+        expect(receivedHeaders['x-evokore-nonce']).toBeDefined();
+        expect(receivedHeaders['x-evokore-nonce']).toMatch(/^[0-9a-f-]{36}$/);
+      } finally {
+        server.close();
+      }
+    });
+
+    it('nonce header matches payload id', async () => {
+      let receivedBody: any = null;
+      let receivedHeaders: http.IncomingHttpHeaders = {};
+
+      const server = http.createServer((req, res) => {
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => {
+          receivedBody = JSON.parse(Buffer.concat(chunks).toString());
+          receivedHeaders = req.headers;
+          res.writeHead(200);
+          res.end();
+        });
+      });
+
+      const port = await new Promise<number>((resolve) => {
+        server.listen(0, '127.0.0.1', () => {
+          const addr = server.address() as { port: number };
+          resolve(addr.port);
+        });
+      });
+
+      try {
+        const manager = new WebhookManager();
+        manager.setEnabled(true);
+        manager.setWebhooks([
+          { url: `http://127.0.0.1:${port}/hook`, events: ['tool_call'] }
+        ]);
+
+        manager.emit('tool_call', { tool: 'nonce_test' });
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        expect(receivedBody).not.toBeNull();
+        expect(receivedHeaders['x-evokore-nonce']).toBe(receivedBody.id);
+      } finally {
+        server.close();
+      }
+    });
+
+    it('computeSignature with timestamp produces different output than without', () => {
+      const body = '{"event":"tool_call","data":{}}';
+      const secret = 'test-secret-123';
+      const timestamp = Math.floor(Date.now() / 1000);
+
+      const sigWithout = WebhookManager.computeSignature(body, secret);
+      const sigWith = WebhookManager.computeSignature(body, secret, timestamp);
+
+      expect(sigWithout).not.toBe(sigWith);
+      // Both should be valid hex
+      expect(sigWithout).toMatch(/^[0-9a-f]{64}$/);
+      expect(sigWith).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it('verifySignature with valid timestamp passes', () => {
+      const body = '{"test":"replay"}';
+      const secret = 'replay-secret';
+      const timestamp = Math.floor(Date.now() / 1000);
+
+      const sig = WebhookManager.computeSignature(body, secret, timestamp);
+      expect(WebhookManager.verifySignature(body, secret, sig, timestamp)).toBe(true);
+    });
+
+    it('verifySignature with expired timestamp (6 min old) fails', () => {
+      const body = '{"test":"expired"}';
+      const secret = 'replay-secret';
+      // 6 minutes ago (beyond the 5-minute window)
+      const timestamp = Math.floor(Date.now() / 1000) - 360;
+
+      const sig = WebhookManager.computeSignature(body, secret, timestamp);
+      expect(WebhookManager.verifySignature(body, secret, sig, timestamp)).toBe(false);
+    });
+
+    it('verifySignature with future timestamp (6 min ahead) fails', () => {
+      const body = '{"test":"future"}';
+      const secret = 'replay-secret';
+      // 6 minutes in the future (beyond the 5-minute window)
+      const timestamp = Math.floor(Date.now() / 1000) + 360;
+
+      const sig = WebhookManager.computeSignature(body, secret, timestamp);
+      expect(WebhookManager.verifySignature(body, secret, sig, timestamp)).toBe(false);
+    });
+
+    it('verifySignature without timestamp still works (backward compat)', () => {
+      const body = '{"test":"legacy"}';
+      const secret = 'legacy-secret';
+
+      const sig = WebhookManager.computeSignature(body, secret);
+      expect(WebhookManager.verifySignature(body, secret, sig)).toBe(true);
+    });
+
+    it('REPLAY_WINDOW_MS is 300000 (5 minutes)', () => {
+      expect(WebhookManager.REPLAY_WINDOW_MS).toBe(300_000);
     });
   });
 

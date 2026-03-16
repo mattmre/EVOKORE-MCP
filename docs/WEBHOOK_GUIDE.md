@@ -330,30 +330,67 @@ Emitted when a plugin file fails to load.
 
 When a webhook subscription includes a `secret` field, every delivery is signed with HMAC-SHA256. The signature is sent in the `X-EVOKORE-Signature` HTTP header as a lowercase hex string.
 
+### Delivery Headers
+
+Every webhook delivery includes the following security-related headers:
+
+| Header                 | Value | Always Present |
+|------------------------|-------|:--------------:|
+| `X-EVOKORE-Signature`  | HMAC-SHA256 hex digest (see below) | Only when `secret` is configured |
+| `X-EVOKORE-Timestamp`  | Unix epoch seconds (e.g., `"1742050200"`) | Yes |
+| `X-EVOKORE-Nonce`      | UUID v4 matching the payload `id` field | Yes |
+
 ### How Signing Works
 
 1. The full JSON payload body is serialized to a UTF-8 string.
-2. An HMAC-SHA256 digest is computed using the shared secret.
-3. The resulting digest is encoded as a lowercase hexadecimal string.
-4. This hex string is sent in the `X-EVOKORE-Signature` header.
+2. The current time is captured as Unix epoch seconds (integer).
+3. An HMAC-SHA256 digest is computed over the string `${timestamp}.${body}` using the shared secret.
+4. The resulting digest is encoded as a lowercase hexadecimal string.
+5. This hex string is sent in the `X-EVOKORE-Signature` header alongside the `X-EVOKORE-Timestamp` and `X-EVOKORE-Nonce` headers.
+
+### Replay Protection
+
+To prevent replay attacks, the HMAC signature binds the payload to a specific timestamp. Receivers should:
+
+1. Read the `X-EVOKORE-Timestamp` header value.
+2. Reject the delivery if the timestamp is more than **5 minutes** (300 seconds) from the current time in either direction.
+3. Compute the expected HMAC over `${timestamp}.${body}` (not just `body`).
+4. Compare using timing-safe comparison.
+5. Optionally track the `X-EVOKORE-Nonce` (which equals the payload `id`) to reject duplicate deliveries within the time window.
+
+**Backward compatibility:** When the `X-EVOKORE-Timestamp` header is absent (e.g., from an older EVOKORE-MCP version), receivers should fall back to computing the HMAC over the raw body alone. The `verifySignature()` static method handles both modes automatically based on whether a timestamp is provided.
 
 ### Verifying Signatures
 
 To verify a webhook delivery:
 
 1. Read the raw request body as a string (do not parse/re-serialize JSON).
-2. Compute the expected HMAC-SHA256 using your stored secret.
-3. Compare the computed signature with the `X-EVOKORE-Signature` header using a **timing-safe** comparison function.
+2. Read the `X-EVOKORE-Timestamp` header.
+3. Check that the timestamp is within the 5-minute replay window.
+4. Compute the expected HMAC-SHA256 over `${timestamp}.${body}` using your stored secret.
+5. Compare the computed signature with the `X-EVOKORE-Signature` header using a **timing-safe** comparison function.
 
 #### Node.js Verification Example
 
 ```javascript
 const crypto = require("crypto");
 
-function verifyWebhookSignature(rawBody, secret, receivedSignature) {
+const REPLAY_WINDOW_SECONDS = 300; // 5 minutes
+
+function verifyWebhookSignature(rawBody, secret, receivedSignature, timestamp) {
+  // Replay protection: reject stale or future timestamps
+  if (timestamp !== undefined) {
+    const nowSeconds = Date.now() / 1000;
+    if (Math.abs(nowSeconds - timestamp) > REPLAY_WINDOW_SECONDS) {
+      return false;
+    }
+  }
+
+  // Compute HMAC over "timestamp.body" when timestamp is present, or just "body" for legacy
+  const message = timestamp !== undefined ? `${timestamp}.${rawBody}` : rawBody;
   const expected = crypto
     .createHmac("sha256", secret)
-    .update(rawBody, "utf8")
+    .update(message, "utf8")
     .digest("hex");
 
   const expectedBuf = Buffer.from(expected, "hex");
@@ -365,6 +402,20 @@ function verifyWebhookSignature(rawBody, secret, receivedSignature) {
 
   return crypto.timingSafeEqual(expectedBuf, receivedBuf);
 }
+
+// Usage in an Express handler:
+app.post("/webhooks/evokore", (req, res) => {
+  const rawBody = req.body.toString("utf8");
+  const signature = req.headers["x-evokore-signature"];
+  const timestamp = req.headers["x-evokore-timestamp"]
+    ? Number(req.headers["x-evokore-timestamp"])
+    : undefined;
+
+  if (!verifyWebhookSignature(rawBody, SECRET, signature, timestamp)) {
+    return res.status(401).send("Invalid signature");
+  }
+  // ...
+});
 ```
 
 #### Python Verification Example
@@ -372,11 +423,28 @@ function verifyWebhookSignature(rawBody, secret, receivedSignature) {
 ```python
 import hmac
 import hashlib
+import time
 
-def verify_webhook_signature(raw_body: bytes, secret: str, received_signature: str) -> bool:
+REPLAY_WINDOW_SECONDS = 300  # 5 minutes
+
+def verify_webhook_signature(
+    raw_body: bytes, secret: str, received_signature: str, timestamp: int | None = None
+) -> bool:
+    # Replay protection
+    if timestamp is not None:
+        now = time.time()
+        if abs(now - timestamp) > REPLAY_WINDOW_SECONDS:
+            return False
+
+    # Compute HMAC over "timestamp.body" or just "body"
+    if timestamp is not None:
+        message = f"{timestamp}.".encode("utf-8") + raw_body
+    else:
+        message = raw_body
+
     expected = hmac.new(
         secret.encode("utf-8"),
-        raw_body,
+        message,
         hashlib.sha256
     ).hexdigest()
 
@@ -392,11 +460,32 @@ import (
     "crypto/hmac"
     "crypto/sha256"
     "encoding/hex"
+    "fmt"
+    "math"
+    "time"
 )
 
-func verifyWebhookSignature(rawBody []byte, secret string, receivedSignature string) bool {
+const replayWindowSeconds = 300 // 5 minutes
+
+func verifyWebhookSignature(rawBody []byte, secret string, receivedSignature string, timestamp *int64) bool {
+    // Replay protection
+    if timestamp != nil {
+        now := time.Now().Unix()
+        if math.Abs(float64(now-*timestamp)) > replayWindowSeconds {
+            return false
+        }
+    }
+
+    // Compute HMAC over "timestamp.body" or just "body"
+    var message []byte
+    if timestamp != nil {
+        message = []byte(fmt.Sprintf("%d.%s", *timestamp, rawBody))
+    } else {
+        message = rawBody
+    }
+
     mac := hmac.New(sha256.New, []byte(secret))
-    mac.Write(rawBody)
+    mac.Write(message)
     expected := hex.EncodeToString(mac.Sum(nil))
 
     return hmac.Equal([]byte(expected), []byte(receivedSignature))
@@ -408,6 +497,8 @@ func verifyWebhookSignature(rawBody []byte, secret string, receivedSignature str
 - Always use timing-safe comparison. Standard string equality (`===`, `==`) is vulnerable to timing attacks that can leak the secret one character at a time.
 - Verify the raw body bytes, not a re-serialized JSON object. JSON serialization is not guaranteed to produce identical byte sequences.
 - The signature is a lowercase hex string (64 characters for SHA-256).
+- The signature now covers `${timestamp}.${body}` when the timestamp header is present, preventing replay of captured payloads beyond the 5-minute window.
+- The `X-EVOKORE-Nonce` header matches the `id` field in the payload and can be used for deduplication.
 
 ---
 
@@ -446,9 +537,11 @@ When rotating a webhook secret:
 2. Update `mcp.config.json` with the new secret and restart EVOKORE-MCP.
 3. After confirming deliveries are being verified with the new secret, remove the old secret from your receiver.
 
-### Validate Event Freshness
+### Validate Event Freshness (Replay Protection)
 
-Use the `timestamp` field in the payload envelope to reject events that are too old. A reasonable window is 5 minutes:
+EVOKORE-MCP now includes server-side replay protection: the HMAC signature binds the payload to the `X-EVOKORE-Timestamp` header value, and receivers should verify that the timestamp is within a 5-minute window before checking the signature. See the [HMAC Signature Verification](#hmac-signature-verification) section for details.
+
+For additional defense-in-depth, you can also check the ISO 8601 `timestamp` field in the payload envelope:
 
 ```javascript
 const eventTime = new Date(payload.timestamp).getTime();
@@ -463,7 +556,7 @@ if (Math.abs(now - eventTime) > MAX_AGE_MS) {
 
 ### Deduplicate Events
 
-Use the `id` field (UUID v4) to detect and discard duplicate deliveries. Retries can cause the same event to arrive more than once. Store processed event IDs for a window matching your timestamp validation window.
+Use the `X-EVOKORE-Nonce` header (or the `id` field in the payload, which is the same UUID v4 value) to detect and discard duplicate deliveries. Retries can cause the same event to arrive more than once. Store processed nonces for a window matching your timestamp validation window.
 
 ---
 
@@ -566,6 +659,7 @@ const crypto = require("crypto");
 
 const app = express();
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+const REPLAY_WINDOW_SECONDS = 300; // 5 minutes
 const processedIds = new Set();
 
 // Use raw body for signature verification
@@ -574,12 +668,24 @@ app.use("/webhooks/evokore", express.raw({ type: "application/json" }));
 app.post("/webhooks/evokore", (req, res) => {
   const rawBody = req.body.toString("utf8");
   const signature = req.headers["x-evokore-signature"];
+  const timestamp = req.headers["x-evokore-timestamp"]
+    ? Number(req.headers["x-evokore-timestamp"])
+    : undefined;
 
-  // 1. Verify signature
+  // 1. Replay protection: reject stale or future timestamps
+  if (timestamp !== undefined) {
+    const nowSeconds = Date.now() / 1000;
+    if (Math.abs(nowSeconds - timestamp) > REPLAY_WINDOW_SECONDS) {
+      return res.status(400).send("Timestamp out of range");
+    }
+  }
+
+  // 2. Verify HMAC signature (timestamp-aware)
   if (WEBHOOK_SECRET && signature) {
+    const message = timestamp !== undefined ? `${timestamp}.${rawBody}` : rawBody;
     const expected = crypto
       .createHmac("sha256", WEBHOOK_SECRET)
-      .update(rawBody, "utf8")
+      .update(message, "utf8")
       .digest("hex");
 
     const expectedBuf = Buffer.from(expected, "hex");
@@ -595,17 +701,12 @@ app.post("/webhooks/evokore", (req, res) => {
 
   const payload = JSON.parse(rawBody);
 
-  // 2. Check timestamp freshness (5-minute window)
-  const eventAge = Math.abs(Date.now() - new Date(payload.timestamp).getTime());
-  if (eventAge > 5 * 60 * 1000) {
-    return res.status(400).send("Event too old");
-  }
-
-  // 3. Deduplicate
-  if (processedIds.has(payload.id)) {
+  // 3. Deduplicate using nonce (X-EVOKORE-Nonce matches payload.id)
+  const nonce = req.headers["x-evokore-nonce"] || payload.id;
+  if (processedIds.has(nonce)) {
     return res.status(200).send("Already processed");
   }
-  processedIds.add(payload.id);
+  processedIds.add(nonce);
 
   // 4. Handle the event
   switch (payload.event) {
@@ -664,12 +765,16 @@ import (
     "fmt"
     "io"
     "log"
+    "math"
     "net/http"
     "os"
+    "strconv"
     "time"
 )
 
 var webhookSecret = os.Getenv("WEBHOOK_SECRET")
+
+const replayWindowSeconds = 300 // 5 minutes
 
 type WebhookPayload struct {
     ID        string                 `json:"id"`
@@ -678,9 +783,25 @@ type WebhookPayload struct {
     Data      map[string]interface{} `json:"data"`
 }
 
-func verifySignature(body []byte, secret, signature string) bool {
+func verifySignature(body []byte, secret, signature string, timestamp *int64) bool {
+    // Replay protection
+    if timestamp != nil {
+        now := time.Now().Unix()
+        if math.Abs(float64(now-*timestamp)) > replayWindowSeconds {
+            return false
+        }
+    }
+
+    // Compute HMAC over "timestamp.body" or just "body"
+    var message []byte
+    if timestamp != nil {
+        message = []byte(fmt.Sprintf("%d.%s", *timestamp, body))
+    } else {
+        message = body
+    }
+
     mac := hmac.New(sha256.New, []byte(secret))
-    mac.Write(body)
+    mac.Write(message)
     expected := hex.EncodeToString(mac.Sum(nil))
     return hmac.Equal([]byte(expected), []byte(signature))
 }
@@ -698,10 +819,18 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
     }
     defer r.Body.Close()
 
-    // Verify signature
+    // Parse timestamp header for replay protection
+    var timestamp *int64
+    if tsHeader := r.Header.Get("X-EVOKORE-Timestamp"); tsHeader != "" {
+        if ts, err := strconv.ParseInt(tsHeader, 10, 64); err == nil {
+            timestamp = &ts
+        }
+    }
+
+    // Verify signature (timestamp-aware)
     if webhookSecret != "" {
         signature := r.Header.Get("X-EVOKORE-Signature")
-        if !verifySignature(body, webhookSecret, signature) {
+        if !verifySignature(body, webhookSecret, signature, timestamp) {
             http.Error(w, "Invalid signature", http.StatusUnauthorized)
             return
         }
@@ -711,16 +840,6 @@ func webhookHandler(w http.ResponseWriter, r *http.Request) {
     if err := json.Unmarshal(body, &payload); err != nil {
         http.Error(w, "Invalid JSON", http.StatusBadRequest)
         return
-    }
-
-    // Check timestamp freshness
-    eventTime, err := time.Parse(time.RFC3339Nano, payload.Timestamp)
-    if err == nil {
-        age := time.Since(eventTime).Abs()
-        if age > 5*time.Minute {
-            http.Error(w, "Event too old", http.StatusBadRequest)
-            return
-        }
     }
 
     // Handle event
@@ -820,6 +939,8 @@ Every webhook delivery is an HTTP POST request with the following characteristic
 |--------------------|-------|
 | `Content-Type`     | `application/json` |
 | `User-Agent`       | `EVOKORE-MCP-Webhook/3.0` |
-| `X-EVOKORE-Signature` | HMAC-SHA256 hex digest (only when secret is configured) |
+| `X-EVOKORE-Signature` | HMAC-SHA256 hex digest over `${timestamp}.${body}` (only when secret is configured) |
+| `X-EVOKORE-Timestamp` | Unix epoch seconds as string (always present) |
+| `X-EVOKORE-Nonce`  | UUID v4 matching the payload `id` field (always present) |
 
 The request body is the JSON-serialized `WebhookPayload` envelope. Responses are drained but not inspected beyond the status code. Any `2xx` status code is treated as success.
