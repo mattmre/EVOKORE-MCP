@@ -148,3 +148,18 @@ The current sandbox provides basic process-level isolation through `execFileSync
 The most critical gap is **environment variable exposure**: all configured API keys and tokens are available to executed skill code. The recommended first step is to strip secret-bearing env vars from the subprocess environment.
 
 The current implementation is appropriate for trusted skill code authored by the system operator. It is **not suitable** for executing untrusted or user-submitted code without the hardening improvements described above.
+
+---
+
+## 6. Hardening Status
+
+The following gaps identified in this audit have been addressed in the sandbox hardening implementation (PR: `feat/sandbox-hardening`):
+
+- [x] **Environment filtering (secret stripping)** -- `SAFE_ENV_KEYS` allowlist replaces `...process.env` spread. Only system-level keys (`PATH`, `HOME`, `LANG`, etc.) and EVOKORE-specific keys are passed to subprocesses. Secret-bearing keys (`*_TOKEN`, `*_KEY`, `*_SECRET`, etc.) are excluded by default.
+- [x] **UserEnv validation (blocked overrides)** -- `BLOCKED_ENV_OVERRIDES` set rejects user-supplied overrides for `PATH`, `HOME`, `NODE_OPTIONS`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, `PYTHONPATH`, `SYSTEMROOT`, and `COMSPEC`. Throws an error before any file I/O or subprocess spawn.
+- [x] **Private temp directories** -- `fs.mkdtempSync()` creates a unique private directory per execution instead of a single temp file with `Date.now()`. Eliminates TOCTOU race conditions.
+- [x] **Sandboxed cwd** -- `execFileSync` `cwd` option is set to the private sandbox directory. Executed code defaults to the sandbox rather than the server's working directory.
+- [x] **Node.js memory limits** -- `--max-old-space-size=128` is passed for JS and TS executors, capping V8 heap to 128MB. Prevents memory exhaustion attacks within the 30-second timeout window.
+- [ ] **Network isolation** -- Requires container-level isolation or OS-level seccomp/namespace support. Deferred to v3.2.
+- [ ] **Process group management** -- Platform-specific (POSIX `setsid` vs Windows job objects). Deferred to a future release.
+- [ ] **Container-based isolation** -- Full Docker/Podman sandbox with network restrictions and filesystem mounts. Deferred to v3.2.

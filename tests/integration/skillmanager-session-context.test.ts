@@ -45,11 +45,11 @@ describe('SkillManager Session Context Passthrough', () => {
     });
 
     it('injects EVOKORE_SESSION_ROLE into subprocess env', () => {
-      expect(src).toMatch(/EVOKORE_SESSION_ROLE:\s*context\?\.role\s*\|\|\s*""/);
+      expect(src).toMatch(/EVOKORE_SESSION_ROLE\s*=\s*context\?\.role\s*\|\|\s*""/);
     });
 
     it('injects EVOKORE_SESSION_ID into subprocess env', () => {
-      expect(src).toMatch(/EVOKORE_SESSION_ID:\s*context\?\.sessionId\s*\|\|\s*""/);
+      expect(src).toMatch(/EVOKORE_SESSION_ID\s*=\s*context\?\.sessionId\s*\|\|\s*""/);
     });
   });
 
