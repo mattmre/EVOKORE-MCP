@@ -96,7 +96,7 @@ describe('Session Dashboard (T13)', () => {
     const source = fs.readFileSync(DASHBOARD_PATH, 'utf8');
     const requireMatches = source.match(/require\(['"]([^'"]+)['"]\)/g) || [];
     const imports = requireMatches.map((m) => m.match(/require\(['"]([^'"]+)['"]\)/)![1]);
-    const allowedBuiltins = ['http', 'fs', 'path', 'os'];
+    const allowedBuiltins = ['http', 'fs', 'path', 'os', 'crypto'];
     for (const imp of imports) {
       expect(allowedBuiltins).toContain(imp);
     }

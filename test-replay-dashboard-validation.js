@@ -47,14 +47,14 @@ test('replay dashboard validation', () => {
   // --- 7. Check zero external dependencies (only node built-ins) ---
   const requireMatches = dashboard.match(/require\(['"]([^'"]+)['"]\)/g) || [];
   const imports = requireMatches.map(m => m.match(/require\(['"]([^'"]+)['"]\)/)[1]);
-  const allowedBuiltins = ['http', 'fs', 'path', 'os'];
+  const allowedBuiltins = ['http', 'fs', 'path', 'os', 'crypto'];
   for (const imp of imports) {
     assert.ok(
       allowedBuiltins.includes(imp),
       'dashboard.js must only require node built-ins, found: ' + imp
     );
   }
-  console.log('  [PASS] zero external dependencies (only http, fs, path, os)');
+  console.log('  [PASS] zero external dependencies (only http, fs, path, os, crypto)');
 
   // --- 8. Check HTML is self-contained (inline CSS/JS) ---
   assert.match(dashboard, /<style>/, 'must have inline CSS');
