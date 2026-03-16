@@ -48,11 +48,11 @@ dangerous_commands:
     reason: 'Piping remote script to shell'
     ask: false
   - id: DC-11
-    pattern: 'chmod\s+777'
+    pattern: '(?:^|[;&|]\s*)chmod\s+777'
     reason: 'Setting world-writable permissions'
     ask: true
   - id: DC-12
-    pattern: 'mkfs|format\s+[A-Z]:'
+    pattern: '(?:^|[;&|]\s*)(?:mkfs\b|format\s+[A-Z]:)'
     reason: 'Filesystem format command detected'
     ask: false
   - id: DC-13
@@ -88,7 +88,7 @@ dangerous_commands:
     reason: 'Piped deletion via xargs'
     ask: true
   - id: DC-21
-    pattern: '\bsudo\b'
+    pattern: '(?:^|[;&|]\s*)sudo\b'
     reason: 'Privilege escalation via sudo'
     ask: true
   - id: DC-22
