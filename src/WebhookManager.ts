@@ -74,6 +74,9 @@ const DELIVERY_TIMEOUT_MS = 10000;
  * - Opt-in: disabled unless EVOKORE_WEBHOOKS_ENABLED=true.
  */
 export class WebhookManager {
+  /** Maximum age (in milliseconds) for replay protection. Defaults to 5 minutes. */
+  static readonly REPLAY_WINDOW_MS = 300_000;
+
   private webhooks: WebhookConfig[] = [];
   private enabled: boolean = false;
   private subscribers: Map<string, Array<{ pluginId: string; handler: (event: WebhookPayload) => void }>> = new Map();
@@ -173,19 +176,46 @@ export class WebhookManager {
 
   /**
    * Compute HMAC-SHA256 signature for a payload body.
+   *
+   * When `timestamp` is provided, the HMAC is computed over `${timestamp}.${body}`
+   * to bind the signature to a specific point in time (replay protection).
+   * When omitted, the HMAC is computed over `body` alone (backward compatible).
    */
-  static computeSignature(body: string, secret: string): string {
+  static computeSignature(body: string, secret: string, timestamp?: number): string {
+    const message = timestamp !== undefined ? `${timestamp}.${body}` : body;
     return crypto
       .createHmac("sha256", secret)
-      .update(body, "utf8")
+      .update(message, "utf8")
       .digest("hex");
   }
 
   /**
    * Verify an HMAC-SHA256 signature using timing-safe comparison.
+   *
+   * When `timestamp` is provided, the method also enforces a replay-protection
+   * window: if the timestamp is older (or newer) than `maxAgeMs` (defaults to
+   * `REPLAY_WINDOW_MS`, 5 minutes), the signature is rejected.
+   *
+   * When `timestamp` is omitted, verification falls back to body-only HMAC
+   * comparison for backward compatibility.
    */
-  static verifySignature(body: string, secret: string, receivedSignature: string): boolean {
-    const expected = WebhookManager.computeSignature(body, secret);
+  static verifySignature(
+    body: string,
+    secret: string,
+    receivedSignature: string,
+    timestamp?: number,
+    maxAgeMs?: number,
+  ): boolean {
+    if (timestamp !== undefined) {
+      const ts = Math.floor(timestamp);
+      const nowSeconds = Date.now() / 1000;
+      const windowSeconds = (maxAgeMs || WebhookManager.REPLAY_WINDOW_MS) / 1000;
+      if (Math.abs(nowSeconds - ts) > windowSeconds) {
+        return false;
+      }
+    }
+
+    const expected = WebhookManager.computeSignature(body, secret, timestamp);
     const expectedBuf = Buffer.from(expected, 'hex');
     const receivedBuf = Buffer.from(receivedSignature, 'hex');
     if (expectedBuf.length !== receivedBuf.length) return false;
@@ -299,17 +329,21 @@ export class WebhookManager {
       try {
         const body = JSON.stringify(payload);
         const url = new URL(webhook.url);
+        const timestamp = Math.floor(Date.now() / 1000);
 
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
           "Content-Length": String(Buffer.byteLength(body)),
           "User-Agent": "EVOKORE-MCP-Webhook/3.0",
+          "X-EVOKORE-Timestamp": String(timestamp),
+          "X-EVOKORE-Nonce": payload.id,
         };
 
         if (webhook.secret) {
           headers["X-EVOKORE-Signature"] = WebhookManager.computeSignature(
             body,
-            webhook.secret
+            webhook.secret,
+            timestamp,
           );
         }
 
