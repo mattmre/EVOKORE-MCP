@@ -8,8 +8,17 @@
  * Sessions have a configurable TTL (default 1 hour) and are cleaned up
  * automatically when accessed or via explicit cleanExpired() calls.
  *
- * This is the initial in-memory-only implementation — no persistence.
+ * Supports pluggable session stores via the SessionStore interface.
+ * When a store is provided, session state is persisted on create/destroy
+ * and can be loaded back on demand. The in-memory Map remains the primary
+ * fast-path for all synchronous operations.
+ *
+ * Default behavior (no store argument) uses MemorySessionStore,
+ * which is functionally identical to the original in-memory implementation.
  */
+
+import type { SessionStore } from "./SessionStore";
+import { MemorySessionStore } from "./stores/MemorySessionStore";
 
 const DEFAULT_SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -42,6 +51,9 @@ export interface SessionIsolationOptions {
 
   /** Maximum number of concurrent sessions. When exceeded, the least-recently-accessed session is evicted. Defaults to 100. */
   maxSessions?: number;
+
+  /** Optional pluggable session store for persistence. Defaults to MemorySessionStore. */
+  store?: SessionStore;
 }
 
 const DEFAULT_MAX_SESSIONS = 100;
@@ -50,12 +62,21 @@ export class SessionIsolation {
   private sessions: Map<string, SessionState> = new Map();
   private ttlMs: number;
   private maxSessions: number;
+  private store: SessionStore;
 
   constructor(options?: SessionIsolationOptions) {
     const envTtl = Number(process.env.EVOKORE_SESSION_TTL_MS);
     this.ttlMs = options?.ttlMs
       ?? (Number.isFinite(envTtl) && envTtl > 0 ? envTtl : DEFAULT_SESSION_TTL_MS);
     this.maxSessions = options?.maxSessions ?? DEFAULT_MAX_SESSIONS;
+    this.store = options?.store ?? new MemorySessionStore();
+  }
+
+  /**
+   * Get the configured session store instance.
+   */
+  getStore(): SessionStore {
+    return this.store;
   }
 
   /**
@@ -80,6 +101,12 @@ export class SessionIsolation {
       metadata: new Map(),
     };
     this.sessions.set(sessionId, state);
+
+    // Fire-and-forget persist to store (errors logged but not thrown)
+    this.store.set(sessionId, state).catch(() => {
+      // Store persistence is best-effort for the synchronous createSession path
+    });
+
     return state;
   }
 
@@ -111,6 +138,7 @@ export class SessionIsolation {
 
     if (oldestId !== null) {
       this.sessions.delete(oldestId);
+      this.store.delete(oldestId).catch(() => {});
     }
   }
 
@@ -134,6 +162,7 @@ export class SessionIsolation {
 
     if (this.isExpired(state)) {
       this.sessions.delete(sessionId);
+      this.store.delete(sessionId).catch(() => {});
       return null;
     }
 
@@ -155,6 +184,7 @@ export class SessionIsolation {
 
     if (this.isExpired(state)) {
       this.sessions.delete(sessionId);
+      this.store.delete(sessionId).catch(() => {});
       return false;
     }
 
@@ -166,7 +196,11 @@ export class SessionIsolation {
    * Returns true if the session existed and was removed.
    */
   destroySession(sessionId: string): boolean {
-    return this.sessions.delete(sessionId);
+    const existed = this.sessions.delete(sessionId);
+    if (existed) {
+      this.store.delete(sessionId).catch(() => {});
+    }
+    return existed;
   }
 
   /**
@@ -180,6 +214,7 @@ export class SessionIsolation {
     for (const [sessionId, state] of this.sessions.entries()) {
       if (this.isExpired(state, now)) {
         this.sessions.delete(sessionId);
+        this.store.delete(sessionId).catch(() => {});
       } else {
         active.push(sessionId);
       }
@@ -199,11 +234,43 @@ export class SessionIsolation {
     for (const [sessionId, state] of this.sessions.entries()) {
       if (this.isExpired(state, now)) {
         this.sessions.delete(sessionId);
+        this.store.delete(sessionId).catch(() => {});
         removed++;
       }
     }
 
     return removed;
+  }
+
+  /**
+   * Persist the current state of a session to the backing store.
+   * Call this after modifying session state to ensure it is durably stored.
+   * No-op if the session does not exist in-memory.
+   */
+  async persistSession(sessionId: string): Promise<void> {
+    const state = this.sessions.get(sessionId);
+    if (state) {
+      await this.store.set(sessionId, state);
+    }
+  }
+
+  /**
+   * Load a session from the backing store into the in-memory cache.
+   * Returns null if the session is not found in the store or has expired.
+   * Useful for restoring sessions after process restart.
+   */
+  async loadSession(sessionId: string): Promise<SessionState | null> {
+    const state = await this.store.get(sessionId);
+    if (!state) return null;
+
+    if (this.isExpired(state)) {
+      await this.store.delete(sessionId);
+      return null;
+    }
+
+    state.lastAccessedAt = Date.now();
+    this.sessions.set(sessionId, state);
+    return state;
   }
 
   /**
