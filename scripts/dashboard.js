@@ -5,12 +5,82 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 
 const PORT = parseInt(process.env.EVOKORE_DASHBOARD_PORT || '8899', 10);
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
 const EVOKORE_STATE_DIR = path.join(os.homedir(), '.evokore');
 const PENDING_APPROVALS_FILE = path.join(EVOKORE_STATE_DIR, 'pending-approvals.json');
 const DENIED_TOKENS_FILE = path.join(EVOKORE_STATE_DIR, 'denied-tokens.json');
+
+// Basic auth credentials (optional -- when unset, dashboard is unauthenticated)
+const DASHBOARD_USER = process.env.EVOKORE_DASHBOARD_USER || '';
+const DASHBOARD_PASS = process.env.EVOKORE_DASHBOARD_PASS || '';
+const AUTH_ENABLED = !!(DASHBOARD_USER && DASHBOARD_PASS);
+
+// Timing-safe credential comparison using crypto.timingSafeEqual
+function checkCredentials(user, pass) {
+  if (!AUTH_ENABLED) return true;
+  // Pad to equal length before comparing to prevent length-based timing leaks
+  const expectedUser = Buffer.from(DASHBOARD_USER, 'utf8');
+  const expectedPass = Buffer.from(DASHBOARD_PASS, 'utf8');
+  const givenUser = Buffer.from(user || '', 'utf8');
+  const givenPass = Buffer.from(pass || '', 'utf8');
+
+  // Compare lengths first (constant-time via bitwise OR of both checks)
+  const userLenMatch = expectedUser.length === givenUser.length;
+  const passLenMatch = expectedPass.length === givenPass.length;
+
+  // For timingSafeEqual, buffers must be equal length. Use padded comparison.
+  const maxUserLen = Math.max(expectedUser.length, givenUser.length) || 1;
+  const maxPassLen = Math.max(expectedPass.length, givenPass.length) || 1;
+
+  const paddedExpectedUser = Buffer.alloc(maxUserLen);
+  const paddedGivenUser = Buffer.alloc(maxUserLen);
+  expectedUser.copy(paddedExpectedUser);
+  givenUser.copy(paddedGivenUser);
+
+  const paddedExpectedPass = Buffer.alloc(maxPassLen);
+  const paddedGivenPass = Buffer.alloc(maxPassLen);
+  expectedPass.copy(paddedExpectedPass);
+  givenPass.copy(paddedGivenPass);
+
+  const userMatch = crypto.timingSafeEqual(paddedExpectedUser, paddedGivenUser) && userLenMatch;
+  const passMatch = crypto.timingSafeEqual(paddedExpectedPass, paddedGivenPass) && passLenMatch;
+
+  return userMatch && passMatch;
+}
+
+// Parse Basic auth header and return { user, pass } or null
+function parseBasicAuth(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Basic ')) return null;
+  try {
+    const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
+    const colonIndex = decoded.indexOf(':');
+    if (colonIndex < 0) return null;
+    return { user: decoded.substring(0, colonIndex), pass: decoded.substring(colonIndex + 1) };
+  } catch {
+    return null;
+  }
+}
+
+// Auth middleware -- returns true if request is authorized, false if 401 was sent
+function requireAuth(req, res) {
+  if (!AUTH_ENABLED) return true;
+
+  const creds = parseBasicAuth(req);
+  if (creds && checkCredentials(creds.user, creds.pass)) {
+    return true;
+  }
+
+  res.writeHead(401, {
+    'Content-Type': 'text/plain',
+    'WWW-Authenticate': 'Basic realm="EVOKORE Dashboard"'
+  });
+  res.end('Unauthorized');
+  return false;
+}
 
 // Sanitize session IDs to prevent path traversal
 function sanitizeSessionId(id) {
@@ -55,8 +125,8 @@ function countLines(filePath) {
   }
 }
 
-// List all sessions with metadata
-function listSessions() {
+// List all sessions with metadata, with optional filtering
+function listSessions(filters) {
   if (!fs.existsSync(SESSIONS_DIR)) return [];
   const files = fs.readdirSync(SESSIONS_DIR);
 
@@ -70,7 +140,7 @@ function listSessions() {
     return !base.endsWith('-tasks');
   });
 
-  return manifestFiles.map(f => {
+  let sessions = manifestFiles.map(f => {
     const id = f.replace('.json', '');
     try {
       const manifest = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
@@ -88,6 +158,22 @@ function listSessions() {
       return { id, purpose: null, status: null, replayCount: 0, evidenceCount: 0, lastActivity: null };
     }
   }).sort((a, b) => (b.lastActivity || '').localeCompare(a.lastActivity || ''));
+
+  // Apply filters if provided
+  if (filters) {
+    if (filters.status) {
+      sessions = sessions.filter(s => s.status === filters.status);
+    }
+    if (filters.since) {
+      const sinceDate = new Date(filters.since);
+      if (!isNaN(sinceDate.getTime())) {
+        const sinceISO = sinceDate.toISOString();
+        sessions = sessions.filter(s => s.lastActivity && s.lastActivity >= sinceISO);
+      }
+    }
+  }
+
+  return sessions;
 }
 
 // Read pending approvals from the shared state file
@@ -173,20 +259,26 @@ const dashboardHTML = `<!DOCTYPE html>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
-    h1 { color: #38bdf8; margin-bottom: 20px; }
+    h1 { color: #38bdf8; margin-bottom: 8px; }
     h2 { color: #94a3b8; margin: 16px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
     nav { margin-bottom: 20px; display: flex; gap: 16px; }
     nav a { color: #38bdf8; text-decoration: none; padding: 6px 14px; border-radius: 6px; border: 1px solid #334155; font-size: 14px; }
     nav a:hover, nav a.active { background: #1e293b; border-color: #38bdf8; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+    .auto-refresh-indicator { color: #64748b; font-size: 12px; }
+    .auto-refresh-indicator .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; margin-right: 4px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .sessions { display: grid; gap: 12px; }
     .session { background: #1e293b; border-radius: 8px; padding: 16px; cursor: pointer; border: 1px solid #334155; transition: border-color 0.15s; }
     .session:hover { border-color: #38bdf8; }
     .session .id { color: #38bdf8; font-weight: 600; font-family: monospace; }
     .session .purpose { color: #cbd5e1; margin-top: 4px; }
-    .session .meta { color: #64748b; font-size: 13px; margin-top: 4px; }
-    .session .status-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+    .session .meta { color: #64748b; font-size: 13px; margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap; }
+    .session .meta-item { display: flex; align-items: center; gap: 4px; }
+    .session .status-badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-weight: 600; }
     .status-active { background: #065f46; color: #6ee7b7; }
     .status-awaiting { background: #78350f; color: #fcd34d; }
+    .status-completed { background: #1e3a5f; color: #93c5fd; }
     .status-other { background: #334155; color: #94a3b8; }
     .timeline { margin-top: 16px; }
     .event { display: flex; gap: 12px; padding: 8px 12px; border-left: 2px solid #334155; margin-left: 8px; font-size: 14px; }
@@ -207,14 +299,21 @@ const dashboardHTML = `<!DOCTYPE html>
     .error { color: #f87171; padding: 16px; background: #1e293b; border-radius: 8px; }
     .loading { color: #64748b; }
     #app { max-width: 960px; margin: 0 auto; }
-    .filter-bar { margin-bottom: 16px; }
-    .filter-bar input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; width: 100%; max-width: 400px; font-size: 14px; }
-    .filter-bar input:focus { outline: none; border-color: #38bdf8; }
+    .filter-bar { margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .filter-bar input, .filter-bar select { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+    .filter-bar input { width: 100%; max-width: 300px; }
+    .filter-bar select { min-width: 120px; }
+    .filter-bar input:focus, .filter-bar select:focus { outline: none; border-color: #38bdf8; }
+    .filter-bar label { color: #94a3b8; font-size: 13px; }
+    .timestamp { color: #94a3b8; font-size: 12px; font-family: monospace; }
   </style>
 </head>
 <body>
   <div id="app">
-    <h1>EVOKORE Session Dashboard</h1>
+    <div class="header-row">
+      <h1>EVOKORE Session Dashboard</h1>
+      <span class="auto-refresh-indicator"><span class="dot"></span>Auto-refresh 30s</span>
+    </div>
     <nav>
       <a href="/" class="active">Sessions</a>
       <a href="/approvals">Approvals</a>
@@ -223,6 +322,7 @@ const dashboardHTML = `<!DOCTYPE html>
   </div>
   <script>
     var API = '';
+    var refreshTimer = null;
 
     function esc(s) {
       if (!s) return '';
@@ -235,6 +335,7 @@ const dashboardHTML = `<!DOCTYPE html>
       if (!status) return '';
       if (status === 'active') return '<span class="status-badge status-active">active</span>';
       if (status === 'awaiting-purpose') return '<span class="status-badge status-awaiting">awaiting purpose</span>';
+      if (status === 'completed') return '<span class="status-badge status-completed">completed</span>';
       return '<span class="status-badge status-other">' + esc(status) + '</span>';
     }
 
@@ -248,19 +349,52 @@ const dashboardHTML = `<!DOCTYPE html>
       try { return new Date(ts).toLocaleString(); } catch { return ts; }
     }
 
+    function relativeTime(ts) {
+      if (!ts) return '';
+      try {
+        var diff = Date.now() - new Date(ts).getTime();
+        if (diff < 60000) return 'just now';
+        if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+        if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+        return Math.floor(diff / 86400000) + 'd ago';
+      } catch { return ''; }
+    }
+
+    function buildFilterUrl() {
+      var params = new URLSearchParams();
+      var statusFilter = document.getElementById('status-filter');
+      var sinceFilter = document.getElementById('since-filter');
+      if (statusFilter && statusFilter.value) params.set('status', statusFilter.value);
+      if (sinceFilter && sinceFilter.value) params.set('since', sinceFilter.value);
+      var qs = params.toString();
+      return API + '/api/sessions' + (qs ? '?' + qs : '');
+    }
+
     async function loadSessions() {
       try {
-        var res = await fetch(API + '/api/sessions');
+        var url = buildFilterUrl();
+        var res = await fetch(url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var sessions = await res.json();
         var content = document.getElementById('content');
 
+        var html = '<div class="filter-bar">';
+        html += '<input type="text" id="session-filter" placeholder="Search sessions..." oninput="filterSessionsLocal()">';
+        html += '<label>Status: </label><select id="status-filter" onchange="loadSessions()">';
+        html += '<option value="">All</option>';
+        html += '<option value="active">Active</option>';
+        html += '<option value="completed">Completed</option>';
+        html += '<option value="awaiting-purpose">Awaiting Purpose</option>';
+        html += '</select>';
+        html += '<label>Since: </label><input type="date" id="since-filter" onchange="loadSessions()">';
+        html += '</div>';
+
         if (!sessions.length) {
-          content.innerHTML = '<p class="empty">No sessions found in ~/.evokore/sessions/</p>';
+          html += '<p class="empty">No sessions found matching filters</p>';
+          content.innerHTML = html;
           return;
         }
 
-        var html = '<div class="filter-bar"><input type="text" id="session-filter" placeholder="Filter sessions..." oninput="filterSessions()"></div>';
         html += '<div class="sessions" id="session-list">';
         for (var i = 0; i < sessions.length; i++) {
           var s = sessions[i];
@@ -269,8 +403,12 @@ const dashboardHTML = `<!DOCTYPE html>
           html += '\\')">';
           html += '<div class="id">' + esc(s.id) + statusBadge(s.status) + '</div>';
           html += '<div class="purpose">' + esc(s.purpose || 'No purpose set') + '</div>';
-          html += '<div class="meta">Replay: ' + (s.replayCount || 0) + ' events | Evidence: ' + (s.evidenceCount || 0) + ' items';
-          if (s.lastActivity) html += ' | Last: ' + formatDate(s.lastActivity);
+          html += '<div class="meta">';
+          html += '<span class="meta-item">Replay: ' + (s.replayCount || 0) + '</span>';
+          html += '<span class="meta-item">Evidence: ' + (s.evidenceCount || 0) + '</span>';
+          if (s.lastActivity) {
+            html += '<span class="meta-item timestamp" title="' + esc(formatDate(s.lastActivity)) + '">' + relativeTime(s.lastActivity) + '</span>';
+          }
           html += '</div></div>';
         }
         html += '</div>';
@@ -280,7 +418,7 @@ const dashboardHTML = `<!DOCTYPE html>
       }
     }
 
-    function filterSessions() {
+    function filterSessionsLocal() {
       var query = (document.getElementById('session-filter').value || '').toLowerCase();
       var items = document.querySelectorAll('.session');
       for (var i = 0; i < items.length; i++) {
@@ -290,6 +428,9 @@ const dashboardHTML = `<!DOCTYPE html>
     }
 
     async function loadSession(id) {
+      // Stop auto-refresh while viewing a single session
+      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+
       var content = document.getElementById('content');
       content.innerHTML = '<p class="loading">Loading session ' + esc(id) + '...</p>';
 
@@ -318,7 +459,7 @@ const dashboardHTML = `<!DOCTYPE html>
         var topTools = Object.entries(toolCounts).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 8);
         var uniqueToolCount = Object.keys(toolCounts).length;
 
-        var html = '<a class="back" href="#" onclick="event.preventDefault(); loadSessions();">Back to sessions</a>';
+        var html = '<a class="back" href="#" onclick="event.preventDefault(); startAutoRefresh(); loadSessions();">Back to sessions</a>';
         html += '<h2>Session: ' + esc(id) + '</h2>';
 
         html += '<div class="stats">';
@@ -349,12 +490,19 @@ const dashboardHTML = `<!DOCTYPE html>
 
         content.innerHTML = html;
       } catch (err) {
-        content.innerHTML = '<a class="back" href="#" onclick="event.preventDefault(); loadSessions();">Back to sessions</a>' +
+        content.innerHTML = '<a class="back" href="#" onclick="event.preventDefault(); startAutoRefresh(); loadSessions();">Back to sessions</a>' +
           '<div class="error">Failed to load session: ' + esc(err.message) + '</div>';
       }
     }
 
+    function startAutoRefresh() {
+      if (refreshTimer) clearInterval(refreshTimer);
+      refreshTimer = setInterval(loadSessions, 30000);
+    }
+
+    // Initial load and auto-refresh every 30 seconds
     loadSessions();
+    startAutoRefresh();
   </script>
 </body>
 </html>`;
@@ -369,21 +517,33 @@ const approvalsHTML = `<!DOCTYPE html>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
-    h1 { color: #38bdf8; margin-bottom: 20px; }
+    h1 { color: #38bdf8; margin-bottom: 8px; }
     h2 { color: #94a3b8; margin: 16px 0 8px; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
     nav { margin-bottom: 20px; display: flex; gap: 16px; }
     nav a { color: #38bdf8; text-decoration: none; padding: 6px 14px; border-radius: 6px; border: 1px solid #334155; font-size: 14px; }
     nav a:hover, nav a.active { background: #1e293b; border-color: #38bdf8; }
     #app { max-width: 960px; margin: 0 auto; }
+    .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+    .auto-refresh-indicator { color: #64748b; font-size: 12px; }
+    .auto-refresh-indicator .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #4ade80; margin-right: 4px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .empty { color: #64748b; padding: 40px; text-align: center; }
     .error { color: #f87171; padding: 16px; background: #1e293b; border-radius: 8px; }
     .loading { color: #64748b; }
     .approvals { display: grid; gap: 12px; }
-    .approval-card { background: #1e293b; border-radius: 8px; padding: 16px; border: 1px solid #334155; }
+    .approval-card { background: #1e293b; border-radius: 8px; padding: 16px; border: 1px solid #334155; transition: border-color 0.15s; }
+    .approval-card.status-pending { border-left: 3px solid #fcd34d; }
+    .approval-card.status-denied { border-left: 3px solid #f87171; opacity: 0.7; }
+    .approval-card.status-approved { border-left: 3px solid #4ade80; opacity: 0.7; }
     .approval-card .tool-name { color: #4ade80; font-weight: 600; font-size: 16px; font-family: monospace; }
     .approval-card .token-prefix { color: #94a3b8; font-family: monospace; font-size: 13px; margin-top: 4px; }
+    .approval-card .session-context { color: #38bdf8; font-size: 13px; margin-top: 4px; font-family: monospace; }
     .approval-card .timing { color: #64748b; font-size: 13px; margin-top: 8px; }
     .approval-card .time-remaining { font-weight: 600; }
+    .approval-card .approval-status { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; margin-left: 8px; }
+    .approval-status-pending { background: #78350f; color: #fcd34d; }
+    .approval-status-denied { background: #7f1d1d; color: #fca5a5; }
+    .approval-status-approved { background: #065f46; color: #6ee7b7; }
     .time-ok { color: #4ade80; }
     .time-warn { color: #fcd34d; }
     .time-danger { color: #f87171; }
@@ -397,17 +557,21 @@ const approvalsHTML = `<!DOCTYPE html>
     .stat .label { color: #64748b; font-size: 12px; }
     .auto-refresh { color: #64748b; font-size: 12px; margin-top: 8px; }
     .denied-notice { color: #fcd34d; font-size: 12px; margin-top: 4px; }
+    .last-updated { color: #475569; font-size: 11px; margin-top: 4px; }
   </style>
 </head>
 <body>
   <div id="app">
-    <h1>EVOKORE HITL Approvals</h1>
+    <div class="header-row">
+      <h1>EVOKORE HITL Approvals</h1>
+      <span class="auto-refresh-indicator"><span class="dot"></span>Auto-refresh 5s</span>
+    </div>
     <nav>
       <a href="/">Sessions</a>
       <a href="/approvals" class="active">Approvals</a>
     </nav>
-    <p class="auto-refresh">Auto-refreshes every 5 seconds</p>
     <div id="content"><p class="loading">Loading pending approvals...</p></div>
+    <div id="last-updated" class="last-updated"></div>
   </div>
   <script>
     var API = '';
@@ -460,8 +624,22 @@ const approvalsHTML = `<!DOCTYPE html>
         var approvals = await res.json();
         var content = document.getElementById('content');
 
+        // Update timestamp
+        var updated = document.getElementById('last-updated');
+        if (updated) updated.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+
+        var pendingCount = 0;
+        var deniedCount = 0;
+        for (var c = 0; c < approvals.length; c++) {
+          if (approvals[c].denied) deniedCount++;
+          else pendingCount++;
+        }
+
         var html = '<div class="stats">';
-        html += '<div class="stat"><div class="value">' + approvals.length + '</div><div class="label">Pending approvals</div></div>';
+        html += '<div class="stat"><div class="value">' + pendingCount + '</div><div class="label">Pending</div></div>';
+        if (deniedCount > 0) {
+          html += '<div class="stat"><div class="value">' + deniedCount + '</div><div class="label">Denied</div></div>';
+        }
         html += '</div>';
 
         if (!approvals.length) {
@@ -475,13 +653,24 @@ const approvalsHTML = `<!DOCTYPE html>
           var a = approvals[i];
           var tr = formatTimeRemaining(a.expiresAt);
           var tokenDisplay = esc(a.token);
-          html += '<div class="approval-card">';
-          html += '<div class="tool-name">' + esc(a.toolName) + '</div>';
+          var cardStatus = a.denied ? 'status-denied' : 'status-pending';
+          var statusLabel = a.denied
+            ? '<span class="approval-status approval-status-denied">denied</span>'
+            : '<span class="approval-status approval-status-pending">pending</span>';
+
+          html += '<div class="approval-card ' + cardStatus + '">';
+          html += '<div class="tool-name">' + esc(a.toolName) + statusLabel + '</div>';
           html += '<div class="token-prefix">Token: ' + tokenDisplay + '</div>';
+          if (a.sessionId) {
+            html += '<div class="session-context">Session: ' + esc(a.sessionId) + '</div>';
+          }
           html += '<div class="timing">Created: ' + formatDate(a.createdAt) + ' | Remaining: <span class="time-remaining ' + tr.cls + '">' + tr.text + '</span></div>';
-          html += '<div class="actions">';
-          html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
-          html += '</div>';
+
+          if (!a.denied) {
+            html += '<div class="actions">';
+            html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
+            html += '</div>';
+          }
           html += '</div>';
         }
         html += '</div>';
@@ -492,7 +681,7 @@ const approvalsHTML = `<!DOCTYPE html>
       }
     }
 
-    // Initial load and auto-refresh
+    // Initial load and auto-refresh every 5 seconds
     loadApprovals();
     pollTimer = setInterval(loadApprovals, 5000);
   </script>
@@ -501,6 +690,9 @@ const approvalsHTML = `<!DOCTYPE html>
 
 // Handle incoming HTTP requests
 function handleRequest(req, res) {
+  // Check auth on all routes
+  if (!requireAuth(req, res)) return;
+
   const url = new URL(req.url, 'http://localhost');
 
   // Dashboard HTML
@@ -517,9 +709,14 @@ function handleRequest(req, res) {
     return;
   }
 
-  // API: list sessions
+  // API: list sessions (with optional ?status= and ?since= filtering)
   if (url.pathname === '/api/sessions') {
-    const sessions = listSessions();
+    const filters = {};
+    const statusParam = url.searchParams.get('status');
+    const sinceParam = url.searchParams.get('since');
+    if (statusParam) filters.status = statusParam;
+    if (sinceParam) filters.since = sinceParam;
+    const sessions = listSessions(Object.keys(filters).length ? filters : null);
     res.writeHead(200, {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache'
@@ -619,5 +816,10 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log('EVOKORE Dashboard running at http://127.0.0.1:' + PORT);
   console.log('Sessions directory: ' + SESSIONS_DIR);
   console.log('Approvals page: http://127.0.0.1:' + PORT + '/approvals');
+  if (AUTH_ENABLED) {
+    console.log('Authentication: ENABLED (Basic Auth)');
+  } else {
+    console.log('Authentication: DISABLED (set EVOKORE_DASHBOARD_USER and EVOKORE_DASHBOARD_PASS to enable)');
+  }
   console.log('Press Ctrl+C to stop');
 });
