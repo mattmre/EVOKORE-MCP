@@ -171,11 +171,11 @@ These are operational continuity aids rather than repo-historical documentation.
 
 Continuity is enforced with dedicated checks, including:
 
-- `node test-next-session-freshness-validation.js`
-- `node test-tracker-consistency-validation.js`
+- `npx vitest run test-next-session-freshness-validation.js`
+- `npx vitest run test-tracker-consistency-validation.js`
 - `npm run docs:check`
-- `node test-pr-metadata-validation.js`
-- `node test-repo-state-audit-validation.js`
+- `npx vitest run test-pr-metadata-validation.js`
+- `npx vitest run test-repo-state-audit-validation.js`
 
 Before starting a new multi-slice implementation session, run:
 

@@ -439,19 +439,19 @@ Recommended validation order:
 Useful targeted validations:
 
 ```bash
-node test-version-contract-consistency.js
-node test-tool-discovery-validation.js
+npx vitest run test-version-contract-consistency.js
+npx vitest run test-tool-discovery-validation.js
 npm run docs:check
-node test-windows-exec-validation.js
+npx vitest run test-windows-exec-validation.js
 npm run repo:audit -- --json
 ```
 
 For voice and hook paths:
 
 ```bash
-node test-voice-sidecar-smoke-validation.js
-node test-voice-sidecar-hotreload-validation.js
-node hook-e2e-validation.js
+npx vitest run test-voice-sidecar-smoke-validation.js
+npx vitest run test-voice-sidecar-hotreload-validation.js
+npx vitest run hook-e2e-validation.js
 ```
 
 ## If setup fails

@@ -145,17 +145,17 @@ What they cover:
 
 | Task | Suggested command |
 |---|---|
-| Validate dynamic discovery | `node test-tool-discovery-validation.js` |
-| Validate benchmark contract | `node test-tool-discovery-benchmark-validation.js` |
+| Validate dynamic discovery | `npx vitest run test-tool-discovery-validation.js` |
+| Validate benchmark contract | `npx vitest run test-tool-discovery-benchmark-validation.js` |
 | Validate docs links and ops docs | `npm run docs:check` |
-| Validate HITL doc wording | `node test-hitl-token-docs-validation.js` |
-| Validate hook observability | `node hook-e2e-validation.js` |
-| Validate VoiceSidecar smoke path | `node test-voice-sidecar-smoke-validation.js` |
-| Validate Windows command behavior | `node test-windows-exec-validation.js` |
-| Validate version/runtime/doc consistency | `node test-version-contract-consistency.js` |
-| Validate damage-control policy expansion | `node test-damage-control-validation.js` |
-| Validate PR metadata/runbook contract | `node test-pr-metadata-validation.js` |
-| Validate submodule cleanliness guardrails | `node test-submodule-commit-order-guard-validation.js` |
+| Validate HITL doc wording | `npx vitest run test-hitl-token-docs-validation.js` |
+| Validate hook observability | `npx vitest run hook-e2e-validation.js` |
+| Validate VoiceSidecar smoke path | `npx vitest run test-voice-sidecar-smoke-validation.js` |
+| Validate Windows command behavior | `npx vitest run test-windows-exec-validation.js` |
+| Validate version/runtime/doc consistency | `npx vitest run test-version-contract-consistency.js` |
+| Validate damage-control policy expansion | `npx vitest run test-damage-control-validation.js` |
+| Validate PR metadata/runbook contract | `npx vitest run test-pr-metadata-validation.js` |
+| Validate submodule cleanliness guardrails | `npx vitest run test-submodule-commit-order-guard-validation.js` |
 | Audit live repo state before a session | `npm run repo:audit` |
 
 ## CI and release validations

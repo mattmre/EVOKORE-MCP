@@ -30,5 +30,5 @@ test('tool prefix collision validation', () => {
   assert.match(troubleshooting, /Skipping duplicate proxied tool/i);
   assert.match(troubleshooting, /already registered/i);
 
-  assert.match(docsReadme, /Tool prefix collision guard: `test-tool-prefix-collision-validation\.js`/);
+  assert.match(docsReadme, /Tool prefix collision guard: `npx vitest run test-tool-prefix-collision-validation\.js`/);
 });
