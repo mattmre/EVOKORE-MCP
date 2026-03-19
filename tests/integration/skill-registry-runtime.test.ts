@@ -64,6 +64,23 @@ describe("T21: Remote Skill Registry Runtime", () => {
         return;
       }
 
+      if (reqPath === "/nested/base/registry-prefixed.json") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          name: "prefixed-registry",
+          version: "1.0.0",
+          entries: [
+            {
+              name: "prefixed-entry-skill",
+              version: "2.0.0",
+              description: "Uses a base URL with a path prefix",
+              url: "skills/prefixed-entry.md"
+            }
+          ]
+        }));
+        return;
+      }
+
       if (reqPath === "/registry-fail.json") {
         res.writeHead(500, { "Content-Type": "text/plain" });
         res.end("boom");
@@ -196,5 +213,22 @@ describe("T21: Remote Skill Registry Runtime", () => {
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(1);
     expect(requestCounts["/registry-a.json"]).toBe(1);
+  });
+
+  it("resolves relative URLs correctly when the registry base URL includes a path prefix", async () => {
+    writeConfig([
+      { name: "prefixed", baseUrl: `${baseUrl}/nested/base`, index: "registry-prefixed.json" }
+    ]);
+
+    const { SkillManager } = require(skillManagerJsPath);
+    const sm = new SkillManager(mockProxyManager);
+
+    const entries = await sm.listRegistrySkills("prefixed");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      name: "prefixed-entry-skill",
+      url: `${baseUrl}/nested/base/skills/prefixed-entry.md`
+    });
+    expect(requestCounts["/nested/base/registry-prefixed.json"]).toBe(1);
   });
 });
