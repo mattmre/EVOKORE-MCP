@@ -50,6 +50,7 @@ describe('RegistryManager', () => {
     });
 
     it('RegistryEntry has optional fields', () => {
+      expect(src).toMatch(/category\?:\s*string/);
       expect(src).toMatch(/author\?:\s*string/);
       expect(src).toMatch(/tags\?:\s*string\[\]/);
       expect(src).toMatch(/checksum\?:\s*string/);
@@ -94,6 +95,7 @@ describe('RegistryManager', () => {
             version: '1.0.0',
             description: 'A test skill',
             url: 'https://example.com/skill-a.md',
+            category: 'Testing',
             author: 'test-author',
             tags: ['testing', 'example'],
             checksum: 'abc123',
@@ -106,6 +108,7 @@ describe('RegistryManager', () => {
       expect(parsed.version).toBe('1.0.0');
       expect(parsed.entries.length).toBe(1);
       expect(parsed.entries[0].name).toBe('skill-a');
+      expect(parsed.entries[0].category).toBe('Testing');
       expect(parsed.entries[0].author).toBe('test-author');
       expect(parsed.entries[0].tags).toEqual(['testing', 'example']);
       expect(parsed.entries[0].checksum).toBe('abc123');

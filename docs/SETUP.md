@@ -150,7 +150,7 @@ Walkthrough:
 - `elevenlabs` is optional and booted through `uvx`
 - `supabase` is optional and requires `SUPABASE_ACCESS_TOKEN`
 - child env values can interpolate shell environment variables via `${VAR}` syntax
-- `skillRegistries` array configures remote skill registry URLs for `list_registry`
+- `skillRegistries` configures remote skill registries for `list_registry` using `{ name, baseUrl, index }` objects
 
 ### HTTP transport for child servers
 
