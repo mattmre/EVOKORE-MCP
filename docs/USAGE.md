@@ -418,10 +418,10 @@ Example for fast playback:
 For natural-sounding fast speech, prefer Layer 1 (API speed) over Layer 3 (ffmpeg). Only use `postProcessTempo` for speeds beyond what the API supports.
 
 Validation checks for this path:
-- `node test-voice-e2e-validation.js`
-- `node test-voice-refinement-validation.js`
-- `node test-voice-sidecar-smoke-validation.js`
-- `node test-voice-sidecar-hotreload-validation.js`
+- `npx vitest run test-voice-e2e-validation.js`
+- `npx vitest run test-voice-refinement-validation.js`
+- `npx vitest run test-voice-sidecar-smoke-validation.js`
+- `npx vitest run test-voice-sidecar-hotreload-validation.js`
 
 Opt-in live validation against ElevenLabs:
 

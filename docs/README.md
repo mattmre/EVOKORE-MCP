@@ -90,19 +90,19 @@ Use this page as the main portal for repository documentation.
 Important validation anchors:
 
 - Docs and ops guardrails: `npm run docs:check`
-- HITL token docs guardrail: `node test-hitl-token-docs-validation.js`
-- Tracker consistency guard: `node test-tracker-consistency-validation.js`
-- Next session freshness guard: `node test-next-session-freshness-validation.js`
-- Voice hook transport: `node test-voice-e2e-validation.js`
-- Voice sidecar runtime smoke: `node test-voice-sidecar-smoke-validation.js`
-- Voice sidecar hot-reload: `node test-voice-sidecar-hotreload-validation.js`
-- Hook observability behavior: `node hook-e2e-validation.js` and `node hook-test-suite.js`
-- Tool prefix collision guard: `test-tool-prefix-collision-validation.js`
-- VoiceMode Windows docs guardrail: `node test-voice-windows-docs-validation.js`
-- Windows command resolution guard: `node test-windows-exec-validation.js`
+- HITL token docs guardrail: `npx vitest run test-hitl-token-docs-validation.js`
+- Tracker consistency guard: `npx vitest run test-tracker-consistency-validation.js`
+- Next session freshness guard: `npx vitest run test-next-session-freshness-validation.js`
+- Voice hook transport: `npx vitest run test-voice-e2e-validation.js`
+- Voice sidecar runtime smoke: `npx vitest run test-voice-sidecar-smoke-validation.js`
+- Voice sidecar hot-reload: `npx vitest run test-voice-sidecar-hotreload-validation.js`
+- Hook observability behavior: `npx vitest run hook-e2e-validation.js hook-test-suite.js`
+- Tool prefix collision guard: `npx vitest run test-tool-prefix-collision-validation.js`
+- VoiceMode Windows docs guardrail: `npx vitest run test-voice-windows-docs-validation.js`
+- Windows command resolution guard: `npx vitest run test-windows-exec-validation.js`
 - Release workflow guardrails: `npm run release:check`
-- PR metadata validation: `node test-pr-metadata-validation.js`
-- Submodule commit-order guard: `node test-submodule-commit-order-guard-validation.js`
+- PR metadata validation: `npx vitest run test-pr-metadata-validation.js`
+- Submodule commit-order guard: `npx vitest run test-submodule-commit-order-guard-validation.js`
 
 ## Recommended reading paths
 

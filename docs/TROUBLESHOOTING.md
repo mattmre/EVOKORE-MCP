@@ -42,8 +42,8 @@ If the server still won't connect, launch your AI assistant in debug mode to see
 - To preserve generated audio for inspection, set `VOICE_SIDECAR_ARTIFACT_DIR=/absolute/path` and check the logged saved path
 - If you expected a non-default persona, set `VOICE_SIDECAR_PERSONA=<persona>` on the hook or include `persona` / `metadata.persona` in the hook payload
 - Validate hook and payload behavior with:
-  - `node test-voice-e2e-validation.js`
-  - `node test-voice-refinement-validation.js`
+  - `npx vitest run test-voice-e2e-validation.js`
+  - `npx vitest run test-voice-refinement-validation.js`
 
 **Optional live ElevenLabs validation:**
 
