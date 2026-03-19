@@ -190,7 +190,11 @@ Configure registries in `mcp.config.json`:
 ```json
 {
   "skillRegistries": [
-    "https://example.com/skills/registry.json"
+    {
+      "name": "example",
+      "baseUrl": "https://example.com/skills",
+      "index": "registry.json"
+    }
   ]
 }
 ```

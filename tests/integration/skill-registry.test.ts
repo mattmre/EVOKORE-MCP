@@ -29,6 +29,10 @@ describe('T21: Remote Skill Registry Validation', () => {
       expect(src).toMatch(/loadRegistriesFromConfig/);
     });
 
+    it('uses EVOKORE_MCP_CONFIG_PATH override for config loading', () => {
+      expect(src).toMatch(/EVOKORE_MCP_CONFIG_PATH/);
+    });
+
     it('has SkillRegistry interface with name, baseUrl, and index', () => {
       expect(src).toMatch(/interface SkillRegistry/);
       expect(src).toMatch(/baseUrl:\s*string/);
@@ -179,13 +183,14 @@ describe('T21: Remote Skill Registry Validation', () => {
       expect(src).toMatch(/registry\.baseUrl.*registry\.index/);
     });
 
-    it('skips entries without name or url in parsed response', () => {
-      expect(src).toMatch(/!entry\.name \|\| !entry\.url/);
+    it('normalizes parsed registry entries through the shared mapper', () => {
+      expect(src).toMatch(/toRegistrySkillEntry/);
+      expect(src).toMatch(/resolveRegistryEntryUrl/);
     });
 
-    it('handles both flat array and { skills: [] } response format', () => {
-      expect(src).toMatch(/Array\.isArray\(parsed\)/);
-      expect(src).toMatch(/parsed\?\.skills/);
+    it('delegates registry fetching through the shared RegistryManager path', () => {
+      expect(src).toMatch(/fetchConfiguredRegistryEntries/);
+      expect(src).toMatch(/registryManager\.fetchRegistry/);
     });
   });
 

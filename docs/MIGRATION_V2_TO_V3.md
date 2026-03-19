@@ -295,7 +295,11 @@ EVOKORE_PLUGINS_DIR=./plugins
 ```json
 {
   "skillRegistries": [
-    "https://example.com/skills/registry.json"
+    {
+      "name": "example",
+      "baseUrl": "https://example.com/skills",
+      "index": "registry.json"
+    }
   ]
 }
 ```

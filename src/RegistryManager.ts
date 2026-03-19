@@ -15,6 +15,7 @@ export interface RegistryEntry {
   version: string;
   description: string;
   url: string; // download URL
+  category?: string;
   author?: string;
   tags?: string[];
   checksum?: string; // SHA-256 of the content
@@ -227,6 +228,7 @@ export class RegistryManager {
       version: String(raw.version || "0.0.0"),
       description: String(raw.description || "No description"),
       url: String(raw.url),
+      category: raw.category ? String(raw.category) : undefined,
       author: raw.author ? String(raw.author) : undefined,
       tags: Array.isArray(raw.tags)
         ? raw.tags.filter((t: any) => typeof t === "string")

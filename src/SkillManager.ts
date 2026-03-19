@@ -12,7 +12,7 @@ import { RegistryManager, RegistryEntry, RegistryIndex } from "./RegistryManager
 import { execFileSync } from "child_process";
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
-const CONFIG_PATH = path.resolve(__dirname, "../mcp.config.json");
+const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const MAX_FETCH_SIZE = 1 * 1024 * 1024; // 1MB limit for fetched skills
 const MAX_REDIRECT_DEPTH = 5;
 
@@ -82,6 +82,9 @@ export interface RegistrySkillEntry {
   url: string;
   category?: string;
   version?: string;
+  author?: string;
+  tags?: string[];
+  checksum?: string;
 }
 
 export interface FetchSkillResult {
@@ -1203,9 +1206,8 @@ export class SkillManager {
         const searchQuery = typeof args.query === "string" ? args.query.trim() : undefined;
 
         try {
-            // Try RegistryManager-backed fetch for registries that have full URLs
-            const registries = this.loadRegistriesFromConfig();
-            if (registries.length === 0) {
+            const result = await this.fetchConfiguredRegistryEntries(registryName, searchQuery);
+            if (!result.registriesConfigured) {
                 return {
                     content: [{
                         type: "text",
@@ -1216,11 +1218,7 @@ export class SkillManager {
                 };
             }
 
-            const targets = registryName
-              ? registries.filter(r => r.name.toLowerCase() === registryName.toLowerCase())
-              : registries;
-
-            if (targets.length === 0) {
+            if (!result.matchedTargets) {
                 return {
                     content: [{
                         type: "text",
@@ -1229,32 +1227,9 @@ export class SkillManager {
                 };
             }
 
-            // Fetch all target registries via RegistryManager (with caching)
-            const fetchedIndexes: RegistryIndex[] = [];
-            const fetchErrors: string[] = [];
-
-            for (const registry of targets) {
-                const indexUrl = registry.baseUrl.replace(/\/$/, "") + "/" + registry.index;
-                try {
-                    const idx = await this.registryManager.fetchRegistry(indexUrl);
-                    fetchedIndexes.push(idx);
-                } catch (err: any) {
-                    fetchErrors.push(registry.name + ": " + (err?.message || String(err)));
-                    console.error("[EVOKORE] Failed to fetch registry '" + registry.name + "': " + err.message);
-                }
-            }
-
-            // Search or list all entries
-            let entries: RegistryEntry[];
-            if (searchQuery) {
-                entries = this.registryManager.searchRegistry(searchQuery, fetchedIndexes);
-            } else {
-                entries = fetchedIndexes.flatMap(idx => idx.entries);
-            }
-
-            if (entries.length === 0) {
-                const errorSuffix = fetchErrors.length > 0
-                    ? "\n\nRegistry errors:\n" + fetchErrors.map(e => "  - " + e).join("\n")
+            if (result.entries.length === 0) {
+                const errorSuffix = result.fetchErrors.length > 0
+                    ? "\n\nRegistry errors:\n" + result.fetchErrors.map(e => "  - " + e).join("\n")
                     : "";
                 return {
                     content: [{
@@ -1267,7 +1242,7 @@ export class SkillManager {
                 };
             }
 
-            const lines = entries.map(e => {
+            const lines = result.entries.map(e => {
                 const verSuffix = e.version ? " (v" + e.version + ")" : "";
                 const authorSuffix = e.author ? " by " + e.author : "";
                 const tagsSuffix = e.tags && e.tags.length > 0 ? " [" + e.tags.join(", ") + "]" : "";
@@ -1275,9 +1250,9 @@ export class SkillManager {
                 return "- **" + e.name + "**" + verSuffix + authorSuffix + tagsSuffix + ": " + e.description + checksumNote + "\n  URL: " + e.url;
             });
 
-            let resultText = "Available skills from registries (" + entries.length + " total):\n\n" + lines.join("\n");
-            if (fetchErrors.length > 0) {
-                resultText += "\n\nRegistry errors:\n" + fetchErrors.map(e => "  - " + e).join("\n");
+            let resultText = "Available skills from registries (" + result.entries.length + " total):\n\n" + lines.join("\n");
+            if (result.fetchErrors.length > 0) {
+                resultText += "\n\nRegistry errors:\n" + result.fetchErrors.map(e => "  - " + e).join("\n");
             }
 
             return {
@@ -1453,45 +1428,13 @@ export class SkillManager {
   }
 
   async listRegistrySkills(registryName?: string): Promise<RegistrySkillEntry[]> {
-    const registries = this.loadRegistriesFromConfig();
-    if (registries.length === 0) return [];
-
-    const targets = registryName
-      ? registries.filter(r => r.name.toLowerCase() === registryName.toLowerCase())
-      : registries;
-
-    const allEntries: RegistrySkillEntry[] = [];
-
-    for (const registry of targets) {
-      try {
-        const indexUrl = registry.baseUrl.replace(/\/$/, "") + "/" + registry.index;
-        const raw = await this.httpGet(indexUrl);
-        const parsed = JSON.parse(raw);
-
-        const skills: any[] = Array.isArray(parsed) ? parsed : (parsed?.skills || []);
-        for (const entry of skills) {
-          if (!entry.name || !entry.url) continue;
-          allEntries.push({
-            name: String(entry.name),
-            description: String(entry.description || "No description"),
-            url: String(entry.url).startsWith("http")
-              ? String(entry.url)
-              : registry.baseUrl.replace(/\/$/, "") + "/" + String(entry.url),
-            category: entry.category ? String(entry.category) : undefined,
-            version: entry.version ? String(entry.version) : undefined
-          });
-        }
-      } catch (err: any) {
-        console.error("[EVOKORE] Failed to fetch registry '" + registry.name + "': " + err.message);
-      }
-    }
-
-    return allEntries;
+    const { entries } = await this.fetchConfiguredRegistryEntries(registryName);
+    return entries;
   }
 
   private loadRegistriesFromConfig(): SkillRegistry[] {
     try {
-      const raw = fsSync.readFileSync(CONFIG_PATH, "utf-8");
+      const raw = fsSync.readFileSync(this.getConfigFilePath(), "utf-8");
       const config = JSON.parse(raw);
       const registries = config?.skillRegistries;
       if (!Array.isArray(registries)) return [];
@@ -1505,6 +1448,107 @@ export class SkillManager {
         }));
     } catch {
       return [];
+    }
+  }
+
+  private getConfigFilePath(): string {
+    const overridePath = process.env.EVOKORE_MCP_CONFIG_PATH;
+    return overridePath ? path.resolve(overridePath) : DEFAULT_CONFIG_FILE;
+  }
+
+  private async fetchConfiguredRegistryEntries(
+    registryName?: string,
+    searchQuery?: string
+  ): Promise<{
+    registriesConfigured: boolean;
+    matchedTargets: boolean;
+    entries: RegistrySkillEntry[];
+    fetchErrors: string[];
+  }> {
+    const registries = this.loadRegistriesFromConfig();
+    if (registries.length === 0) {
+      return {
+        registriesConfigured: false,
+        matchedTargets: false,
+        entries: [],
+        fetchErrors: []
+      };
+    }
+
+    const targets = registryName
+      ? registries.filter(r => r.name.toLowerCase() === registryName.toLowerCase())
+      : registries;
+
+    if (targets.length === 0) {
+      return {
+        registriesConfigured: true,
+        matchedTargets: false,
+        entries: [],
+        fetchErrors: []
+      };
+    }
+
+    const fetchedIndexes: RegistryIndex[] = [];
+    const fetchErrors: string[] = [];
+    const sourceByEntry = new Map<RegistryEntry, SkillRegistry>();
+
+    for (const registry of targets) {
+      const indexUrl = registry.baseUrl.replace(/\/$/, "") + "/" + registry.index;
+      try {
+        const idx = await this.registryManager.fetchRegistry(indexUrl);
+        fetchedIndexes.push(idx);
+        for (const entry of idx.entries) {
+          sourceByEntry.set(entry, registry);
+        }
+      } catch (err: any) {
+        fetchErrors.push(registry.name + ": " + (err?.message || String(err)));
+        console.error("[EVOKORE] Failed to fetch registry '" + registry.name + "': " + err.message);
+      }
+    }
+
+    const rawEntries = searchQuery
+      ? this.registryManager.searchRegistry(searchQuery, fetchedIndexes)
+      : fetchedIndexes.flatMap(idx => idx.entries);
+
+    return {
+      registriesConfigured: true,
+      matchedTargets: true,
+      entries: rawEntries.map((entry) => this.toRegistrySkillEntry(entry, sourceByEntry.get(entry))),
+      fetchErrors
+    };
+  }
+
+  private toRegistrySkillEntry(entry: RegistryEntry, registry?: SkillRegistry): RegistrySkillEntry {
+    return {
+      name: entry.name,
+      description: entry.description || "No description",
+      url: this.resolveRegistryEntryUrl(entry.url, registry?.baseUrl),
+      category: entry.category,
+      version: entry.version,
+      author: entry.author,
+      tags: entry.tags,
+      checksum: entry.checksum
+    };
+  }
+
+  private resolveRegistryEntryUrl(entryUrl: string, baseUrl?: string): string {
+    if (!baseUrl) {
+      return entryUrl;
+    }
+
+    try {
+      const absoluteUrl = new URL(entryUrl);
+      if (absoluteUrl.protocol === "http:" || absoluteUrl.protocol === "https:") {
+        return absoluteUrl.toString();
+      }
+    } catch {
+      // Fall back to base-url resolution for relative URLs.
+    }
+
+    try {
+      return new URL(entryUrl, baseUrl.replace(/\/?$/, "/")).toString();
+    } catch {
+      return baseUrl.replace(/\/$/, "") + "/" + entryUrl.replace(/^\//, "");
     }
   }
 
