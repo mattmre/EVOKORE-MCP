@@ -173,8 +173,7 @@ Continuity is enforced with dedicated checks, including:
 
 - `node test-next-session-freshness-validation.js`
 - `node test-tracker-consistency-validation.js`
-- `node test-ops-docs-validation.js`
-- `node test-docs-canonical-links.js`
+- `npm run docs:check`
 - `node test-pr-metadata-validation.js`
 - `node test-repo-state-audit-validation.js`
 

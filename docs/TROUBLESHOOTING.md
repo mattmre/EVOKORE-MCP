@@ -59,7 +59,7 @@ If `EVOKORE_RUN_LIVE_VOICE_TEST` is not set to `1`, the live validation skips in
 **Solution:**
 - Add/update `NPM_TOKEN` in repository secrets.
 - Re-run via `workflow_dispatch`.
-- Confirm workflow checks with `node test-npm-release-flow-validation.js`.
+- Confirm workflow checks with `npm run release:check`.
 - Reference the full process in [RELEASE_FLOW.md](./RELEASE_FLOW.md).
 
 ## 7. VoiceMode Fails to Start on Windows

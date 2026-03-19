@@ -89,8 +89,7 @@ Use this page as the main portal for repository documentation.
 
 Important validation anchors:
 
-- Docs canonical links: `node test-docs-canonical-links.js`
-- Ops docs guardrails: `node test-ops-docs-validation.js`
+- Docs and ops guardrails: `npm run docs:check`
 - HITL token docs guardrail: `node test-hitl-token-docs-validation.js`
 - Tracker consistency guard: `node test-tracker-consistency-validation.js`
 - Next session freshness guard: `node test-next-session-freshness-validation.js`
@@ -101,7 +100,7 @@ Important validation anchors:
 - Tool prefix collision guard: `test-tool-prefix-collision-validation.js`
 - VoiceMode Windows docs guardrail: `node test-voice-windows-docs-validation.js`
 - Windows command resolution guard: `node test-windows-exec-validation.js`
-- Release workflow guardrails: `node test-npm-release-flow-validation.js`
+- Release workflow guardrails: `npm run release:check`
 - PR metadata validation: `node test-pr-metadata-validation.js`
 - Submodule commit-order guard: `node test-submodule-commit-order-guard-validation.js`
 

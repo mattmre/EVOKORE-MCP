@@ -440,7 +440,7 @@ Safe npm publish is handled in GitHub Actions via `.github/workflows/release.yml
 - Mainline safety gate: release commit must be an ancestor of `origin/main`
 - Gates: `npm ci`, `npm test`, `npm run build`
 - Publish guard: requires `NPM_TOKEN` secret
-- Validation: `node test-npm-release-flow-validation.js`
+- Validation: `npm run release:check`
 
 See [docs/RELEASE_FLOW.md](./RELEASE_FLOW.md) for the operator checklist.
 

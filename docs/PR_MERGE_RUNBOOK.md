@@ -18,10 +18,10 @@ Use this as the minimum check set before approval and merge:
 
 | Change type | Required checks |
 | --- | --- |
-| Docs-only changes | `node test-docs-canonical-links.js` |
-| Ops/docs process changes (`docs/PR_MERGE_RUNBOOK.md`, `next-session.md`, orchestration docs) | `node test-ops-docs-validation.js` and `node test-docs-canonical-links.js` |
+| Docs-only changes | `npm run docs:check` |
+| Ops/docs process changes (`docs/PR_MERGE_RUNBOOK.md`, `next-session.md`, orchestration docs) | `npm run docs:check` |
 | Source/tooling/config changes (`src/`, `scripts/`, workflow/config files) | Relevant targeted tests for touched area plus CI-required suite |
-| Release-flow changes | `node test-npm-release-flow-validation.js` plus docs/link checks |
+| Release-flow changes | `npm run release:check` plus docs/link checks |
 
 If a PR spans multiple change types, run the union of required checks.
 

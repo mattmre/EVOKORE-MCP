@@ -12,6 +12,7 @@ The repo uses targeted script-based validations instead of a single hidden test 
 |---|---|
 | `npm run build` | compile TypeScript to `dist/` |
 | `npm test` | broad regression pass across runtime, docs, hooks, discovery, release, and governance checks |
+| `npm run docs:check` | targeted docs link and ops-doc validation |
 | `npm run benchmark:tool-discovery` | benchmark discovery/listing contract |
 | `npm run test:voice:live` | opt-in live ElevenLabs validation |
 
@@ -146,7 +147,7 @@ What they cover:
 |---|---|
 | Validate dynamic discovery | `node test-tool-discovery-validation.js` |
 | Validate benchmark contract | `node test-tool-discovery-benchmark-validation.js` |
-| Validate docs links | `node test-docs-canonical-links.js` |
+| Validate docs links and ops docs | `npm run docs:check` |
 | Validate HITL doc wording | `node test-hitl-token-docs-validation.js` |
 | Validate hook observability | `node hook-e2e-validation.js` |
 | Validate VoiceSidecar smoke path | `node test-voice-sidecar-smoke-validation.js` |
@@ -180,8 +181,7 @@ Recent governance hardening reflected in docs and validation includes:
 
 Release-related checks include:
 
-- `node test-npm-release-flow-validation.js`
-- `node test-release-doc-freshness-validation.js`
+- `npm run release:check`
 
 Current release expectations include:
 

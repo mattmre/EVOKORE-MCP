@@ -21,6 +21,11 @@ test('NPM release flow validation', () => {
   assert.ok(pkg.publishConfig && pkg.publishConfig.access === 'public', 'publishConfig.access must be public');
   assert.ok(pkg.repository && pkg.repository.url, 'repository.url must be set');
   assert.ok(pkg.engines && pkg.engines.node, 'engines.node must be set');
+  assert.strictEqual(
+    pkg.scripts['release:check'],
+    'vitest run test-npm-release-flow-validation.js test-release-doc-freshness-validation.js',
+    'release:check must run the release validators through Vitest'
+  );
 
   // workflow assertions
   assert.match(workflow, /workflow_dispatch:/);
@@ -38,6 +43,8 @@ test('NPM release flow validation', () => {
   assert.match(workflow, /Verify release commit is on origin\/main/);
   assert.match(workflow, /git fetch --no-tags origin main:refs\/remotes\/origin\/main/);
   assert.match(workflow, /git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
+  assert.match(workflow, /actions\/setup-node@v4/, 'workflow must use setup-node v4');
+  assert.match(workflow, /node-version:\s*"20"/, 'workflow must run on Node 20');
   assert.match(workflow, /NPM_TOKEN/);
   assert.match(workflow, /env\.NPM_TOKEN/);
   assert.match(workflow, /contents:\s*write/, 'workflow must have contents: write permission');

@@ -43,11 +43,12 @@ For `workflow_dispatch` runs:
 The release job runs the same quality gates used in development:
 
 1. Verify the release commit (`GITHUB_SHA`) is an ancestor of `origin/main`.
-2. `npm ci`
-3. `npm test`
-4. `npm run build`
-5. `npm publish` (only when `NPM_TOKEN` is configured)
-6. Create GitHub Release (only on tag push; see below)
+2. Use Node.js `20`
+3. `npm ci`
+4. `npm test`
+5. `npm run build`
+6. `npm publish` (only when `NPM_TOKEN` is configured)
+7. Create GitHub Release (only on tag push; see below)
 
 If `NPM_TOKEN` is not set in repository secrets, publish is skipped and the workflow still reports the guard condition.
 
@@ -63,10 +64,15 @@ The workflow requires `contents: write` permission on the `GITHUB_TOKEN` to allo
 
 1. Confirm local branch is clean and merged to `main`.
 2. Update package version as needed.
-3. Create and push a version tag:
+3. Run the release validators:
+   ```bash
+   npm run release:check
+   npm run docs:check
+   ```
+4. Create and push a version tag:
    ```bash
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-4. For manual `workflow_dispatch` runs, set `chain_complete=true` only after verifying dependency chain completion.
-5. Verify the Release workflow completed and published successfully.
+5. For manual `workflow_dispatch` runs, set `chain_complete=true` only after verifying dependency chain completion.
+6. Verify the Release workflow completed and published successfully.

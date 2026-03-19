@@ -441,7 +441,7 @@ Useful targeted validations:
 ```bash
 node test-version-contract-consistency.js
 node test-tool-discovery-validation.js
-node test-docs-canonical-links.js
+npm run docs:check
 node test-windows-exec-validation.js
 npm run repo:audit -- --json
 ```
