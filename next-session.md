@@ -37,6 +37,9 @@ Last Updated (UTC): 2026-03-20
   - error: `ENOENT` renaming `restart-smoke.json.tmp` -> `restart-smoke.json`
   - path: `FileSessionStore.set` via `SessionIsolation.persistSession`
 - Land that fix from a dedicated fresh `main`-based branch, then refresh `#176` and `#177`
+- PR `#176` also needs one Stitch-specific follow-up:
+  - failing test: `test-env-sync-validation.js`
+  - fix needed: add `STITCH_API_KEY` to `.env.example`
 - Merge PR `#176` only after CI is green on the refreshed branch set
 
 ### Priority 1: Land Control-Plane Preservation

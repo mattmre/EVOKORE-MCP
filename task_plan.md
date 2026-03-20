@@ -223,8 +223,10 @@ Execute the requested PR-manager workflow safely from the current repo reality: 
 - PR `#176` is mergeable but not merge-ready yet because CI still shows failing shard checks.
 - PR `#177` also fails the same shard-2 CI case, which confirms the blocker is not specific to Stitch or tracker-doc changes.
 - The shared failure is `tests/integration/session-store.test.ts` restart smoke on Linux: `ENOENT` during rename from `restart-smoke.json.tmp` to `restart-smoke.json` in `FileSessionStore.set`.
+- PR `#176` also has a Stitch-specific shard-3 failure: `test-env-sync-validation.js` reports `${STITCH_API_KEY}` is referenced in `mcp.config.json` but missing from `.env.example`.
 
 ## Recommended Next Move
 - First isolate and fix the Linux `FileSessionStore` atomic-write failure now exposed by PRs `#176` and `#177`.
-- After that fix lands on `main`, rebase or refresh PRs `#176` and `#177`, rerun CI, and clear them in order.
+- After that fix lands on `main`, refresh PRs `#176` and `#177`.
+- On refreshed PR `#176`, also add the missing `.env.example` entry for `STITCH_API_KEY` before rerunning CI.
 - After both open PRs are clear, return to `v3.0.0` publish readiness and the credential-gated production validation queue.

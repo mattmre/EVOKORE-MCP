@@ -331,4 +331,8 @@ description: Progress log for the PR merge and platform wiring sprint.
   - failing test: `tests/integration/session-store.test.ts`
   - failure: `ENOENT` on rename from `restart-smoke.json.tmp` to `restart-smoke.json`
   - call path: `FileSessionStore.set` -> `SessionIsolation.persistSession`
-- Conclusion: both open PRs are blocked by a base-lineage Linux session-store failure, not by Stitch-specific or tracker-doc changes
+- Pulled the failed GitHub Actions log for run `23356824665` on PR `#176`
+- Identified the extra Stitch-only blocker on shard 3:
+  - failing test: `test-env-sync-validation.js`
+  - failure: `${STITCH_API_KEY}` referenced in `mcp.config.json` but missing from `.env.example`
+- Conclusion: both open PRs are blocked by a base-lineage Linux session-store failure, and PR `#176` additionally needs `.env.example` sync for `STITCH_API_KEY`

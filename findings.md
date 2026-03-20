@@ -229,6 +229,10 @@ description: Findings and decisions from the PR merge and platform wiring sprint
   - `restart-smoke.json.tmp` -> `restart-smoke.json`
   - thrown from `FileSessionStore.set` via `SessionIsolation.persistSession`
 - Because the same failure appears on both PR `#176` and PR `#177`, the next fix should be a dedicated `main`-based slice for `FileSessionStore` atomic write behavior or test hardening, not an ad hoc change inside either existing PR.
+- `gh run view 23356824665 --log-failed` for PR `#176` shows an additional Stitch-specific failure on shard 3:
+  - failing test: `test-env-sync-validation.js`
+  - message: `mcp.config.json references ${STITCH_API_KEY} but .env.example has no entry for STITCH_API_KEY`
+- So PR `#176` needs two follow-up fixes: the shared Linux session-store failure on `main` lineage, and a branch-local `.env.example` sync for `STITCH_API_KEY`.
 
 ### Durable Learning
 - When the root control plane contains only tracker/research/session-log drift, preserve it on a dedicated `chore/control-plane-*` branch or PR before deleting stale branches.
