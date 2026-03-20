@@ -522,6 +522,43 @@ describe('Session Store Architecture', () => {
       expect(persisted!.role).toBe('admin');
     });
 
+    it('restart smoke restores persisted state through a fresh store and isolation instance', async () => {
+      const { SessionIsolation } = require(sessionIsolationJsPath);
+      const { FileSessionStore } = require(fileStoreJsPath);
+      const dir = path.join(TEMP_STORE_DIR, 'iso-file-restart-smoke');
+
+      const firstStore = new FileSessionStore({ directory: dir });
+      const firstIsolation = new SessionIsolation({ store: firstStore });
+      const firstSession = firstIsolation.createSession('restart-smoke');
+      firstSession.activatedTools.add('tool-after-restart');
+      firstSession.role = 'developer';
+      firstSession.metadata.set('persona', 'ops');
+      firstSession.rateLimitCounters.set('tool-after-restart', {
+        tokens: 4,
+        lastRefillAt: 12345,
+      });
+
+      await firstIsolation.persistSession('restart-smoke');
+
+      const secondStore = new FileSessionStore({ directory: dir });
+      const secondIsolation = new SessionIsolation({ store: secondStore });
+
+      expect(secondIsolation.getSession('restart-smoke')).toBeNull();
+
+      const restored = await secondIsolation.loadSession('restart-smoke');
+      expect(restored).not.toBeNull();
+      expect(restored!.sessionId).toBe('restart-smoke');
+      expect(restored!.activatedTools.has('tool-after-restart')).toBe(true);
+      expect(restored!.role).toBe('developer');
+      expect(restored!.metadata.get('persona')).toBe('ops');
+      expect(restored!.rateLimitCounters.get('tool-after-restart')).toEqual({
+        tokens: 4,
+        lastRefillAt: 12345,
+      });
+
+      expect(secondIsolation.getSession('restart-smoke')).not.toBeNull();
+    });
+
     it('loadSession restores a session from the file store', async () => {
       const { SessionIsolation } = require(sessionIsolationJsPath);
       const { FileSessionStore } = require(fileStoreJsPath);
