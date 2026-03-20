@@ -323,3 +323,12 @@ description: Progress log for the PR merge and platform wiring sprint.
 ### Next Up
 - Published the control-plane preservation branch as PR `#177`
 - Reproduce and fix the failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks on PR `#176`
+
+### Phase 8: CI Failure Triage — complete
+- Checked PR `#177` status after publication and found the same shard-2 failure pattern seen on PR `#176`
+- Pulled the failed GitHub Actions log for run `23358331871`
+- Identified the shared blocker:
+  - failing test: `tests/integration/session-store.test.ts`
+  - failure: `ENOENT` on rename from `restart-smoke.json.tmp` to `restart-smoke.json`
+  - call path: `FileSessionStore.set` -> `SessionIsolation.persistSession`
+- Conclusion: both open PRs are blocked by a base-lineage Linux session-store failure, not by Stitch-specific or tracker-doc changes

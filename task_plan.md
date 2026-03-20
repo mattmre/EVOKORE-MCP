@@ -220,9 +220,11 @@ Execute the requested PR-manager workflow safely from the current repo reality: 
 - Stale local branch candidates were reduced from `14` to `0`; only `main`, the active control-plane branch, and active Stitch branch `feat/stitch-skills-and-mcp-20260320` remain.
 - The raw root `mcp.config.json` / `SKILLS/Stitch Skills/` drop was removed from the control plane because the cleaned version is already preserved in PR `#176`.
 - Repo audit after branch cleanup reported one open PR; live state now has two open PRs: `#176` (Stitch MCP/skills) and `#177` (control-plane preservation).
-- PR `#176` is mergeable but not merge-ready yet because CI still shows failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks.
+- PR `#176` is mergeable but not merge-ready yet because CI still shows failing shard checks.
+- PR `#177` also fails the same shard-2 CI case, which confirms the blocker is not specific to Stitch or tracker-doc changes.
+- The shared failure is `tests/integration/session-store.test.ts` restart smoke on Linux: `ENOENT` during rename from `restart-smoke.json.tmp` to `restart-smoke.json` in `FileSessionStore.set`.
 
 ## Recommended Next Move
-- Merge PR `#177` once its docs-only checks are green so the control-plane preservation branch can be retired cleanly.
-- Then stabilize PR `#176` by reproducing and fixing the failing shard-2/shard-3 CI cases on `feat/stitch-skills-and-mcp-20260320`.
+- First isolate and fix the Linux `FileSessionStore` atomic-write failure now exposed by PRs `#176` and `#177`.
+- After that fix lands on `main`, rebase or refresh PRs `#176` and `#177`, rerun CI, and clear them in order.
 - After both open PRs are clear, return to `v3.0.0` publish readiness and the credential-gated production validation queue.

@@ -221,6 +221,14 @@ description: Findings and decisions from the PR merge and platform wiring sprint
 - PR `#176` is open and mergeable, but it is not merge-ready yet: GitHub reports failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks.
 - That makes PR `#176` the next real execution target before release publish work.
 - The control-plane preservation branch was published separately as PR `#177` so tracker/session-log history can be reviewed and merged without mixing it into the Stitch feature branch.
+- PR `#177` fails the same shard-2 CI job, which shows the blocker is on current `main` lineage rather than in either PR diff.
+
+### CI Root Cause Captured
+- `gh run view 23358331871 --log-failed` for PR `#177` shows the failing test is `tests/integration/session-store.test.ts > restart smoke restores persisted state through a fresh store and isolation instance`.
+- The concrete error is Linux `ENOENT` on rename:
+  - `restart-smoke.json.tmp` -> `restart-smoke.json`
+  - thrown from `FileSessionStore.set` via `SessionIsolation.persistSession`
+- Because the same failure appears on both PR `#176` and PR `#177`, the next fix should be a dedicated `main`-based slice for `FileSessionStore` atomic write behavior or test hardening, not an ad hoc change inside either existing PR.
 
 ### Durable Learning
 - When the root control plane contains only tracker/research/session-log drift, preserve it on a dedicated `chore/control-plane-*` branch or PR before deleting stale branches.

@@ -5,7 +5,7 @@ Last Updated (UTC): 2026-03-20
 ## Current Handoff State
 - **Main branch:** `a3d05b0` — PR #175 merged; FileSessionStore restart smoke/evidence landed
 - **Control-plane branch:** `chore/control-plane-wrap-20260320` — tracker/research/session-log preservation only
-- **Open PRs:** `#176` (`feat: add Stitch MCP server and skill pack`) is open and mergeable, but `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` are failing; `#177` (`chore: preserve control-plane cleanup artifacts`) is open for the tracker/research/session-log preservation branch
+- **Open PRs:** `#176` (`feat: add Stitch MCP server and skill pack`) is open and mergeable, but shard CI is failing; `#177` (`chore: preserve control-plane cleanup artifacts`) is also open and fails the same shard-2 CI case
 - **Version:** 3.0.0 (npm publish pending)
 - **Validation:** post-merge `npm run build`, `npx vitest run tests/integration/session-store.test.ts`, and `npm run docs:check` all passed on `main`
 - **Session logs:** `docs/session-logs/session-2026-03-19-release-validation-entrypoints.md`, `docs/session-logs/session-2026-03-19-registry-validation-harness.md`, `docs/session-logs/session-2026-03-20-file-session-store-restart-smoke.md`, `docs/session-logs/session-2026-03-20-repo-cleanup.md`
@@ -31,10 +31,13 @@ Last Updated (UTC): 2026-03-20
 ## Next Actions
 
 ### Priority 0: Stabilize PR #176
-- Reproduce the failing GitHub cases behind `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)`
-- Apply fixes only on `feat/stitch-skills-and-mcp-20260320`
-- Re-run the relevant local test shard/targeted validation before pushing
-- Merge PR `#176` only after CI is green
+- First isolate and fix the shared Linux `FileSessionStore` restart-smoke failure now hitting both `#176` and `#177`
+- Current root cause from GitHub Actions logs:
+  - failing test: `tests/integration/session-store.test.ts`
+  - error: `ENOENT` renaming `restart-smoke.json.tmp` -> `restart-smoke.json`
+  - path: `FileSessionStore.set` via `SessionIsolation.persistSession`
+- Land that fix from a dedicated fresh `main`-based branch, then refresh `#176` and `#177`
+- Merge PR `#176` only after CI is green on the refreshed branch set
 
 ### Priority 1: Land Control-Plane Preservation
 - PR `#177` is already open from `chore/control-plane-wrap-20260320`
