@@ -26,6 +26,13 @@
       "env": {
         "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
       }
+    },
+    "stitch": {
+      "command": "npx",
+      "args": ["-y", "@google/stitch-mcp"],
+      "env": {
+        "STITCH_API_KEY": "${STITCH_API_KEY}"
+      }
     }
   }
 }
