@@ -321,5 +321,5 @@ description: Progress log for the PR merge and platform wiring sprint.
   - remaining drift is intentional control-plane tracker/research/session-log preservation only
 
 ### Next Up
-- Publish the control-plane preservation branch as its own PR
+- Published the control-plane preservation branch as PR `#177`
 - Reproduce and fix the failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks on PR `#176`

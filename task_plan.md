@@ -212,16 +212,17 @@ Execute the requested PR-manager workflow safely from the current repo reality: 
 - [x] Remove the duplicate root-only Stitch drop and temp patch now preserved in PR `#176`
 - [x] Prune confirmed already-landed stale local branches after verifying active worktrees
 - [x] Re-run `npm run repo:audit` after branch cleanup
-- [ ] Publish the control-plane tracker/session-log preservation branch as its own PR
+- [x] Publish the control-plane tracker/session-log preservation branch as PR `#177`
 - [ ] Fast-forward and clean the root worktree after that control-plane PR lands
 
 ### Phase P Outcome
 - Root control plane now lives on `chore/control-plane-wrap-20260320` instead of the obsolete registry branch.
 - Stale local branch candidates were reduced from `14` to `0`; only `main`, the active control-plane branch, and active Stitch branch `feat/stitch-skills-and-mcp-20260320` remain.
 - The raw root `mcp.config.json` / `SKILLS/Stitch Skills/` drop was removed from the control plane because the cleaned version is already preserved in PR `#176`.
-- Repo audit now reports one open PR, two live worktrees, and only intentional control-plane drift.
+- Repo audit after branch cleanup reported one open PR; live state now has two open PRs: `#176` (Stitch MCP/skills) and `#177` (control-plane preservation).
 - PR `#176` is mergeable but not merge-ready yet because CI still shows failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks.
 
 ## Recommended Next Move
-- Stabilize PR `#176` by reproducing and fixing the failing shard-2/shard-3 CI cases on `feat/stitch-skills-and-mcp-20260320`.
-- After PR `#176` is green, land the control-plane preservation PR, then return to `v3.0.0` publish readiness and the credential-gated production validation queue.
+- Merge PR `#177` once its docs-only checks are green so the control-plane preservation branch can be retired cleanly.
+- Then stabilize PR `#176` by reproducing and fixing the failing shard-2/shard-3 CI cases on `feat/stitch-skills-and-mcp-20260320`.
+- After both open PRs are clear, return to `v3.0.0` publish readiness and the credential-gated production validation queue.

@@ -220,6 +220,7 @@ description: Findings and decisions from the PR merge and platform wiring sprint
 ### Live PR Finding
 - PR `#176` is open and mergeable, but it is not merge-ready yet: GitHub reports failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks.
 - That makes PR `#176` the next real execution target before release publish work.
+- The control-plane preservation branch was published separately as PR `#177` so tracker/session-log history can be reviewed and merged without mixing it into the Stitch feature branch.
 
 ### Durable Learning
 - When the root control plane contains only tracker/research/session-log drift, preserve it on a dedicated `chore/control-plane-*` branch or PR before deleting stale branches.

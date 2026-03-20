@@ -5,7 +5,7 @@ Last Updated (UTC): 2026-03-20
 ## Current Handoff State
 - **Main branch:** `a3d05b0` — PR #175 merged; FileSessionStore restart smoke/evidence landed
 - **Control-plane branch:** `chore/control-plane-wrap-20260320` — tracker/research/session-log preservation only
-- **Open PRs:** `#176` (`feat: add Stitch MCP server and skill pack`) is open and mergeable, but `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` are failing
+- **Open PRs:** `#176` (`feat: add Stitch MCP server and skill pack`) is open and mergeable, but `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` are failing; `#177` (`chore: preserve control-plane cleanup artifacts`) is open for the tracker/research/session-log preservation branch
 - **Version:** 3.0.0 (npm publish pending)
 - **Validation:** post-merge `npm run build`, `npx vitest run tests/integration/session-store.test.ts`, and `npm run docs:check` all passed on `main`
 - **Session logs:** `docs/session-logs/session-2026-03-19-release-validation-entrypoints.md`, `docs/session-logs/session-2026-03-19-registry-validation-harness.md`, `docs/session-logs/session-2026-03-20-file-session-store-restart-smoke.md`, `docs/session-logs/session-2026-03-20-repo-cleanup.md`
@@ -37,7 +37,7 @@ Last Updated (UTC): 2026-03-20
 - Merge PR `#176` only after CI is green
 
 ### Priority 1: Land Control-Plane Preservation
-- Publish the `chore/control-plane-wrap-20260320` branch as its own tracker/docs/session-log preservation PR
+- PR `#177` is already open from `chore/control-plane-wrap-20260320`
 - Merge it separately from code-bearing feature work so shared handoff artifacts stay isolated
 
 ### Priority 2: npm Publish v3.0.0
