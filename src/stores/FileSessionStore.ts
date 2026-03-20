@@ -29,6 +29,7 @@ export interface FileSessionStoreOptions {
 export class FileSessionStore implements SessionStore {
   private directory: string;
   private initialized: boolean = false;
+  private writeChains: Map<string, Promise<void>> = new Map();
 
   constructor(options?: FileSessionStoreOptions) {
     this.directory = options?.directory ?? DEFAULT_STORE_DIR;
@@ -47,6 +48,11 @@ export class FileSessionStore implements SessionStore {
     // Sanitize session ID to be filesystem-safe (replace non-alphanumeric except hyphens/underscores)
     const safeName = sessionId.replace(/[^a-zA-Z0-9_-]/g, "_");
     return path.join(this.directory, `${safeName}.json`);
+  }
+
+  private tempFilePath(filePath: string): string {
+    const uniqueSuffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return `${filePath}.${uniqueSuffix}.tmp`;
   }
 
   async get(sessionId: string): Promise<SessionState | undefined> {
@@ -69,10 +75,27 @@ export class FileSessionStore implements SessionStore {
     const serialized = serializeSessionState(state);
     const content = JSON.stringify(serialized, null, 2);
 
-    // Atomic write: write to .tmp then rename
-    const tmpPath = filePath + ".tmp";
-    await fs.writeFile(tmpPath, content, "utf-8");
-    await fs.rename(tmpPath, filePath);
+    const writeOperation = async (): Promise<void> => {
+      // Use a unique temp file per write so overlapping persists do not race on the same .tmp path.
+      const tmpPath = this.tempFilePath(filePath);
+      await fs.writeFile(tmpPath, content, "utf-8");
+      await fs.rename(tmpPath, filePath);
+    };
+
+    const previousWrite = this.writeChains.get(filePath) ?? Promise.resolve();
+    const currentWrite = previousWrite
+      .catch(() => {})
+      .then(writeOperation);
+
+    this.writeChains.set(filePath, currentWrite);
+
+    try {
+      await currentWrite;
+    } finally {
+      if (this.writeChains.get(filePath) === currentWrite) {
+        this.writeChains.delete(filePath);
+      }
+    }
   }
 
   async delete(sessionId: string): Promise<void> {

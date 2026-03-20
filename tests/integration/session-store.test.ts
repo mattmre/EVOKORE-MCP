@@ -344,6 +344,26 @@ describe('Session Store Architecture', () => {
       expect(result!.role).toBe('readonly');
     });
 
+    it('concurrent writes to the same session do not race on a shared temp file', async () => {
+      const { FileSessionStore } = require(fileStoreJsPath);
+      const dir = path.join(TEMP_STORE_DIR, 'concurrent-overwrite');
+      const store = new FileSessionStore({ directory: dir });
+
+      const writes = Array.from({ length: 8 }, (_, index) => {
+        const state = createTestSessionState('concurrent');
+        state.role = index % 2 === 0 ? 'developer' : 'admin';
+        state.metadata.set('writeIndex', index);
+        return store.set('concurrent', state);
+      });
+
+      await expect(Promise.all(writes)).resolves.toBeDefined();
+
+      const result = await store.get('concurrent');
+      expect(result).toBeDefined();
+      expect(['developer', 'admin']).toContain(result!.role);
+      expect(typeof result!.metadata.get('writeIndex')).toBe('number');
+    });
+
     it('getDirectory returns the configured directory', () => {
       const { FileSessionStore } = require(fileStoreJsPath);
       const dir = path.join(TEMP_STORE_DIR, 'get-dir');
