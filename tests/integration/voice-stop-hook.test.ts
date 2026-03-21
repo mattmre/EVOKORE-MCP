@@ -56,6 +56,7 @@ function spokenAge(createdAt: string | null | undefined): string | null {
 
 interface SessionState {
   purpose?: string;
+  repoName?: string;
   createdAt?: string;
   created?: string;
   metrics?: {
@@ -79,12 +80,15 @@ function buildSummary(sessionState: SessionState | null, tasks: Task[]): string 
   const hasTasks = tasks.length > 0;
   const allDone = hasTasks && incomplete.length === 0;
 
+  const repoName = sessionState?.repoName;
+  const repoSuffix = repoName ? ` in ${repoName}` : '';
+
   if (allDone) {
-    parts.push('Session complete.');
+    parts.push(`Session complete${repoSuffix}.`);
   } else if (hasTasks && incomplete.length > 0) {
-    parts.push('Session paused.');
+    parts.push(`Session paused${repoSuffix}.`);
   } else {
-    parts.push('Session complete.');
+    parts.push(`Session complete${repoSuffix}.`);
   }
 
   const purpose = sessionState?.purpose;
@@ -166,25 +170,33 @@ describe('spokenAge', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildSummary — opening', () => {
-  it('says "Session complete." with no tasks', () => {
-    const s = buildSummary(null, []);
-    expect(s).toMatch(/^Session complete\./);
+  it('says "Session complete." with no tasks and no repo', () => {
+    expect(buildSummary(null, [])).toMatch(/^Session complete\.$/m);
   });
 
-  it('says "Session complete." when all tasks done', () => {
+  it('includes repo name in the opening line', () => {
+    const s = buildSummary({ repoName: 'EVOKORE-MCP' }, []);
+    expect(s).toMatch(/^Session complete in EVOKORE-MCP\./);
+  });
+
+  it('says "Session complete in <repo>." when all tasks done', () => {
     const tasks: Task[] = [
       { text: 'Write tests', done: true },
       { text: 'Open PR', done: true },
     ];
-    expect(buildSummary(null, tasks)).toMatch(/^Session complete\./);
+    expect(buildSummary({ repoName: 'my-project' }, tasks)).toMatch(/^Session complete in my-project\./);
   });
 
-  it('says "Session paused." when tasks remain', () => {
+  it('says "Session paused in <repo>." when tasks remain', () => {
     const tasks: Task[] = [
       { text: 'Write tests', done: true },
       { text: 'Open PR', done: false },
     ];
-    expect(buildSummary(null, tasks)).toMatch(/^Session paused\./);
+    expect(buildSummary({ repoName: 'my-project' }, tasks)).toMatch(/^Session paused in my-project\./);
+  });
+
+  it('omits repo suffix when repoName is missing', () => {
+    expect(buildSummary({}, [])).toBe('Session complete.');
   });
 });
 
@@ -284,6 +296,7 @@ describe('buildSummary — full example', () => {
     const createdAt = new Date(Date.now() - 25 * 60_000).toISOString();
     const sessionState: SessionState = {
       purpose: 'Overhaul the status line with claude-hud style layout',
+      repoName: 'EVOKORE-MCP',
       createdAt,
       metrics: { evidenceEntries: 17, replayEntries: 105 },
     };
@@ -294,7 +307,7 @@ describe('buildSummary — full example', () => {
     ];
     const summary = buildSummary(sessionState, tasks);
 
-    expect(summary).toMatch(/^Session complete\./);
+    expect(summary).toMatch(/^Session complete in EVOKORE-MCP\./);
     expect(summary).toContain('Purpose: Overhaul the status line with claude-hud style layout.');
     expect(summary).toContain('All 3 tasks done.');
     expect(summary).toContain('17 evidence entries and 105 tool calls captured.');

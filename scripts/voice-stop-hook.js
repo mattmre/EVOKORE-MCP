@@ -77,12 +77,15 @@ function buildSummary(sessionState, tasks) {
   const hasTasks = tasks.length > 0;
   const allDone = hasTasks && incomplete.length === 0;
 
+  const repoName = sessionState && sessionState.repoName;
+  const repoSuffix = repoName ? ` in ${repoName}` : '';
+
   if (allDone) {
-    parts.push('Session complete.');
+    parts.push(`Session complete${repoSuffix}.`);
   } else if (hasTasks && incomplete.length > 0) {
-    parts.push('Session paused.');
+    parts.push(`Session paused${repoSuffix}.`);
   } else {
-    parts.push('Session complete.');
+    parts.push(`Session complete${repoSuffix}.`);
   }
 
   // Purpose
