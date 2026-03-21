@@ -9,7 +9,10 @@ import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { ProxyManager } from "./ProxyManager";
 import { RegistryManager, RegistryEntry, RegistryIndex } from "./RegistryManager";
-import { execFileSync } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
 const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
@@ -750,16 +753,15 @@ export class SkillManager {
       env.EVOKORE_SESSION_ID = context?.sessionId || "";
       env.EVOKORE_SANDBOX_DIR = sandboxDir;
 
-      const result = execFileSync(executor.command, [...executor.args, tmpFile], {
+      const result = await execFileAsync(executor.command, [...executor.args, tmpFile], {
         encoding: "utf8",
         timeout: 30000,  // 30s timeout
         maxBuffer: 1024 * 1024,  // 1MB output limit
         env,
         cwd: sandboxDir,
-        stdio: ["pipe", "pipe", "pipe"]
       });
 
-      return { stdout: result, stderr: "", exitCode: 0, timedOut: false };
+      return { stdout: result.stdout, stderr: result.stderr || "", exitCode: 0, timedOut: false };
     } catch (err: any) {
       if (err.killed) {
         return { stdout: err.stdout || "", stderr: err.stderr || "", exitCode: -1, timedOut: true };
