@@ -11,6 +11,7 @@ import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
 const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 const DEFAULT_CHILD_SERVER_BOOT_TIMEOUT_MS = 15000;
+const DEFAULT_PROXY_REQUEST_TIMEOUT_MS = 60000;
 
 interface RateLimitConfig {
   requestsPerMinute?: number;       // per-server limit
@@ -107,6 +108,14 @@ export class ProxyManager {
     }
 
     return DEFAULT_CHILD_SERVER_BOOT_TIMEOUT_MS;
+  }
+
+  private getProxyRequestTimeoutMs(): number {
+    const configuredTimeoutMs = Number(process.env.EVOKORE_PROXY_REQUEST_TIMEOUT_MS);
+    if (Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0) {
+      return configuredTimeoutMs;
+    }
+    return DEFAULT_PROXY_REQUEST_TIMEOUT_MS;
   }
 
   private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
@@ -300,6 +309,148 @@ export class ProxyManager {
     return resolvedEnv;
   }
 
+  private async bootSingleServer(serverId: string, serverConfig: ServerConfig): Promise<void> {
+    let client: Client | undefined;
+    let transport: StdioClientTransport | StreamableHTTPClientTransport | undefined;
+
+    try {
+      const isHttpTransport = serverConfig.transport === "http" && serverConfig.url;
+      const connectionType = isHttpTransport ? "http" : "stdio";
+      const childServerBootTimeoutMs = this.getChildServerBootTimeoutMs();
+
+      console.error(`[EVOKORE] Booting child server: ${serverId} (${connectionType})`);
+
+      this.serverRegistry.set(serverId, {
+        id: serverId,
+        status: 'booting',
+        connectionType,
+        errorCount: 0,
+        lastPing: Date.now(),
+        registeredToolCount: 0
+      });
+
+      this.initRateLimitBuckets(serverId, serverConfig.rateLimit);
+
+      client = new Client(
+        { name: `evokore-proxy-${serverId}`, version: "3.0.0" },
+        { capabilities: {} }
+      );
+
+      if (isHttpTransport) {
+        transport = new StreamableHTTPClientTransport(new URL(serverConfig.url!));
+      } else {
+        if (!serverConfig.command) {
+          throw new Error(`Stdio server '${serverId}' requires a 'command' field`);
+        }
+
+        const cmd = resolveCommandForPlatform(serverConfig.command);
+
+        // Resolve ${VAR} references in env values from process.env
+        const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
+        const env = { ...process.env, ...resolvedEnv };
+
+        transport = new StdioClientTransport({
+          command: cmd,
+          args: serverConfig.args || [],
+          env: env as Record<string, string>,
+          stderr: "inherit"
+        });
+      }
+
+      await this.withTimeout(
+        client.connect(transport),
+        childServerBootTimeoutMs,
+        `Timed out connecting to child server '${serverId}' after ${childServerBootTimeoutMs}ms`
+      );
+
+      this.clients.set(serverId, client);
+      this.transports.set(serverId, transport);
+
+      const serverState = this.serverRegistry.get(serverId);
+      if (serverState) {
+        serverState.status = 'connected';
+        serverState.lastPing = Date.now();
+      }
+
+      // Fetch tools from child and register them
+      const { tools } = await this.withTimeout(
+        client.listTools(),
+        childServerBootTimeoutMs,
+        `Timed out listing tools from child server '${serverId}' after ${childServerBootTimeoutMs}ms`
+      );
+      let registeredCount = 0;
+      let skippedDuplicates = 0;
+      for (const tool of tools) {
+        const prefixedName = `${serverId}_${tool.name}`;
+        if (this.toolRegistry.has(prefixedName)) {
+          console.error(`[EVOKORE] Skipping duplicate proxied tool '${prefixedName}' from server '${serverId}' (already registered).`);
+          skippedDuplicates++;
+          continue;
+        }
+
+        this.toolRegistry.set(prefixedName, { serverId, originalName: tool.name });
+
+        // Clone tool to modify input schema safely
+        const modifiedTool = JSON.parse(JSON.stringify(tool));
+        modifiedTool.name = prefixedName;
+
+        if (!modifiedTool.inputSchema || typeof modifiedTool.inputSchema !== "object") {
+          modifiedTool.inputSchema = { type: "object" };
+        }
+        if (!modifiedTool.inputSchema.type) {
+          modifiedTool.inputSchema.type = "object";
+        }
+        if (!modifiedTool.inputSchema.properties || typeof modifiedTool.inputSchema.properties !== "object") {
+          modifiedTool.inputSchema.properties = {};
+        }
+        modifiedTool.inputSchema.properties._evokore_approval_token = {
+          type: "string",
+          description: "If this tool requires approval, the server will return an error with a token. Ask the user for permission, and if granted, retry the tool call with this token."
+        };
+
+        this.cachedTools.push(modifiedTool);
+        registeredCount++;
+      }
+
+      if (serverState) {
+        serverState.registeredToolCount = registeredCount;
+      }
+
+      const duplicateSuffix = skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicate(s) skipped)` : "";
+      console.error(`[EVOKORE] Proxied ${registeredCount} tools from '${serverId}'${duplicateSuffix}`);
+      if (skippedDuplicates > 0) {
+        console.error(
+          `[EVOKORE] Duplicate collision summary: ${JSON.stringify({
+            serverId,
+            skippedDuplicates,
+            policy: "first_registration_wins"
+          })}`
+        );
+      }
+    } catch (e: any) {
+      console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
+      if (transport) {
+        try {
+          await transport.close();
+        } catch {
+          // Best-effort cleanup for timed-out or failed child transports.
+        }
+      }
+      if (client) {
+        try {
+          await client.close();
+        } catch {
+          // Best-effort cleanup for timed-out or failed child clients.
+        }
+      }
+      const serverState = this.serverRegistry.get(serverId);
+      if (serverState) {
+        serverState.status = 'error';
+        serverState.errorCount++;
+      }
+    }
+  }
+
   async loadServers() {
     this.clients.clear();
     this.transports.clear();
@@ -312,152 +463,25 @@ export class ProxyManager {
       const configFile = this.getConfigFilePath();
       const content = await fs.readFile(configFile, "utf-8");
       const config = JSON.parse(content);
-      
+
       if (!config.servers) return;
 
-      for (const [serverId, serverConfig] of Object.entries(config.servers as Record<string, ServerConfig>)) {
-        let client: Client | undefined;
-        let transport: StdioClientTransport | StreamableHTTPClientTransport | undefined;
-
-        try {
-          const isHttpTransport = serverConfig.transport === "http" && serverConfig.url;
-          const connectionType = isHttpTransport ? "http" : "stdio";
-          const childServerBootTimeoutMs = this.getChildServerBootTimeoutMs();
-
-          console.error(`[EVOKORE] Booting child server: ${serverId} (${connectionType})`);
-
-          this.serverRegistry.set(serverId, {
-            id: serverId,
-            status: 'booting',
-            connectionType,
-            errorCount: 0,
-            lastPing: Date.now(),
-            registeredToolCount: 0
-          });
-
-          this.initRateLimitBuckets(serverId, serverConfig.rateLimit);
-
-          client = new Client(
-            { name: `evokore-proxy-${serverId}`, version: "3.0.0" },
-            { capabilities: {} }
-          );
-
-          if (isHttpTransport) {
-            transport = new StreamableHTTPClientTransport(new URL(serverConfig.url!));
-          } else {
-            if (!serverConfig.command) {
-              throw new Error(`Stdio server '${serverId}' requires a 'command' field`);
-            }
-
-            const cmd = resolveCommandForPlatform(serverConfig.command);
-
-            // Resolve ${VAR} references in env values from process.env
-            const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
-            const env = { ...process.env, ...resolvedEnv };
-
-            transport = new StdioClientTransport({
-              command: cmd,
-              args: serverConfig.args || [],
-              env: env as Record<string, string>,
-              stderr: "inherit"
-            });
-          }
-
-          await this.withTimeout(
-            client.connect(transport),
-            childServerBootTimeoutMs,
-            `Timed out connecting to child server '${serverId}' after ${childServerBootTimeoutMs}ms`
-          );
-
-          this.clients.set(serverId, client);
-          this.transports.set(serverId, transport);
-
-          const serverState = this.serverRegistry.get(serverId);
-          if (serverState) {
-            serverState.status = 'connected';
-            serverState.lastPing = Date.now();
-          }
-
-          // Fetch tools from child and register them
-          const { tools } = await this.withTimeout(
-            client.listTools(),
-            childServerBootTimeoutMs,
-            `Timed out listing tools from child server '${serverId}' after ${childServerBootTimeoutMs}ms`
-          );
-          let registeredCount = 0;
-          let skippedDuplicates = 0;
-          for (const tool of tools) {
-            const prefixedName = `${serverId}_${tool.name}`;
-            if (this.toolRegistry.has(prefixedName)) {
-              console.error(`[EVOKORE] Skipping duplicate proxied tool '${prefixedName}' from server '${serverId}' (already registered).`);
-              skippedDuplicates++;
-              continue;
-            }
-
-            this.toolRegistry.set(prefixedName, { serverId, originalName: tool.name });
-            
-            // Clone tool to modify input schema safely
-            const modifiedTool = JSON.parse(JSON.stringify(tool));
-            modifiedTool.name = prefixedName;
-            
-            if (!modifiedTool.inputSchema || typeof modifiedTool.inputSchema !== "object") {
-              modifiedTool.inputSchema = { type: "object" };
-            }
-            if (!modifiedTool.inputSchema.type) {
-              modifiedTool.inputSchema.type = "object";
-            }
-            if (!modifiedTool.inputSchema.properties || typeof modifiedTool.inputSchema.properties !== "object") {
-              modifiedTool.inputSchema.properties = {};
-            }
-            modifiedTool.inputSchema.properties._evokore_approval_token = {
-              type: "string",
-              description: "If this tool requires approval, the server will return an error with a token. Ask the user for permission, and if granted, retry the tool call with this token."
-            };
-            
-            this.cachedTools.push(modifiedTool);
-            registeredCount++;
-          }
-
-          if (serverState) {
-            serverState.registeredToolCount = registeredCount;
-          }
-
-          const duplicateSuffix = skippedDuplicates > 0 ? ` (${skippedDuplicates} duplicate(s) skipped)` : "";
-          console.error(`[EVOKORE] Proxied ${registeredCount} tools from '${serverId}'${duplicateSuffix}`);
-          if (skippedDuplicates > 0) {
-            console.error(
-              `[EVOKORE] Duplicate collision summary: ${JSON.stringify({
-                serverId,
-                skippedDuplicates,
-                policy: "first_registration_wins"
-              })}`
-            );
-          }
-        } catch (e: any) {
-          console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
-          if (transport) {
-            try {
-              await transport.close();
-            } catch {
-              // Best-effort cleanup for timed-out or failed child transports.
-            }
-          }
-          if (client) {
-            try {
-              await client.close();
-            } catch {
-              // Best-effort cleanup for timed-out or failed child clients.
-            }
-          }
-          const serverState = this.serverRegistry.get(serverId);
-          if (serverState) {
-            serverState.status = 'error';
-            serverState.errorCount++;
-          }
-        }
+      const serverEntries = Object.entries(config.servers as Record<string, ServerConfig>);
+      const bootResults = await Promise.allSettled(
+        serverEntries.map(([serverId, serverConfig]) =>
+          this.bootSingleServer(serverId, serverConfig)
+        )
+      );
+      const unexpectedRejections = bootResults.filter(r => r.status === 'rejected');
+      if (unexpectedRejections.length > 0) {
+        console.error(`[EVOKORE] ${unexpectedRejections.length} server boot(s) threw unexpectedly (should not happen)`);
       }
-    } catch (e) {
-      console.error("[EVOKORE] No mcp.config.json found. Running EVOKORE without proxy execution tools.");
+    } catch (e: any) {
+      if (e.code === 'ENOENT') {
+        console.error("[EVOKORE] No mcp.config.json found. Running EVOKORE without proxy execution tools.");
+      } else {
+        console.error(`[EVOKORE] Failed to load mcp.config.json: ${e.message}`);
+      }
     }
   }
 
@@ -584,8 +608,13 @@ export class ProxyManager {
       if (approvalTokenToConsume) {
         this.security.consumeToken(approvalTokenToConsume);
       }
-      const result: any = await client.callTool({ name: originalName, arguments: toolArgs });
-      
+      const requestTimeoutMs = this.getProxyRequestTimeoutMs();
+      const result: any = await this.withTimeout(
+        client.callTool({ name: originalName, arguments: toolArgs }),
+        requestTimeoutMs,
+        `Proxied tool '${toolName}' on server '${serverId}' timed out after ${requestTimeoutMs}ms`
+      );
+
       // Analyze Result for Cooldown
       let shouldCooldown = false;
       if (result.isError) {
