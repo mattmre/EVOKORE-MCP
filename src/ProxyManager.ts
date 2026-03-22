@@ -467,13 +467,21 @@ export class ProxyManager {
       if (!config.servers) return;
 
       const serverEntries = Object.entries(config.servers as Record<string, ServerConfig>);
-      await Promise.allSettled(
+      const bootResults = await Promise.allSettled(
         serverEntries.map(([serverId, serverConfig]) =>
           this.bootSingleServer(serverId, serverConfig)
         )
       );
-    } catch (e) {
-      console.error("[EVOKORE] No mcp.config.json found. Running EVOKORE without proxy execution tools.");
+      const unexpectedRejections = bootResults.filter(r => r.status === 'rejected');
+      if (unexpectedRejections.length > 0) {
+        console.error(`[EVOKORE] ${unexpectedRejections.length} server boot(s) threw unexpectedly (should not happen)`);
+      }
+    } catch (e: any) {
+      if (e.code === 'ENOENT') {
+        console.error("[EVOKORE] No mcp.config.json found. Running EVOKORE without proxy execution tools.");
+      } else {
+        console.error(`[EVOKORE] Failed to load mcp.config.json: ${e.message}`);
+      }
     }
   }
 
