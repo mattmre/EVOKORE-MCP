@@ -98,7 +98,7 @@ test('hook test suite', () => {
     }
   );
   assert.strictEqual(purposeStatusFirst.status, 0);
-  assert.match(purposeStatusFirst.cleanStdout, /\[EVOKORE Status\]/i);
+  assert.match(purposeStatusFirst.cleanStdout, /ctx \d+%/i);
   assert.match(purposeStatusFirst.cleanStdout, /tasks 1\/1 open/i);
   assert.match(purposeStatusFirst.cleanStdout, /continuity awaiting-purpose/i);
   cleanupFile(statusStateFile);

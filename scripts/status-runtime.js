@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const { sanitizeId } = require('./hook-observability');
 const { readSessionState } = require('./session-continuity');
@@ -119,8 +120,6 @@ function parseFileStats(changes) {
   return stats;
 }
 
-const os = require('os');
-
 // --- EVOKORE state dir helper ---
 
 function evokoreStateDir() {
@@ -196,7 +195,8 @@ function getPendingApprovalCount() {
 
 function getMcpServerCount() {
   try {
-    const cfgPath = path.join(__dirname, '..', 'mcp.config.json');
+    const cfgPath = process.env.EVOKORE_MCP_CONFIG_PATH
+      || path.join(__dirname, '..', 'mcp.config.json');
     const raw = fs.readFileSync(cfgPath, 'utf8');
     const cfg = JSON.parse(raw);
     const servers = cfg && cfg.servers ? Object.keys(cfg.servers) : [];
@@ -209,6 +209,7 @@ function getMcpServerCount() {
 // --- Token formatting ---
 
 function fmtK(n) {
+  if (!Number.isFinite(n)) return '0';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
   return String(n);
@@ -252,7 +253,7 @@ function hasValidRepoScope(sessionState, workspaceRoot) {
     const resolvedWorkspace = path.resolve(sessionState.workspaceRoot);
     const resolvedRepo = path.resolve(workspaceRoot);
     return resolvedWorkspace === resolvedRepo
-      || resolvedWorkspace.startsWith(path.join(resolvedRepo, '.orchestrator', 'worktrees'));
+      || resolvedWorkspace.startsWith(path.join(resolvedRepo, '.claude', 'worktrees'));
   }
   return false;
 }

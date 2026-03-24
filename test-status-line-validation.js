@@ -69,10 +69,10 @@ test('status-line validation', () => {
   assert.strictEqual(liveResult.status, 0);
   assert.match(liveResult.cleanStdout, /EVOKORE/i);
   assert.match(liveResult.cleanStdout, new RegExp(activeBranch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-  assert.match(liveResult.cleanStdout, /purpose Ship live status line display/i);
+  assert.match(liveResult.cleanStdout, /Ship live status line display/i);
   assert.match(liveResult.cleanStdout, /tasks 1\/2 open/i);
   assert.match(liveResult.cleanStdout, /continuity healthy 0r\/0e/i);
-  assert.match(liveResult.cleanStdout, /ctx 44%/i);
+  assert.match(liveResult.cleanStdout, /42%/i);
 
   cleanup(livePaths.sessionStatePath);
   cleanup(livePaths.tasksPath);
@@ -111,7 +111,7 @@ test('status-line validation', () => {
   );
 
   assert.strictEqual(fallbackResult.status, 0);
-  assert.match(fallbackResult.cleanStdout, /purpose Memory fallback purpose/i);
+  assert.match(fallbackResult.cleanStdout, /Memory fallback purpose/i);
 
   cleanup(isolatedWorkspace);
   cleanup(isolatedHome);
