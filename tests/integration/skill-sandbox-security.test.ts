@@ -88,7 +88,7 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
   describe('30-second timeout enforcement', () => {
     const src = fs.readFileSync(skillManagerTsPath, 'utf8');
 
-    it('sets timeout to 30000ms in execFileSync', () => {
+    it('sets timeout to 30000ms in execFileAsync', () => {
       expect(src).toMatch(/timeout:\s*30000/);
     });
 
@@ -182,12 +182,12 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
       expect(src).toMatch(/EVOKORE_SANDBOX.*true/);
     });
 
-    it('uses execFileSync (not exec/spawn shell) for safer execution', () => {
-      expect(src).toMatch(/execFileSync\(/);
+    it('uses execFileAsync (not exec/spawn shell) for safer execution', () => {
+      expect(src).toMatch(/execFileAsync\(/);
     });
 
-    it('uses stdio pipes to capture output', () => {
-      expect(src).toMatch(/stdio:\s*\["pipe",\s*"pipe",\s*"pipe"\]/);
+    it('does not use shell:true for output capture', () => {
+      expect(src).not.toMatch(/shell:\s*true/);
     });
   });
 
@@ -364,9 +364,9 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
     const src = fs.readFileSync(skillManagerTsPath, 'utf8');
 
     it('does not use shell: true in child_process (prevents shell injection)', () => {
-      // execFileSync does not support shell option by default
-      // The code uses execFileSync, not exec or execSync
-      expect(src).toMatch(/execFileSync\(/);
+      // execFileAsync does not support shell option by default
+      // The code uses execFileAsync, not exec or execSync
+      expect(src).toMatch(/execFileAsync\(/);
       expect(src).not.toMatch(/shell:\s*true/);
     });
 
