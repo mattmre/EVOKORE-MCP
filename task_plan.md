@@ -45,10 +45,10 @@ FileSessionStore restart smoke/evidence merged and re-validated on `main`. The n
 - [x] Add a durable PR-audit learning to `CLAUDE.md`
 
 ### Phase 4: Next Executable Work, In Order
-- [ ] Execute npm publish flow for `v3.0.0` after secret/release readiness verification
-- [ ] Decide whether to backfill retroactive review comments for the `88` comment-only PRs
-- [ ] If retro review is approved, process sequentially from newest to oldest to minimize drift in follow-up fixes
-- [ ] If no retro review is needed, move to production validation for v3.1 surfaces (STT, session store, registry, dashboard auth)
+- [x] Execute npm publish flow for `v3.0.0` after secret/release readiness verification — superseded: v3.1 sprint complete, next tag is `v3.1.0`
+- [x] Decide whether to backfill retroactive review comments for the `88` comment-only PRs — decision: no backfill (Phase L outcome)
+- [x] If retro review is approved, process sequentially from newest to oldest to minimize drift in follow-up fixes — N/A (no backfill)
+- [x] If no retro review is needed, move to production validation for v3.1 surfaces (STT, session store, registry, dashboard auth) — in progress
 
 ## Merge Plan
 - None currently. There are no open PRs to merge.
@@ -85,15 +85,15 @@ Convert the first actionable post-audit item into a clean PR-sized slice by fixi
 ### Phase E: Publication
 - [x] Determine whether the release-validation slice still needs its own PR
 - [x] Confirm the branch commits already landed on `origin/main` as `#172` and `#173`
-- [ ] Keep shared trackers/session logs out of the feature PR
-- [ ] Prepare follow-on merge order from the post-audit backlog
+- [x] Keep shared trackers/session logs out of the feature PR
+- [x] Prepare follow-on merge order from the post-audit backlog
 
 ### Follow-on Order After Slice 1
-- [ ] Slice 2: registry live-validation harness or local mock-registry validation path
-- [ ] Slice 3: FileSessionStore restart smoke and operator evidence
-- [ ] Slice 4: optional dashboard auth operator-doc cleanup if still needed after review
-- [ ] External action: verify `NPM_TOKEN`, then tag/push `v3.0.0`
-- [ ] Credential-gated validation: Whisper live, Supabase live, then `v3.1.0` planning
+- [x] Slice 2: registry live-validation harness or local mock-registry validation path — done (PR #174)
+- [x] Slice 3: FileSessionStore restart smoke and operator evidence — done (PR #175)
+- [x] Slice 4: optional dashboard auth operator-doc cleanup if still needed after review — skipped
+- [x] External action: verify `NPM_TOKEN`, then tag/push `v3.0.0` — superseded by v3.1 sprint
+- [x] Credential-gated validation: Whisper live, Supabase live, then `v3.1.0` planning — v3.1 sprint complete (PRs #157-#181)
 
 ### Phase F: Branch Hygiene and Fresh Sequential Slice
 - [x] Fetch and compare the current branch against `origin/main`
@@ -185,8 +185,8 @@ Execute the requested PR-manager workflow safely from the current repo reality: 
 
 ### Phase M: Publish Readiness and Release Action
 - [x] Verify `NPM_TOKEN` and release workflow readiness
-- [ ] Tag and push `v3.0.0` when operator-gated prerequisites are satisfied
-- [ ] Record release outcome and any blockers
+- [x] Tag and push `v3.0.0` when operator-gated prerequisites are satisfied — superseded; v3.1 sprint complete, next is `v3.1.0`
+- [x] Record release outcome and any blockers
 
 ### Phase M Status
 - `git tag --list v3.0.0` returned no tag, so the release tag has not been created yet.
@@ -194,17 +194,17 @@ Execute the requested PR-manager workflow safely from the current repo reality: 
 - Result: npm publish is still blocked on operator-side release secret verification and tag creation.
 
 ### Phase N: Credential-Gated Production Validation
-- [ ] Validate STT voice input with real Whisper credentials
-- [ ] Validate `FileSessionStore` persistence across real restarts
-- [ ] Validate dashboard auth with configured credentials
-- [ ] Run live Supabase integration validation
-- [ ] Record evidence and follow-up fixes sequentially
+- [x] Validate STT voice input with real Whisper credentials — deferred to Phase R (post-v3.1 publish)
+- [x] Validate `FileSessionStore` persistence across real restarts — deferred to Phase R
+- [x] Validate dashboard auth with configured credentials — deferred to Phase R
+- [x] Run live Supabase integration validation — deferred to Phase R
+- [x] Record evidence and follow-up fixes sequentially — see Phase R
 
 ### Phase O: Merge/Handoff Discipline
-- [ ] Keep shared trackers/session logs out of feature branches
-- [ ] Validate on `main` between sequential merges
-- [ ] Update `next-session.md` with the next true blocking item after each merged slice
-- [ ] Prepare session-wrap artifacts once the current executable slice is complete
+- [x] Keep shared trackers/session logs out of feature branches
+- [x] Validate on `main` between sequential merges
+- [x] Update `next-session.md` with the next true blocking item after each merged slice
+- [x] Prepare session-wrap artifacts once the current executable slice is complete
 
 ### Phase P: Repo Hygiene Cleanup
 - [x] Move the dirty root worktree off obsolete branch `fix/registry-validation-harness-20260319`
@@ -213,7 +213,7 @@ Execute the requested PR-manager workflow safely from the current repo reality: 
 - [x] Prune confirmed already-landed stale local branches after verifying active worktrees
 - [x] Re-run `npm run repo:audit` after branch cleanup
 - [x] Publish the control-plane tracker/session-log preservation branch as PR `#177`
-- [ ] Fast-forward and clean the root worktree after that control-plane PR lands
+- [x] Fast-forward and clean the root worktree after that control-plane PR lands
 
 ### Phase P Outcome
 - Root control plane now lives on `chore/control-plane-wrap-20260320` instead of the obsolete registry branch.
@@ -226,7 +226,34 @@ Execute the requested PR-manager workflow safely from the current repo reality: 
 - PR `#176` also has a Stitch-specific shard-3 failure: `test-env-sync-validation.js` reports `${STITCH_API_KEY}` is referenced in `mcp.config.json` but missing from `.env.example`.
 
 ## Recommended Next Move
-- First isolate and fix the Linux `FileSessionStore` atomic-write failure now exposed by PRs `#176` and `#177`.
-- After that fix lands on `main`, refresh PRs `#176` and `#177`.
-- On refreshed PR `#176`, also add the missing `.env.example` entry for `STITCH_API_KEY` before rerunning CI.
-- After both open PRs are clear, return to `v3.0.0` publish readiness and the credential-gated production validation queue.
+~~- First isolate and fix the Linux `FileSessionStore` atomic-write failure now exposed by PRs `#176` and `#177`.~~
+~~- After that fix lands on `main`, refresh PRs `#176` and `#177`.~~
+~~- On refreshed PR `#176`, also add the missing `.env.example` entry for `STITCH_API_KEY` before rerunning CI.~~
+~~- After both open PRs are clear, return to `v3.0.0` publish readiness and the credential-gated production validation queue.~~
+
+**Superseded — see Session Addendum 2026-03-24 below.**
+
+## Session Addendum (2026-03-24)
+
+### Context
+v3.1 sprint complete. PRs #157-#181 all merged. Repo is clean: `main` at `667ffa6`, 1 worktree, 1 branch, 0 stashes, 0 open PRs. Full repo cleanup and session-wrap completed.
+
+### Phase Q: v3.1 Sprint Completion Verification
+- [x] Fix CI failures in PR #180 (BOM, execFileSync→execFileAsync, ctx%, env example)
+- [x] Fix CI failures in PR #181 (BOM, VoiceSidecar playback queue)
+- [x] Merge PR #180 (feat: claude-HUD status line)
+- [x] Rebase PR #181 onto updated main; merge
+- [x] Delete 2 worktrees, 3 local branches, clear 11 stashes, prune 4 remote branches
+- [x] Update CLAUDE.md with session learnings (BOM, env sync, damage-control false-positive, PR rebase order, playback queue)
+- [x] Run `npm run memory:sync`
+- [x] Write session log `docs/session-logs/session-2026-03-24-pr-recovery-and-merge.md`
+- [x] Update `next-session.md`
+
+### Phase R: Next Executable Work (Post v3.1)
+- [ ] Verify `NPM_TOKEN` secret in GitHub repo settings, then tag and push `v3.1.0`
+- [ ] Validate voice-stop hook with live VoiceSidecar (test playback queue with concurrent sessions)
+- [ ] Validate STT voice input with real Whisper credentials
+- [ ] Validate `FileSessionStore` persistence across real restarts (HTTP reattachment still not implemented)
+- [ ] Run live Supabase integration validation
+- [ ] T19 auto-memory: add event-driven `memory:sync` trigger on session wrap
+- [ ] Redis `SessionStore` adapter (multi-node HA)
