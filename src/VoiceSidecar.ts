@@ -179,6 +179,37 @@ function playAudio(filePath: string): Promise<void> {
   });
 }
 
+// --- Playback Queue ---
+// Serialises all audio playback across connections so that two CLI sessions
+// finishing simultaneously speak one after the other rather than overlapping.
+
+const playbackQueue: Array<() => Promise<void>> = [];
+let queueDraining = false;
+
+async function drainPlaybackQueue(): Promise<void> {
+  if (queueDraining) return;
+  queueDraining = true;
+  while (playbackQueue.length > 0) {
+    const task = playbackQueue.shift()!;
+    try {
+      await task();
+    } catch (err: any) {
+      console.error("[VoiceSidecar] Playback queue error:", err.message);
+    }
+  }
+  queueDraining = false;
+}
+
+function enqueuePlayback(task: () => Promise<void>): void {
+  playbackQueue.push(task);
+  if (playbackQueue.length > 1) {
+    console.error(`[VoiceSidecar] Queued playback (position ${playbackQueue.length} in queue)`);
+  }
+  drainPlaybackQueue().catch((err) => {
+    console.error("[VoiceSidecar] Queue drain error:", err.message);
+  });
+}
+
 // --- Post-Process Speed (ffmpeg) ---
 
 function postProcessSpeed(input: string, output: string, tempo: number): Promise<boolean> {
@@ -359,18 +390,24 @@ class ElevenLabsStreamer {
       console.error(`[VoiceSidecar] Saved audio artifact: ${artifactPath}`);
     }
 
-    if (PLAYBACK_DISABLED) {
-      console.error("[VoiceSidecar] Playback disabled by VOICE_SIDECAR_DISABLE_PLAYBACK=1");
-    } else {
-      console.error(`[VoiceSidecar] Playing audio (${(combined.length / 1024).toFixed(1)}KB)`);
-      await playAudio(playFile);
-    }
+    const sizeKB = (combined.length / 1024).toFixed(1);
+    const capturedTmpFile = tmpFile;
+    const capturedPlayFile = playFile;
 
-    // Cleanup temp files
-    try { fs.unlinkSync(tmpFile); } catch {}
-    if (playFile !== tmpFile) {
-      try { fs.unlinkSync(playFile); } catch {}
-    }
+    enqueuePlayback(async () => {
+      if (PLAYBACK_DISABLED) {
+        console.error("[VoiceSidecar] Playback disabled by VOICE_SIDECAR_DISABLE_PLAYBACK=1");
+      } else {
+        console.error(`[VoiceSidecar] Playing audio (${sizeKB}KB)`);
+        await playAudio(capturedPlayFile);
+      }
+
+      // Cleanup temp files after playback completes
+      try { fs.unlinkSync(capturedTmpFile); } catch {}
+      if (capturedPlayFile !== capturedTmpFile) {
+        try { fs.unlinkSync(capturedPlayFile); } catch {}
+      }
+    });
   }
 }
 

@@ -1,4 +1,4 @@
-﻿{
+{
     "statusLine":  {
                        "type":  "command",
                        "command":  "node scripts/status.js"
