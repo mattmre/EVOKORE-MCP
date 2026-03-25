@@ -479,9 +479,11 @@ describe('STT Provider System', () => {
       expect(src).toContain('flush?: boolean');
     });
 
-    it('still requires ELEVENLABS_API_KEY for TTS (backward compatible)', () => {
+    it('conditionally requires ELEVENLABS_API_KEY for TTS', () => {
       expect(src).toContain('ELEVENLABS_API_KEY not set');
       expect(src).toMatch(/process\.exit\(1\)/);
+      // Conditional: only when TTS provider is elevenlabs
+      expect(src).toMatch(/TTS_PROVIDER_NAME\s*===\s*"elevenlabs"/);
     });
 
     it('imports TTSProvider type', () => {

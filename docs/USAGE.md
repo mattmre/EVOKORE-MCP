@@ -322,13 +322,42 @@ If `uvx` is not on PATH in Windows shells, retry the registration command from a
 
 **Local/offline mode:** Install Whisper.cpp (STT) and Kokoro (TTS) for fully local voice with no cloud dependencies. VoiceMode auto-detects local services.
 
-### Voice Sidecar (Auto-Speak Responses)
+### Local TTS (OpenAI-Compatible)
 
-The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses through ElevenLabs TTS. It runs independently from the MCP router, so custom clients can publish speech payloads directly to the sidecar without routing through MCP tools.
+VoiceSidecar supports any OpenAI-compatible TTS endpoint as an alternative to ElevenLabs. This enables fully local, offline text-to-speech via projects like [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) or [Chatterbox TTS API](https://github.com/travisvn/chatterbox-tts-api).
 
 **Setup:**
 
-1. Ensure `ELEVENLABS_API_KEY` is set in your `.env` file
+1. Run a local TTS server (example with Kokoro-FastAPI):
+   ```bash
+   docker run -p 8880:8880 ghcr.io/remsky/kokoro-fastapi:latest
+   ```
+
+2. Configure VoiceSidecar to use it:
+   ```bash
+   export EVOKORE_TTS_PROVIDER=openai-compat
+   export EVOKORE_TTS_BASE_URL=http://127.0.0.1:8880
+   # No API key needed for local servers
+   ```
+
+3. Start VoiceSidecar as usual — it will POST to `${EVOKORE_TTS_BASE_URL}/v1/audio/speech` instead of connecting to ElevenLabs.
+
+**Voice mapping:** Each persona in `voices.json` has an `openaiVoice` field that maps to a voice name on your local server. The default voice can also be set via `EVOKORE_TTS_VOICE`.
+
+**Supported local TTS servers:**
+- [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) — 82M params, 35-100x realtime, Docker ready
+- [Chatterbox TTS API](https://github.com/travisvn/chatterbox-tts-api) — Voice cloning, 23 languages, OpenAI-compat
+- Any server implementing the OpenAI `/v1/audio/speech` endpoint
+
+> **Note:** `ELEVENLABS_API_KEY` is not required when using `openai-compat` provider.
+
+### Voice Sidecar (Auto-Speak Responses)
+
+The Voice Sidecar is a standalone WebSocket server that auto-speaks AI responses through ElevenLabs TTS (or any OpenAI-compatible TTS endpoint). It runs independently from the MCP router, so custom clients can publish speech payloads directly to the sidecar without routing through MCP tools.
+
+**Setup:**
+
+1. Ensure `ELEVENLABS_API_KEY` is set in your `.env` file (required only when using the default `elevenlabs` provider)
 2. Compile: `npx tsc`
 3. Start the sidecar: `npm run voice` (or `npm run voice:dev` for development)
 4. Register the voice hook in `~/.claude/settings.json`:

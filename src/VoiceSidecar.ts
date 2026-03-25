@@ -7,6 +7,7 @@ import { spawn, execSync } from "child_process";
 import type { STTProvider, STTResult } from "./STTProvider";
 import type { TTSProvider, TTSVoiceConfig } from "./TTSProvider";
 import { ElevenLabsTTSProvider } from "./tts/ElevenLabsTTSProvider";
+import { OpenAICompatTTSProvider } from "./tts/OpenAICompatTTSProvider";
 
 // --- Types ---
 
@@ -74,6 +75,10 @@ const MAX_PAYLOAD_BYTES = 1 * 1024 * 1024; // 1 MB
 const STT_ENABLED = process.env.EVOKORE_STT_ENABLED === "true";
 const STT_PROVIDER_NAME = process.env.EVOKORE_STT_PROVIDER || "whisper-api";
 const STT_MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB (Whisper API limit)
+
+const TTS_PROVIDER_NAME = process.env.EVOKORE_TTS_PROVIDER || "elevenlabs";
+const TTS_BASE_URL = process.env.EVOKORE_TTS_BASE_URL || "http://127.0.0.1:8880";
+const TTS_API_KEY = process.env.EVOKORE_TTS_API_KEY || "";
 
 const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 
@@ -307,12 +312,22 @@ function initSTTProvider(): STTProvider | null {
   }
 }
 
+// --- TTS Provider Factory ---
+
+function createTTSProvider(voice: TTSVoiceConfig, apiKey: string): TTSProvider {
+  if (TTS_PROVIDER_NAME === "openai-compat" || TTS_PROVIDER_NAME === "openai") {
+    return new OpenAICompatTTSProvider(voice, TTS_BASE_URL, TTS_API_KEY);
+  }
+  // Default: elevenlabs
+  return new ElevenLabsTTSProvider(voice, apiKey);
+}
+
 // --- WebSocket Server ---
 
 function startServer(): void {
   const startTime = Date.now();
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) {
+  const apiKey = process.env.ELEVENLABS_API_KEY || "";
+  if (TTS_PROVIDER_NAME === "elevenlabs" && !apiKey) {
     console.error("[VoiceSidecar] ELEVENLABS_API_KEY not set. Load via .env or export.");
     process.exit(1);
   }
@@ -321,6 +336,11 @@ function startServer(): void {
   const sttProvider = initSTTProvider();
   if (sttProvider) {
     console.error(`[VoiceSidecar] STT enabled: provider=${sttProvider.name}`);
+  }
+
+  console.error(`[VoiceSidecar] TTS provider: ${TTS_PROVIDER_NAME}`);
+  if (TTS_PROVIDER_NAME === "openai-compat" || TTS_PROVIDER_NAME === "openai") {
+    console.error(`[VoiceSidecar] TTS endpoint: ${TTS_BASE_URL}/v1/audio/speech`);
   }
 
   // Cleanup stale temp files from prior runs
@@ -384,7 +404,7 @@ function startServer(): void {
             uptime: Math.floor((Date.now() - startTime) / 1000),
             sttEnabled: sttProvider !== null,
             sttProvider: sttProvider ? sttProvider.name : null,
-            ttsProvider: "elevenlabs",
+            ttsProvider: TTS_PROVIDER_NAME,
           };
           client.send(JSON.stringify(response));
           return;
@@ -479,7 +499,7 @@ function startServer(): void {
           const voice = resolvePersona(msg.persona);
           currentVoice = voice;
           console.error(`[VoiceSidecar] Persona: ${msg.persona || "default"} \u2192 ${voice.voiceName}`);
-          ttsProvider = new ElevenLabsTTSProvider(voice, apiKey);
+          ttsProvider = createTTSProvider(voice, apiKey);
           await ttsProvider.connect();
         }
 
