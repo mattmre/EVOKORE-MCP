@@ -7,7 +7,9 @@ const path = require('path');
 
 test('voice sidecar hardening validation', () => {
   const sidecarPath = path.resolve(__dirname, 'src', 'VoiceSidecar.ts');
+  const ttsProviderPath = path.resolve(__dirname, 'src', 'tts', 'ElevenLabsTTSProvider.ts');
   const sidecarSource = fs.readFileSync(sidecarPath, 'utf8');
+  const ttsProviderSource = fs.readFileSync(ttsProviderPath, 'utf8');
 
   // 1. Localhost binding
   assert.match(
@@ -135,43 +137,43 @@ test('voice sidecar hardening validation', () => {
     'Health response must include uptime'
   );
 
-  // 9. ElevenLabs connect timeout
+  // 9. ElevenLabs connect timeout (now in extracted TTS provider)
   assert.match(
-    sidecarSource,
+    ttsProviderSource,
     /CONNECT_TIMEOUT_MS\s*=\s*10000/,
     'Connect timeout must be 10 seconds'
   );
   assert.match(
-    sidecarSource,
+    ttsProviderSource,
     /connectTimer/,
     'Must use a timer for connect timeout'
   );
 
-  // 10. Connect retry with backoff
+  // 10. Connect retry with backoff (now in extracted TTS provider)
   assert.match(
-    sidecarSource,
+    ttsProviderSource,
     /CONNECT_MAX_RETRIES\s*=\s*2/,
     'Must allow max 2 retries'
   );
   assert.match(
-    sidecarSource,
+    ttsProviderSource,
     /Math\.pow\(2,\s*attempt\)/,
     'Must use exponential backoff'
   );
   assert.match(
-    sidecarSource,
+    ttsProviderSource,
     /attemptConnect/,
     'Must have attemptConnect method for retry logic'
   );
 
-  // 11. Flush timeout
+  // 11. Flush timeout (now in extracted TTS provider)
   assert.match(
-    sidecarSource,
+    ttsProviderSource,
     /FLUSH_TIMEOUT_MS\s*=\s*30000/,
     'Flush timeout must be 30 seconds'
   );
   assert.match(
-    sidecarSource,
+    ttsProviderSource,
     /flushTimer/,
     'Must use a timer for flush timeout'
   );

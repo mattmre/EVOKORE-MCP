@@ -7,23 +7,25 @@ const path = require('path');
 
 test('voice refinement validation', () => {
   const sidecarPath = path.resolve(__dirname, 'src', 'VoiceSidecar.ts');
+  const ttsProviderPath = path.resolve(__dirname, 'src', 'tts', 'ElevenLabsTTSProvider.ts');
   const voicesPath = path.resolve(__dirname, 'voices.json');
 
   const sidecarSource = fs.readFileSync(sidecarPath, 'utf8');
+  const ttsProviderSource = fs.readFileSync(ttsProviderPath, 'utf8');
   const voices = JSON.parse(fs.readFileSync(voicesPath, 'utf8'));
 
   // Persona merge should preserve defaults while allowing persona overrides.
   assert.match(sidecarSource, /return \{ \.\.\.config\.default, \.\.\.config\.personas\[role\] \};/);
 
-  // API-level speed should be passed in voice settings.
-  assert.match(sidecarSource, /speed: this\.voice\.speed,/);
+  // API-level speed should be passed in voice settings (now in extracted TTS provider).
+  assert.match(ttsProviderSource, /speed: this\.voice\.speed,/);
 
   // ffmpeg gating + chained atempo processing should exist.
   assert.match(sidecarSource, /where ffmpeg/);
   assert.match(sidecarSource, /which ffmpeg/);
   assert.match(sidecarSource, /while \(remaining > 2\.0\)/);
   assert.match(sidecarSource, /filters\.push\("atempo=2\.0"\)/);
-  assert.match(sidecarSource, /postProcessSpeed\(tmpFile, processedFile, this\.voice\.postProcessTempo\)/);
+  assert.match(sidecarSource, /postProcessSpeed\(tmpFile, processedFile, voice\.postProcessTempo\)/);
 
   // Hardening: verifyClient loopback check must exist.
   assert.match(sidecarSource, /verifyClient/, 'verifyClient callback must be present');

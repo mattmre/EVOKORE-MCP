@@ -467,8 +467,8 @@ describe('STT Provider System', () => {
     });
 
     it('existing TTS functionality is unchanged', () => {
-      // Verify all original TTS constructs still exist
-      expect(src).toContain('class ElevenLabsStreamer');
+      // Verify TTS constructs exist (ElevenLabsStreamer extracted to separate module)
+      expect(src).toContain('ElevenLabsTTSProvider');
       expect(src).toContain('ELEVENLABS_API_KEY');
       expect(src).toContain('function resolvePersona(');
       expect(src).toContain('function playAudio(');
@@ -482,6 +482,10 @@ describe('STT Provider System', () => {
     it('still requires ELEVENLABS_API_KEY for TTS (backward compatible)', () => {
       expect(src).toContain('ELEVENLABS_API_KEY not set');
       expect(src).toMatch(/process\.exit\(1\)/);
+    });
+
+    it('imports TTSProvider type', () => {
+      expect(src).toMatch(/import.*TTSProvider.*from.*"\.\/TTSProvider"/);
     });
 
     it('VoiceSidecar remains standalone (no exports)', () => {
