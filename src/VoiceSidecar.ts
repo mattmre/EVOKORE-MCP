@@ -5,23 +5,14 @@ import path from "path";
 import os from "os";
 import { spawn, execSync } from "child_process";
 import type { STTProvider, STTResult } from "./STTProvider";
+import type { TTSProvider, TTSVoiceConfig } from "./TTSProvider";
+import { ElevenLabsTTSProvider } from "./tts/ElevenLabsTTSProvider";
 
 // --- Types ---
 
-interface VoiceConfig {
-  voiceId: string;
-  voiceName: string;
-  model: string;
-  stability: number;
-  similarityBoost: number;
-  speed: number;
-  outputFormat: string;
-  postProcessTempo?: number;
-}
-
 interface VoicesFile {
-  default: VoiceConfig;
-  personas: Record<string, Partial<VoiceConfig>>;
+  default: TTSVoiceConfig;
+  personas: Record<string, Partial<TTSVoiceConfig>>;
 }
 
 interface ClientMessage {
@@ -63,6 +54,7 @@ interface HealthResponse {
   uptime: number;
   sttEnabled: boolean;
   sttProvider: string | null;
+  ttsProvider: string;
 }
 
 // --- Config ---
@@ -76,9 +68,6 @@ const ARTIFACT_DIR = process.env.VOICE_SIDECAR_ARTIFACT_DIR
 const MAX_CONNECTIONS = parseInt(process.env.VOICE_SIDECAR_MAX_CONNECTIONS || "5", 10);
 const MAX_TEXT_LENGTH = 10000;
 const HEARTBEAT_INTERVAL_MS = 30000;
-const CONNECT_TIMEOUT_MS = 10000;
-const CONNECT_MAX_RETRIES = 2;
-const FLUSH_TIMEOUT_MS = 30000;
 const SHUTDOWN_DRAIN_MS = 2000;
 const MAX_PAYLOAD_BYTES = 1 * 1024 * 1024; // 1 MB
 
@@ -93,7 +82,7 @@ function loadVoicesConfig(): VoicesFile {
   return JSON.parse(raw) as VoicesFile;
 }
 
-function resolvePersona(role?: string): VoiceConfig {
+function resolvePersona(role?: string): TTSVoiceConfig {
   const config = loadVoicesConfig();
   if (!role || !config.personas[role]) {
     return config.default;
@@ -239,176 +228,51 @@ function postProcessSpeed(input: string, output: string, tempo: number): Promise
   });
 }
 
-// --- ElevenLabs Streamer ---
+// --- Shared Finalize Pipeline ---
+// Writes audio buffer to temp file, applies optional post-processing,
+// saves artifacts, and enqueues playback. Shared across all TTS providers.
 
-class ElevenLabsStreamer {
-  private ws: WebSocket | null = null;
-  private audioChunks: Buffer[] = [];
-  private voice: VoiceConfig;
-  private apiKey: string;
-  private resolveFinished: (() => void) | null = null;
+async function finalizeAudio(audio: Buffer | null, voice: TTSVoiceConfig): Promise<void> {
+  if (!audio || audio.length === 0) return;
 
-  constructor(voice: VoiceConfig, apiKey: string) {
-    this.voice = voice;
-    this.apiKey = apiKey;
-  }
+  const tmpDir = os.tmpdir();
+  const tmpFile = path.join(tmpDir, `evokore-voice-${Date.now()}.mp3`);
+  fs.writeFileSync(tmpFile, audio);
 
-  async connect(): Promise<void> {
-    let lastError: Error | null = null;
+  let playFile = tmpFile;
 
-    for (let attempt = 0; attempt <= CONNECT_MAX_RETRIES; attempt++) {
-      try {
-        await this.attemptConnect();
-        return;
-      } catch (err: any) {
-        lastError = err;
-        if (attempt < CONNECT_MAX_RETRIES) {
-          const delay = Math.pow(2, attempt) * 500; // 500ms, 1000ms
-          console.error(`[VoiceSidecar] ElevenLabs connect attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
-          await new Promise((r) => setTimeout(r, delay));
-        }
-      }
-    }
-
-    throw lastError || new Error("ElevenLabs connection failed after retries");
-  }
-
-  private attemptConnect(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const url = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voice.voiceId}/stream-input?model_id=${this.voice.model}&output_format=${this.voice.outputFormat}`;
-
-      this.ws = new WebSocket(url);
-
-      const connectTimer = setTimeout(() => {
-        if (this.ws) {
-          this.ws.terminate();
-        }
-        reject(new Error("ElevenLabs connection timed out"));
-      }, CONNECT_TIMEOUT_MS);
-
-      this.ws.on("open", () => {
-        clearTimeout(connectTimer);
-        // Send initial config message
-        this.ws!.send(JSON.stringify({
-          text: " ",
-          voice_settings: {
-            stability: this.voice.stability,
-            similarity_boost: this.voice.similarityBoost,
-            speed: this.voice.speed,
-          },
-          xi_api_key: this.apiKey,
-        }));
-        resolve();
-      });
-
-      this.ws.on("message", (data: Buffer) => {
-        try {
-          const msg = JSON.parse(data.toString());
-          if (msg.audio) {
-            this.audioChunks.push(Buffer.from(msg.audio, "base64"));
-          }
-          if (msg.isFinal) {
-            this.finalize();
-          }
-        } catch {
-          // Ignore non-JSON messages
-        }
-      });
-
-      this.ws.on("error", (err) => {
-        clearTimeout(connectTimer);
-        console.error("[VoiceSidecar] ElevenLabs WS error:", err.message);
-        reject(err);
-      });
-
-      this.ws.on("close", () => {
-        clearTimeout(connectTimer);
-        if (this.resolveFinished) {
-          this.resolveFinished();
-          this.resolveFinished = null;
-        }
-      });
-    });
-  }
-
-  sendText(chunk: string): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        text: chunk,
-        try_trigger_generation: true,
-      }));
+  // Apply post-process tempo if configured
+  if (voice.postProcessTempo && voice.postProcessTempo !== 1.0) {
+    const processedFile = path.join(tmpDir, `evokore-voice-${Date.now()}-fast.mp3`);
+    const ok = await postProcessSpeed(tmpFile, processedFile, voice.postProcessTempo);
+    if (ok) {
+      playFile = processedFile;
     }
   }
 
-  flush(): Promise<void> {
-    return new Promise((resolve) => {
-      const flushTimer = setTimeout(() => {
-        console.error("[VoiceSidecar] Flush timed out, forcing resolution");
-        this.resolveFinished = null;
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.close();
-        }
-        resolve();
-      }, FLUSH_TIMEOUT_MS);
-
-      this.resolveFinished = () => {
-        clearTimeout(flushTimer);
-        resolve();
-      };
-
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ text: "" }));
-      } else {
-        clearTimeout(flushTimer);
-        resolve();
-      }
-    });
+  const artifactPath = saveAudioArtifact(playFile);
+  if (artifactPath) {
+    console.error(`[VoiceSidecar] Saved audio artifact: ${artifactPath}`);
   }
 
-  private async finalize(): Promise<void> {
-    if (this.audioChunks.length === 0) return;
+  const sizeKB = (audio.length / 1024).toFixed(1);
+  const capturedTmpFile = tmpFile;
+  const capturedPlayFile = playFile;
 
-    const combined = Buffer.concat(this.audioChunks);
-    const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `evokore-voice-${Date.now()}.mp3`);
-
-    fs.writeFileSync(tmpFile, combined);
-
-    let playFile = tmpFile;
-
-    // Apply post-process tempo if configured
-    if (this.voice.postProcessTempo && this.voice.postProcessTempo !== 1.0) {
-      const processedFile = path.join(tmpDir, `evokore-voice-${Date.now()}-fast.mp3`);
-      const ok = await postProcessSpeed(tmpFile, processedFile, this.voice.postProcessTempo);
-      if (ok) {
-        playFile = processedFile;
-      }
+  enqueuePlayback(async () => {
+    if (PLAYBACK_DISABLED) {
+      console.error("[VoiceSidecar] Playback disabled by VOICE_SIDECAR_DISABLE_PLAYBACK=1");
+    } else {
+      console.error(`[VoiceSidecar] Playing audio (${sizeKB}KB)`);
+      await playAudio(capturedPlayFile);
     }
 
-    const artifactPath = saveAudioArtifact(playFile);
-    if (artifactPath) {
-      console.error(`[VoiceSidecar] Saved audio artifact: ${artifactPath}`);
+    // Cleanup temp files after playback completes
+    try { fs.unlinkSync(capturedTmpFile); } catch {}
+    if (capturedPlayFile !== capturedTmpFile) {
+      try { fs.unlinkSync(capturedPlayFile); } catch {}
     }
-
-    const sizeKB = (combined.length / 1024).toFixed(1);
-    const capturedTmpFile = tmpFile;
-    const capturedPlayFile = playFile;
-
-    enqueuePlayback(async () => {
-      if (PLAYBACK_DISABLED) {
-        console.error("[VoiceSidecar] Playback disabled by VOICE_SIDECAR_DISABLE_PLAYBACK=1");
-      } else {
-        console.error(`[VoiceSidecar] Playing audio (${sizeKB}KB)`);
-        await playAudio(capturedPlayFile);
-      }
-
-      // Cleanup temp files after playback completes
-      try { fs.unlinkSync(capturedTmpFile); } catch {}
-      if (capturedPlayFile !== capturedTmpFile) {
-        try { fs.unlinkSync(capturedPlayFile); } catch {}
-      }
-    });
-  }
+  });
 }
 
 // --- STT Provider Initialization ---
@@ -501,8 +365,9 @@ function startServer(): void {
       (client as any).__alive = true;
     });
 
-    let streamer: ElevenLabsStreamer | null = null;
+    let ttsProvider: TTSProvider | null = null;
     let currentPersona: string | undefined;
+    let currentVoice: TTSVoiceConfig | null = null;
 
     console.error("[VoiceSidecar] Client connected");
 
@@ -519,6 +384,7 @@ function startServer(): void {
             uptime: Math.floor((Date.now() - startTime) / 1000),
             sttEnabled: sttProvider !== null,
             sttProvider: sttProvider ? sttProvider.name : null,
+            ttsProvider: "elevenlabs",
           };
           client.send(JSON.stringify(response));
           return;
@@ -607,24 +473,27 @@ function startServer(): void {
           return;
         }
 
-        // Initialize streamer on first message with text
-        if (!streamer && msg.text) {
+        // Initialize TTS provider on first message with text
+        if (!ttsProvider && msg.text) {
           currentPersona = msg.persona;
           const voice = resolvePersona(msg.persona);
+          currentVoice = voice;
           console.error(`[VoiceSidecar] Persona: ${msg.persona || "default"} \u2192 ${voice.voiceName}`);
-          streamer = new ElevenLabsStreamer(voice, apiKey);
-          await streamer.connect();
+          ttsProvider = new ElevenLabsTTSProvider(voice, apiKey);
+          await ttsProvider.connect();
         }
 
         // Send text chunk
-        if (streamer && msg.text) {
-          streamer.sendText(msg.text);
+        if (ttsProvider && msg.text) {
+          ttsProvider.sendText(msg.text);
         }
 
         // Flush (end of stream)
-        if (msg.flush && streamer) {
-          await streamer.flush();
-          streamer = null;
+        if (msg.flush && ttsProvider) {
+          const audio = await ttsProvider.flush();
+          await finalizeAudio(audio, currentVoice!);
+          ttsProvider = null;
+          currentVoice = null;
         }
       } catch (err: any) {
         console.error("[VoiceSidecar] Message error:", err.message);

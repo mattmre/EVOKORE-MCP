@@ -24,16 +24,9 @@ describe('Voice Sidecar (T23)', () => {
       expect(src).toMatch(/startServer\(\)/);
     });
 
-    it('defines VoiceConfig interface with required fields', () => {
+    it('imports TTSVoiceConfig from TTSProvider module', () => {
       const src = fs.readFileSync(SIDECAR_SOURCE_PATH, 'utf8');
-      expect(src).toContain('interface VoiceConfig');
-      expect(src).toContain('voiceId: string');
-      expect(src).toContain('voiceName: string');
-      expect(src).toContain('model: string');
-      expect(src).toContain('stability: number');
-      expect(src).toContain('similarityBoost: number');
-      expect(src).toContain('speed: number');
-      expect(src).toContain('outputFormat: string');
+      expect(src).toMatch(/import.*TTSVoiceConfig.*from.*["']\.\/TTSProvider["']/);
     });
 
     it('defines ClientMessage interface', () => {
@@ -67,12 +60,10 @@ describe('Voice Sidecar (T23)', () => {
       expect(src).toMatch(/process\.env\.VOICE_SIDECAR_PORT\s*\|\|\s*"8888"/);
     });
 
-    it('has ElevenLabsStreamer class for TTS streaming', () => {
+    it('uses ElevenLabsTTSProvider for TTS (extracted to separate module)', () => {
       const src = fs.readFileSync(SIDECAR_SOURCE_PATH, 'utf8');
-      expect(src).toContain('class ElevenLabsStreamer');
-      expect(src).toContain('connect()');
-      expect(src).toContain('sendText(');
-      expect(src).toContain('flush()');
+      expect(src).toContain('ElevenLabsTTSProvider');
+      expect(src).not.toContain('class ElevenLabsStreamer');
     });
 
     it('implements graceful shutdown with SIGINT and SIGTERM', () => {
@@ -124,7 +115,7 @@ describe('Voice Sidecar (T23)', () => {
 
     it('persona values are valid types (string or number)', () => {
       const config = JSON.parse(fs.readFileSync(VOICES_JSON_PATH, 'utf8'));
-      const allowedStringKeys = new Set(['voiceId', 'voiceName', 'model', 'outputFormat']);
+      const allowedStringKeys = new Set(['voiceId', 'voiceName', 'model', 'outputFormat', 'openaiVoice', 'openaiModel']);
       const allowedNumberKeys = new Set(['stability', 'similarityBoost', 'speed', 'postProcessTempo']);
 
       for (const [, persona] of Object.entries(config.personas)) {
