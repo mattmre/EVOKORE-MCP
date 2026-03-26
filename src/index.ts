@@ -773,6 +773,7 @@ export class EvokoreMCPServer {
     const authConfig = loadAuthConfig();
     const httpServer = new HttpServer(this.server, {
       sessionIsolation: this.sessionIsolation,
+      securityManager: this.securityManager,
       authConfig,
       webhookManager: this.webhookManager,
       auditLog: this.auditLog,

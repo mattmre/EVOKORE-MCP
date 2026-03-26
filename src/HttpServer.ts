@@ -1,8 +1,11 @@
 import http from "http";
+import { URL } from "url";
 import { randomUUID } from "crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { WebSocketServer, WebSocket } from "ws";
 import { SessionIsolation } from "./SessionIsolation";
+import { SecurityManager, ApprovalEvent } from "./SecurityManager";
 import { WebhookManager } from "./WebhookManager";
 import { AuditLog } from "./AuditLog";
 import { TelemetryManager } from "./TelemetryManager";
@@ -20,6 +23,7 @@ export interface HttpServerOptions {
   port?: number;
   host?: string;
   sessionIsolation?: SessionIsolation;
+  securityManager?: SecurityManager;
   authConfig?: AuthConfig;
   webhookManager?: WebhookManager;
   auditLog?: AuditLog;
@@ -41,6 +45,7 @@ export class HttpServer {
   private host: string;
   private transports: Map<string, StreamableHTTPServerTransport> = new Map();
   private sessionIsolation: SessionIsolation | null;
+  private securityManager: SecurityManager | null;
   private authConfig: AuthConfig | null;
   private webhookManager: WebhookManager | null;
   private auditLog: AuditLog;
@@ -48,12 +53,18 @@ export class HttpServer {
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private persistInterval: ReturnType<typeof setInterval> | null = null;
 
+  // WebSocket approval streaming (opt-in via EVOKORE_WS_APPROVALS_ENABLED)
+  private wss: WebSocketServer | null = null;
+  private wsClients: Set<WebSocket> = new Set();
+  private wsHeartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor(mcpServer: Server, options?: HttpServerOptions) {
     this.mcpServer = mcpServer;
     const envPort = Number(process.env.EVOKORE_HTTP_PORT);
     this.port = options?.port ?? (Number.isFinite(envPort) && envPort > 0 ? envPort : DEFAULT_HTTP_PORT);
     this.host = options?.host ?? process.env.EVOKORE_HTTP_HOST ?? DEFAULT_HTTP_HOST;
     this.sessionIsolation = options?.sessionIsolation ?? null;
+    this.securityManager = options?.securityManager ?? null;
     this.authConfig = options?.authConfig ?? null;
     this.webhookManager = options?.webhookManager ?? null;
     this.auditLog = options?.auditLog ?? AuditLog.getInstance();
@@ -82,6 +93,11 @@ export class HttpServer {
     this.httpServer = http.createServer(async (req, res) => {
       await this.handleRequest(req, res);
     });
+
+    // Initialize WebSocket server for real-time approval events (opt-in)
+    if (process.env.EVOKORE_WS_APPROVALS_ENABLED === "true") {
+      this.initWebSocketApprovals();
+    }
 
     // Periodically clean expired sessions and their orphaned transports (every 60 seconds)
     if (this.sessionIsolation) {
@@ -159,6 +175,20 @@ export class HttpServer {
       this.persistInterval = null;
     }
 
+    // Shut down WebSocket approval server
+    if (this.wsHeartbeatInterval) {
+      clearInterval(this.wsHeartbeatInterval);
+      this.wsHeartbeatInterval = null;
+    }
+    for (const client of this.wsClients) {
+      try { client.close(1001, "Server shutting down"); } catch { /* best effort */ }
+    }
+    this.wsClients.clear();
+    if (this.wss) {
+      this.wss.close();
+      this.wss = null;
+    }
+
     // Destroy all sessions in SessionIsolation before closing transports
     if (this.sessionIsolation) {
       for (const sessionId of this.transports.keys()) {
@@ -198,6 +228,186 @@ export class HttpServer {
       }
     }
     return { host: this.host, port: this.port };
+  }
+
+  /**
+   * Broadcast an approval lifecycle event to all connected WebSocket clients.
+   * Called via the SecurityManager approval callback.
+   */
+  broadcastApprovalEvent(event: ApprovalEvent): void {
+    if (this.wsClients.size === 0) return;
+    const message = JSON.stringify(event);
+    for (const client of this.wsClients) {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          client.send(message);
+        } catch {
+          // Dead connection; will be cleaned up by heartbeat
+        }
+      }
+    }
+  }
+
+  /**
+   * Initialize the WebSocket server for real-time approval event streaming.
+   * Handles upgrade requests on `/ws/approvals` with Bearer token auth via query param.
+   */
+  private initWebSocketApprovals(): void {
+    if (!this.httpServer) return;
+
+    const maxClients = Math.max(
+      1,
+      parseInt(process.env.EVOKORE_WS_MAX_CLIENTS || "10", 10) || 10
+    );
+    const heartbeatMs = Math.max(
+      5000,
+      parseInt(process.env.EVOKORE_WS_HEARTBEAT_MS || "30000", 10) || 30000
+    );
+
+    this.wss = new WebSocketServer({ noServer: true });
+
+    // Handle HTTP upgrade requests
+    this.httpServer.on("upgrade", async (req, socket, head) => {
+      const reqUrl = new URL(req.url ?? "/", `http://${req.headers.host || "localhost"}`);
+
+      // Only handle /ws/approvals
+      if (reqUrl.pathname !== "/ws/approvals") {
+        socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+        socket.destroy();
+        return;
+      }
+
+      // Enforce max clients
+      if (this.wsClients.size >= maxClients) {
+        socket.write("HTTP/1.1 503 Service Unavailable\r\nContent-Type: text/plain\r\n\r\nToo many WebSocket clients\r\n");
+        socket.destroy();
+        return;
+      }
+
+      // Authenticate via query parameter token
+      if (this.authConfig && this.authConfig.required) {
+        const queryToken = reqUrl.searchParams.get("token");
+        if (!queryToken) {
+          socket.write("HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\n\r\nMissing token query parameter\r\n");
+          socket.destroy();
+          return;
+        }
+
+        // Inject the token as a Bearer header for the standard auth check
+        req.headers.authorization = `Bearer ${queryToken}`;
+        const authResult = await authenticateRequest(req, this.authConfig);
+        if (!authResult.authorized) {
+          this.auditLog.log("auth_failure", "failure", {
+            metadata: { path: "/ws/approvals", error: authResult.error || "Unauthorized" },
+          });
+          socket.write("HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\n\r\nInvalid token\r\n");
+          socket.destroy();
+          return;
+        }
+
+        // RBAC: require at least developer role for WebSocket connections
+        const role = (authResult.claims?.role as string) || "";
+        const roleLevels: Record<string, number> = { admin: 3, developer: 2, readonly: 1 };
+        if ((roleLevels[role] || 0) < (roleLevels["developer"] || 0)) {
+          socket.write("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nInsufficient role\r\n");
+          socket.destroy();
+          return;
+        }
+      }
+
+      // Complete the WebSocket upgrade
+      this.wss!.handleUpgrade(req, socket, head, (ws) => {
+        this.wss!.emit("connection", ws, req);
+      });
+    });
+
+    // Handle new WebSocket connections
+    this.wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
+      this.wsClients.add(ws);
+
+      // Determine the client's role for RBAC on deny actions
+      const reqUrl = new URL(req.url ?? "/", `http://${req.headers.host || "localhost"}`);
+      const clientRole = (req as any)._evokoreRole || "";
+      // Store role metadata on the socket for later use
+      (ws as any)._role = clientRole;
+
+      // Mark alive for heartbeat
+      (ws as any)._isAlive = true;
+      ws.on("pong", () => { (ws as any)._isAlive = true; });
+
+      // Send snapshot of current pending approvals
+      if (this.securityManager) {
+        const snapshot = this.securityManager.getPendingApprovals();
+        try {
+          ws.send(JSON.stringify({ type: "snapshot", approvals: snapshot }));
+        } catch { /* best effort */ }
+      }
+
+      console.error(`[EVOKORE-WS] Approval client connected (${this.wsClients.size} active)`);
+
+      // Handle incoming messages
+      ws.on("message", (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === "ping") {
+            ws.send(JSON.stringify({ type: "pong" }));
+            return;
+          }
+          if (msg.type === "deny" && typeof msg.prefix === "string") {
+            // Deny requires admin role when auth is enabled
+            if (this.authConfig && this.authConfig.required) {
+              const roleLevels: Record<string, number> = { admin: 3, developer: 2, readonly: 1 };
+              if ((roleLevels[(ws as any)._role] || 0) < (roleLevels["admin"] || 0)) {
+                ws.send(JSON.stringify({ type: "error", message: "Forbidden: admin role required for deny" }));
+                return;
+              }
+            }
+            if (this.securityManager) {
+              const prefix = msg.prefix.replace(/[^a-f0-9]/gi, "").substring(0, 8);
+              if (prefix.length >= 4) {
+                this.securityManager.denyToken(prefix);
+              }
+            }
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      });
+
+      ws.on("close", () => {
+        this.wsClients.delete(ws);
+        console.error(`[EVOKORE-WS] Approval client disconnected (${this.wsClients.size} active)`);
+      });
+
+      ws.on("error", () => {
+        this.wsClients.delete(ws);
+      });
+    });
+
+    // Heartbeat: ping all clients periodically, terminate unresponsive ones
+    this.wsHeartbeatInterval = setInterval(() => {
+      for (const client of this.wsClients) {
+        if ((client as any)._isAlive === false) {
+          this.wsClients.delete(client);
+          client.terminate();
+          continue;
+        }
+        (client as any)._isAlive = false;
+        try { client.ping(); } catch { /* best effort */ }
+      }
+    }, heartbeatMs);
+    if (this.wsHeartbeatInterval.unref) {
+      this.wsHeartbeatInterval.unref();
+    }
+
+    // Wire SecurityManager callback to broadcast events
+    if (this.securityManager) {
+      this.securityManager.setApprovalCallback((event) => {
+        this.broadcastApprovalEvent(event);
+      });
+    }
+
+    console.error(`[EVOKORE-WS] Approval WebSocket enabled on /ws/approvals (max ${maxClients} clients, heartbeat ${heartbeatMs}ms)`);
   }
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {

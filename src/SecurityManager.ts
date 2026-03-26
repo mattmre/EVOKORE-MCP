@@ -19,12 +19,18 @@ export interface RoleDefinition {
   overrides?: Record<string, PermissionLevel>;
 }
 
+export interface ApprovalEvent {
+  type: "approval_requested" | "approval_granted" | "approval_denied";
+  data: unknown;
+}
+
 export class SecurityManager {
   private rules: Record<string, string> = {};
   private roles: Map<string, RoleDefinition> = new Map();
   private activeRole: string | null = null;
   private pendingTokens: Map<string, { toolName: string; argsHash: string; expiresAt: number }> = new Map();
   private static readonly TOKEN_TTL_MS = 5 * 60 * 1000;
+  private approvalCallback?: (event: ApprovalEvent) => void;
 
   async loadPermissions() {
     try {
@@ -144,6 +150,27 @@ export class SecurityManager {
     }));
   }
 
+  /**
+   * Register a callback that is invoked whenever an approval lifecycle event occurs.
+   * Used by HttpServer to broadcast real-time WebSocket events.
+   */
+  setApprovalCallback(cb: (event: ApprovalEvent) => void): void {
+    this.approvalCallback = cb;
+  }
+
+  /**
+   * Safely invoke the approval callback, swallowing any errors to avoid
+   * disrupting the token lifecycle.
+   */
+  private emitApprovalEvent(event: ApprovalEvent): void {
+    if (!this.approvalCallback) return;
+    try {
+      this.approvalCallback(event);
+    } catch {
+      // Callback failure must not break token lifecycle
+    }
+  }
+
   private normalizeValue(value: any): any {
     if (Array.isArray(value)) {
       return value.map((item) => this.normalizeValue(item));
@@ -177,12 +204,22 @@ export class SecurityManager {
   generateToken(toolName: string, args: any): string {
     this.purgeExpiredTokens();
     const token = crypto.randomBytes(16).toString("hex");
+    const expiresAt = Date.now() + SecurityManager.TOKEN_TTL_MS;
     this.pendingTokens.set(token, {
       toolName,
       argsHash: this.hashArgs(args),
-      expiresAt: Date.now() + SecurityManager.TOKEN_TTL_MS
+      expiresAt,
     });
     this.persistPendingApprovals();
+    this.emitApprovalEvent({
+      type: "approval_requested",
+      data: {
+        token: token.substring(0, 8) + "...",
+        toolName,
+        expiresAt,
+        createdAt: expiresAt - SecurityManager.TOKEN_TTL_MS,
+      },
+    });
     return token;
   }
 
@@ -202,8 +239,18 @@ export class SecurityManager {
   }
 
   consumeToken(token: string) {
+    const meta = this.pendingTokens.get(token);
     this.pendingTokens.delete(token);
     this.persistPendingApprovals();
+    if (meta) {
+      this.emitApprovalEvent({
+        type: "approval_granted",
+        data: {
+          token: token.substring(0, 8) + "...",
+          toolName: meta.toolName,
+        },
+      });
+    }
   }
 
   /**
@@ -236,6 +283,10 @@ export class SecurityManager {
       if (token.startsWith(tokenPrefix) && meta.expiresAt > Date.now()) {
         this.pendingTokens.delete(token);
         this.persistPendingApprovals();
+        this.emitApprovalEvent({
+          type: "approval_denied",
+          data: { prefix: tokenPrefix },
+        });
         return true;
       }
     }
