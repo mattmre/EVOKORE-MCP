@@ -14,72 +14,169 @@ const EVOKORE_STATE_DIR = path.join(os.homedir(), '.evokore');
 const PENDING_APPROVALS_FILE = path.join(EVOKORE_STATE_DIR, 'pending-approvals.json');
 const DENIED_TOKENS_FILE = path.join(EVOKORE_STATE_DIR, 'denied-tokens.json');
 
-// Basic auth credentials (optional -- when unset, dashboard is unauthenticated)
-const DASHBOARD_USER = process.env.EVOKORE_DASHBOARD_USER || '';
-const DASHBOARD_PASS = process.env.EVOKORE_DASHBOARD_PASS || '';
-const AUTH_ENABLED = !!(DASHBOARD_USER && DASHBOARD_PASS);
+// Bearer token auth (optional -- when unset, dashboard runs in local-only mode)
+const DASHBOARD_TOKEN = process.env.EVOKORE_DASHBOARD_TOKEN || '';
+const TOKEN_AUTH_ENABLED = !!DASHBOARD_TOKEN;
 
-// Timing-safe credential comparison using crypto.timingSafeEqual
-function checkCredentials(user, pass) {
-  if (!AUTH_ENABLED) return true;
-  // Pad to equal length before comparing to prevent length-based timing leaks
-  const expectedUser = Buffer.from(DASHBOARD_USER, 'utf8');
-  const expectedPass = Buffer.from(DASHBOARD_PASS, 'utf8');
-  const givenUser = Buffer.from(user || '', 'utf8');
-  const givenPass = Buffer.from(pass || '', 'utf8');
+// RBAC role: admin (default for local-only), readonly (default for token mode)
+const VALID_ROLES = ['admin', 'developer', 'readonly'];
+const DASHBOARD_ROLE = (function() {
+  const envRole = (process.env.EVOKORE_DASHBOARD_ROLE || '').toLowerCase();
+  if (VALID_ROLES.includes(envRole)) return envRole;
+  return TOKEN_AUTH_ENABLED ? 'readonly' : 'admin';
+})();
 
-  // Compare lengths first (constant-time via bitwise OR of both checks)
-  const userLenMatch = expectedUser.length === givenUser.length;
-  const passLenMatch = expectedPass.length === givenPass.length;
+// Role hierarchy: admin > developer > readonly
+const ROLE_LEVEL = { admin: 3, developer: 2, readonly: 1 };
 
-  // For timingSafeEqual, buffers must be equal length. Use padded comparison.
-  const maxUserLen = Math.max(expectedUser.length, givenUser.length) || 1;
-  const maxPassLen = Math.max(expectedPass.length, givenPass.length) || 1;
-
-  const paddedExpectedUser = Buffer.alloc(maxUserLen);
-  const paddedGivenUser = Buffer.alloc(maxUserLen);
-  expectedUser.copy(paddedExpectedUser);
-  givenUser.copy(paddedGivenUser);
-
-  const paddedExpectedPass = Buffer.alloc(maxPassLen);
-  const paddedGivenPass = Buffer.alloc(maxPassLen);
-  expectedPass.copy(paddedExpectedPass);
-  givenPass.copy(paddedGivenPass);
-
-  const userMatch = crypto.timingSafeEqual(paddedExpectedUser, paddedGivenUser) && userLenMatch;
-  const passMatch = crypto.timingSafeEqual(paddedExpectedPass, paddedGivenPass) && passLenMatch;
-
-  return userMatch && passMatch;
+function hasRole(requiredRole) {
+  return (ROLE_LEVEL[DASHBOARD_ROLE] || 0) >= (ROLE_LEVEL[requiredRole] || 0);
 }
 
-// Parse Basic auth header and return { user, pass } or null
-function parseBasicAuth(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Basic ')) return null;
-  try {
-    const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf8');
-    const colonIndex = decoded.indexOf(':');
-    if (colonIndex < 0) return null;
-    return { user: decoded.substring(0, colonIndex), pass: decoded.substring(colonIndex + 1) };
-  } catch {
-    return null;
+// Rate limiting for auth failures: track per IP
+const authFailures = new Map(); // ip -> { count, firstFailureAt }
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 60 seconds
+const RATE_LIMIT_MAX_FAILURES = 5;
+const RATE_LIMIT_LOCKOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+function getClientIp(req) {
+  // For local dashboard, use remoteAddress directly
+  return req.socket.remoteAddress || '127.0.0.1';
+}
+
+function isRateLimited(ip) {
+  const entry = authFailures.get(ip);
+  if (!entry) return false;
+  const now = Date.now();
+
+  // Check if lockout period has passed
+  if (entry.lockedUntil && now < entry.lockedUntil) return true;
+
+  // Clean up expired entries
+  if (now - entry.firstFailureAt > RATE_LIMIT_WINDOW_MS) {
+    authFailures.delete(ip);
+    return false;
+  }
+
+  return false;
+}
+
+function recordAuthFailure(ip) {
+  const now = Date.now();
+  const entry = authFailures.get(ip);
+
+  if (!entry || (now - entry.firstFailureAt > RATE_LIMIT_WINDOW_MS)) {
+    authFailures.set(ip, { count: 1, firstFailureAt: now, lockedUntil: null });
+    return;
+  }
+
+  entry.count++;
+  if (entry.count >= RATE_LIMIT_MAX_FAILURES) {
+    entry.lockedUntil = now + RATE_LIMIT_LOCKOUT_MS;
   }
 }
 
-// Auth middleware -- returns true if request is authorized, false if 401 was sent
-function requireAuth(req, res) {
-  if (!AUTH_ENABLED) return true;
+// Timing-safe token comparison using crypto.timingSafeEqual
+function validateBearerToken(token) {
+  if (!DASHBOARD_TOKEN) return false;
+  const tokenBuffer = Buffer.from(token, 'utf8');
+  const expectedBuffer = Buffer.from(DASHBOARD_TOKEN, 'utf8');
+  if (tokenBuffer.length !== expectedBuffer.length) return false;
+  return crypto.timingSafeEqual(tokenBuffer, expectedBuffer);
+}
 
-  const creds = parseBasicAuth(req);
-  if (creds && checkCredentials(creds.user, creds.pass)) {
+// Extract Bearer token from Authorization header
+function extractBearerToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return null;
+  const trimmed = authHeader.trim();
+  if (!/^Bearer\s+/i.test(trimmed)) return null;
+  const token = trimmed.slice(7).trim();
+  return token.length > 0 ? token : null;
+}
+
+// Security headers applied to all responses
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Content-Security-Policy': "default-src 'self' 'unsafe-inline'"
+};
+
+const API_SECURITY_HEADERS = {
+  ...SECURITY_HEADERS,
+  'Cache-Control': 'no-store'
+};
+
+function applySecurityHeaders(res, isApi) {
+  const headers = isApi ? API_SECURITY_HEADERS : SECURITY_HEADERS;
+  for (const [key, value] of Object.entries(headers)) {
+    res.setHeader(key, value);
+  }
+}
+
+// Paths that bypass authentication (login page, auth status)
+function isPublicPath(pathname) {
+  return pathname === '/login' || pathname === '/api/auth/status';
+}
+
+// Auth middleware -- returns true if request is authorized, false if response was sent
+function requireAuth(req, res) {
+  const url = new URL(req.url, 'http://localhost');
+
+  // Public paths bypass auth
+  if (isPublicPath(url.pathname)) return true;
+
+  // If token auth not enabled, allow all (local-only mode)
+  if (!TOKEN_AUTH_ENABLED) return true;
+
+  const ip = getClientIp(req);
+
+  // Check rate limiting
+  if (isRateLimited(ip)) {
+    applySecurityHeaders(res, true);
+    res.writeHead(429, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Too many failed authentication attempts. Try again later.' }));
+    return false;
+  }
+
+  const token = extractBearerToken(req);
+  if (token && validateBearerToken(token)) {
     return true;
   }
 
+  // Record failure for rate limiting (only if a token was actually provided)
+  if (token) {
+    recordAuthFailure(ip);
+  }
+
+  // For browser HTML requests without a token, redirect to login page
+  const accept = req.headers.accept || '';
+  if (accept.includes('text/html') && !token) {
+    res.writeHead(302, { 'Location': '/login' });
+    res.end();
+    return false;
+  }
+
+  applySecurityHeaders(res, true);
   res.writeHead(401, {
-    'Content-Type': 'text/plain',
-    'WWW-Authenticate': 'Basic realm="EVOKORE Dashboard"'
+    'Content-Type': 'application/json',
+    'WWW-Authenticate': 'Bearer realm="EVOKORE Dashboard"'
   });
-  res.end('Unauthorized');
+  res.end(JSON.stringify({ error: 'Unauthorized. Provide a valid Bearer token.' }));
+  return false;
+}
+
+// Route-level RBAC authorization
+// Returns true if the current dashboard role meets the requirement, false if response was sent
+function requireRole(res, requiredRole) {
+  if (hasRole(requiredRole)) return true;
+
+  applySecurityHeaders(res, true);
+  res.writeHead(403, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    error: 'Forbidden',
+    detail: 'Requires role: ' + requiredRole + ', current role: ' + DASHBOARD_ROLE
+  }));
   return false;
 }
 
@@ -368,6 +465,67 @@ function readBody(req) {
   });
 }
 
+// Login page HTML (shown when token auth is required)
+const loginHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>EVOKORE Dashboard - Login</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-box { background: #1e293b; border-radius: 12px; padding: 40px; width: 100%; max-width: 400px; border: 1px solid #334155; }
+    h1 { color: #38bdf8; margin-bottom: 8px; font-size: 24px; }
+    p { color: #94a3b8; margin-bottom: 24px; font-size: 14px; }
+    label { color: #94a3b8; font-size: 13px; display: block; margin-bottom: 6px; }
+    input { width: 100%; padding: 10px 14px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; font-size: 14px; font-family: monospace; }
+    input:focus { outline: none; border-color: #38bdf8; }
+    button { width: 100%; padding: 10px; background: #0ea5e9; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; margin-top: 16px; }
+    button:hover { background: #0284c7; }
+    .error { color: #f87171; font-size: 13px; margin-top: 12px; display: none; }
+  </style>
+</head>
+<body>
+  <div class="login-box">
+    <h1>EVOKORE Dashboard</h1>
+    <p>Enter your dashboard access token to continue.</p>
+    <label for="token">Access Token</label>
+    <input type="password" id="token" placeholder="Enter your dashboard token" autocomplete="off">
+    <button onclick="doLogin()">Sign In</button>
+    <div class="error" id="error">Invalid token. Please try again.</div>
+  </div>
+  <script>
+    document.getElementById('token').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    async function doLogin() {
+      var token = document.getElementById('token').value.trim();
+      if (!token) return;
+      var errorEl = document.getElementById('error');
+      errorEl.style.display = 'none';
+
+      try {
+        var res = await fetch('/api/auth/status', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        var data = await res.json();
+        if (data.authenticated) {
+          sessionStorage.setItem('evokore_dashboard_token', token);
+          window.location.href = '/';
+        } else {
+          errorEl.style.display = 'block';
+        }
+      } catch (err) {
+        errorEl.textContent = 'Connection error: ' + err.message;
+        errorEl.style.display = 'block';
+      }
+    }
+  </script>
+</body>
+</html>`;
+
 // Self-contained HTML dashboard (sessions view)
 const dashboardHTML = `<!DOCTYPE html>
 <html lang="en">
@@ -444,6 +602,22 @@ const dashboardHTML = `<!DOCTYPE html>
     var API = '';
     var refreshTimer = null;
 
+    // Auth-aware fetch wrapper: injects Bearer token from sessionStorage
+    function authFetch(url, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      var token = sessionStorage.getItem('evokore_dashboard_token');
+      if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+      return fetch(url, opts).then(function(res) {
+        if (res.status === 401 || res.status === 302) {
+          sessionStorage.removeItem('evokore_dashboard_token');
+          window.location.href = '/login';
+          return Promise.reject(new Error('Unauthorized'));
+        }
+        return res;
+      });
+    }
+
     function esc(s) {
       if (!s) return '';
       var d = document.createElement('div');
@@ -503,7 +677,7 @@ const dashboardHTML = `<!DOCTYPE html>
     async function loadSessions() {
       try {
         var url = buildFilterUrl();
-        var res = await fetch(url);
+        var res = await authFetch(url);
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var sessions = await res.json();
         var content = document.getElementById('content');
@@ -572,8 +746,8 @@ const dashboardHTML = `<!DOCTYPE html>
 
       try {
         var results = await Promise.all([
-          fetch(API + '/api/sessions/' + encodeURIComponent(id) + '/replay'),
-          fetch(API + '/api/sessions/' + encodeURIComponent(id) + '/evidence')
+          authFetch(API + '/api/sessions/' + encodeURIComponent(id) + '/replay'),
+          authFetch(API + '/api/sessions/' + encodeURIComponent(id) + '/evidence')
         ]);
         var replay = await results[0].json();
         var evidence = await results[1].json();
@@ -713,6 +887,22 @@ const approvalsHTML = `<!DOCTYPE html>
     var API = '';
     var pollTimer = null;
 
+    // Auth-aware fetch wrapper: injects Bearer token from sessionStorage
+    function authFetch(url, opts) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      var token = sessionStorage.getItem('evokore_dashboard_token');
+      if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+      return fetch(url, opts).then(function(res) {
+        if (res.status === 401 || res.status === 302) {
+          sessionStorage.removeItem('evokore_dashboard_token');
+          window.location.href = '/login';
+          return Promise.reject(new Error('Unauthorized'));
+        }
+        return res;
+      });
+    }
+
     function esc(s) {
       if (!s) return '';
       var d = document.createElement('div');
@@ -740,7 +930,7 @@ const approvalsHTML = `<!DOCTYPE html>
       var btn = document.getElementById('deny-' + prefix);
       if (btn) { btn.disabled = true; btn.textContent = 'Denying...'; }
       try {
-        var res = await fetch(API + '/api/approvals/deny', {
+        var res = await authFetch(API + '/api/approvals/deny', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prefix: prefix })
@@ -755,7 +945,7 @@ const approvalsHTML = `<!DOCTYPE html>
 
     async function loadApprovals() {
       try {
-        var res = await fetch(API + '/api/approvals');
+        var res = await authFetch(API + '/api/approvals');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var approvals = await res.json();
         var content = document.getElementById('content');
@@ -826,38 +1016,71 @@ const approvalsHTML = `<!DOCTYPE html>
 
 // Handle incoming HTTP requests
 function handleRequest(req, res) {
-  // Check auth on all routes
+  const url = new URL(req.url, 'http://localhost');
+  const isApi = url.pathname.startsWith('/api/');
+
+  // Apply security headers to all responses
+  applySecurityHeaders(res, isApi);
+
+  // Check auth on all routes (public paths handled inside requireAuth)
   if (!requireAuth(req, res)) return;
 
-  const url = new URL(req.url, 'http://localhost');
+  // Login page (public, only served when token auth is enabled)
+  if (url.pathname === '/login') {
+    if (!TOKEN_AUTH_ENABLED) {
+      res.writeHead(302, { 'Location': '/' });
+      res.end();
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(loginHTML);
+    return;
+  }
 
-  // Dashboard HTML
+  // API: auth status (public endpoint -- returns whether the request is authenticated)
+  if (url.pathname === '/api/auth/status') {
+    const token = extractBearerToken(req);
+    const authenticated = !TOKEN_AUTH_ENABLED || (token ? validateBearerToken(token) : false);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      authenticated,
+      mode: TOKEN_AUTH_ENABLED ? 'token' : 'local',
+      role: authenticated ? DASHBOARD_ROLE : null
+    }));
+    return;
+  }
+
+  // Dashboard HTML (requires readonly)
   if (url.pathname === '/' || url.pathname === '/dashboard') {
+    if (!requireRole(res, 'readonly')) return;
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(dashboardHTML);
     return;
   }
 
-  // Approvals HTML page
+  // Approvals HTML page (requires developer)
   if (url.pathname === '/approvals') {
+    if (!requireRole(res, 'developer')) return;
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(approvalsHTML);
     return;
   }
 
-  // API: session type counts
+  // API: session type counts (requires readonly)
   if (url.pathname === '/api/sessions/types') {
+    if (!requireRole(res, 'readonly')) return;
     const counts = getSessionTypeCounts();
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-store'
     });
     res.end(JSON.stringify(counts));
     return;
   }
 
-  // API: list sessions (with optional ?status=, ?since=, ?type= filtering)
+  // API: list sessions (requires readonly)
   if (url.pathname === '/api/sessions') {
+    if (!requireRole(res, 'readonly')) return;
     const filters = {};
     const statusParam = url.searchParams.get('status');
     const sinceParam = url.searchParams.get('since');
@@ -868,25 +1091,27 @@ function handleRequest(req, res) {
     const sessions = listSessions(Object.keys(filters).length ? filters : null);
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-store'
     });
     res.end(JSON.stringify(sessions));
     return;
   }
 
-  // API: list pending approvals
+  // API: list pending approvals (requires developer)
   if (url.pathname === '/api/approvals' && req.method === 'GET') {
+    if (!requireRole(res, 'developer')) return;
     const approvals = readPendingApprovals();
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-store'
     });
     res.end(JSON.stringify(approvals));
     return;
   }
 
-  // API: deny a token
+  // API: deny a token (requires admin)
   if (url.pathname === '/api/approvals/deny' && req.method === 'POST') {
+    if (!requireRole(res, 'admin')) return;
     readBody(req).then(body => {
       let parsed;
       try {
@@ -919,9 +1144,10 @@ function handleRequest(req, res) {
     return;
   }
 
-  // API: get replay events for a session
+  // API: get replay events for a session (requires readonly)
   const replayMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/replay$/);
   if (replayMatch) {
+    if (!requireRole(res, 'readonly')) return;
     const id = sanitizeSessionId(decodeURIComponent(replayMatch[1]));
     if (!id) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -931,15 +1157,16 @@ function handleRequest(req, res) {
     const events = readJsonl(path.join(SESSIONS_DIR, id + '-replay.jsonl'));
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-store'
     });
     res.end(JSON.stringify(events));
     return;
   }
 
-  // API: get evidence events for a session
+  // API: get evidence events for a session (requires readonly)
   const evidenceMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/evidence$/);
   if (evidenceMatch) {
+    if (!requireRole(res, 'readonly')) return;
     const id = sanitizeSessionId(decodeURIComponent(evidenceMatch[1]));
     if (!id) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -949,7 +1176,7 @@ function handleRequest(req, res) {
     const events = readJsonl(path.join(SESSIONS_DIR, id + '-evidence.jsonl'));
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache'
+      'Cache-Control': 'no-store'
     });
     res.end(JSON.stringify(events));
     return;
@@ -960,16 +1187,37 @@ function handleRequest(req, res) {
   res.end(JSON.stringify({ error: 'Not found' }));
 }
 
+// Export internals for testing
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    validateBearerToken,
+    extractBearerToken,
+    isRateLimited,
+    recordAuthFailure,
+    hasRole,
+    ROLE_LEVEL,
+    authFailures,
+    SECURITY_HEADERS,
+    API_SECURITY_HEADERS,
+    TOKEN_AUTH_ENABLED,
+    DASHBOARD_ROLE,
+    handleRequest
+  };
+}
+
 const server = http.createServer(handleRequest);
 server.listen(PORT, '127.0.0.1', () => {
   console.log('EVOKORE Dashboard running at http://127.0.0.1:' + PORT);
   console.log('Hook sessions directory: ' + SESSIONS_DIR);
   console.log('HTTP sessions directory: ' + SESSION_STORE_DIR);
   console.log('Approvals page: http://127.0.0.1:' + PORT + '/approvals');
-  if (AUTH_ENABLED) {
-    console.log('Authentication: ENABLED (Basic Auth)');
+  if (TOKEN_AUTH_ENABLED) {
+    console.log('Authentication: ENABLED (Bearer Token)');
+    console.log('Role: ' + DASHBOARD_ROLE);
   } else {
-    console.log('Authentication: DISABLED (set EVOKORE_DASHBOARD_USER and EVOKORE_DASHBOARD_PASS to enable)');
+    console.log('Authentication: DISABLED (local-only mode)');
+    console.log('  WARNING: No authentication configured. Set EVOKORE_DASHBOARD_TOKEN to enable.');
+    console.log('Role: ' + DASHBOARD_ROLE + ' (default for local-only mode)');
   }
   console.log('Press Ctrl+C to stop');
 });
