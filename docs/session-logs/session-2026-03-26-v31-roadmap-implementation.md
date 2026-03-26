@@ -86,5 +86,5 @@
 - **Release:** v3.1.0 tagged and published on GitHub
 - **Tests added:** ~331 new tests across 4 new test files
 - **Research docs added:** 2 (TTS local validation, STT Whisper validation)
-- **No source code changes** — all PRs are test-only or docs-only
+- **No application source code changes** — all PRs are test-only or docs-only
 - **Remaining:** Phases 6-15 (HTTP session reattachment, auto-memory, Supabase, dashboard auth, Redis store, container sandbox, telemetry, WebSocket HITL, worktree automation, final wrap)

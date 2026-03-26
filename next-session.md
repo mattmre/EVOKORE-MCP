@@ -23,10 +23,9 @@ Last Updated (UTC): 2026-03-26
 ## Immediate Next Actions
 
 ### Priority 0: Merge Open PRs (#186-#189)
-- All 4 PRs are test-only / docs-only — no source code changes, no conflicts
-- Merge order: #186 → #187 → #188 → #189 (sequential to avoid CI drift)
+- All 4 PRs are test-only / docs-only — no application source code changes and no conflicts
+- Recommended merge order: #186 → #187 → #188 → #189 (sequential to minimize CI drift, even though the PRs do not overlap)
 - After each merge, let CI pass before merging the next
-- All PRs are independent (no shared files), so parallel merge is also safe
 
 ### Priority 1: Verify NPM_TOKEN and re-publish
 - `NPM_TOKEN` secret is not set in GitHub repo settings
