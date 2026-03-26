@@ -916,13 +916,18 @@ const approvalsHTML = `<!DOCTYPE html>
     .auto-refresh { color: #64748b; font-size: 12px; margin-top: 8px; }
     .denied-notice { color: #fcd34d; font-size: 12px; margin-top: 4px; }
     .last-updated { color: #475569; font-size: 11px; margin-top: 4px; }
+    .ws-status { font-size: 12px; display: flex; align-items: center; gap: 6px; }
+    .ws-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+    .ws-dot-live { background: #4ade80; }
+    .ws-dot-reconnecting { background: #fcd34d; animation: pulse 1s infinite; }
+    .ws-dot-polling { background: #64748b; }
   </style>
 </head>
 <body>
   <div id="app">
     <div class="header-row">
       <h1>EVOKORE HITL Approvals</h1>
-      <span class="auto-refresh-indicator"><span class="dot"></span>Auto-refresh 5s</span>
+      <span id="ws-status" class="ws-status"><span class="ws-dot ws-dot-polling"></span>Polling (5s)</span>
     </div>
     <nav>
       <a href="/">Sessions</a>
@@ -934,6 +939,12 @@ const approvalsHTML = `<!DOCTYPE html>
   <script>
     var API = '';
     var pollTimer = null;
+    var wsConnection = null;
+    var wsReconnectDelay = 1000;
+    var wsMaxReconnectDelay = 30000;
+    var wsReconnectTimer = null;
+    var wsConnected = false;
+    var cachedApprovals = [];
 
     // Auth-aware fetch wrapper: injects Bearer token from sessionStorage
     function authFetch(url, opts) {
@@ -974,21 +985,100 @@ const approvalsHTML = `<!DOCTYPE html>
       try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
     }
 
+    function updateWsStatus(state) {
+      var el = document.getElementById('ws-status');
+      if (!el) return;
+      if (state === 'live') {
+        el.innerHTML = '<span class="ws-dot ws-dot-live"></span>Live (WebSocket)';
+      } else if (state === 'reconnecting') {
+        el.innerHTML = '<span class="ws-dot ws-dot-reconnecting"></span>Reconnecting...';
+      } else {
+        el.innerHTML = '<span class="ws-dot ws-dot-polling"></span>Polling (5s)';
+      }
+    }
+
     async function denyToken(prefix) {
       var btn = document.getElementById('deny-' + prefix);
       if (btn) { btn.disabled = true; btn.textContent = 'Denying...'; }
       try {
-        var res = await authFetch(API + '/api/approvals/deny', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prefix: prefix })
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        loadApprovals();
+        // Use WebSocket for deny when connected, HTTP fallback otherwise
+        if (wsConnected && wsConnection && wsConnection.readyState === 1) {
+          wsConnection.send(JSON.stringify({ type: 'deny', prefix: prefix }));
+          // Optimistic UI: remove from cached approvals
+          cachedApprovals = cachedApprovals.filter(function(a) {
+            return a.token.replace('...', '') !== prefix;
+          });
+          renderApprovals(cachedApprovals);
+        } else {
+          var res = await authFetch(API + '/api/approvals/deny', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prefix: prefix })
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          loadApprovals();
+        }
       } catch (err) {
         if (btn) { btn.disabled = false; btn.textContent = 'Deny'; }
         alert('Failed to deny token: ' + err.message);
       }
+    }
+
+    function renderApprovals(approvals) {
+      var content = document.getElementById('content');
+
+      // Update timestamp
+      var updated = document.getElementById('last-updated');
+      if (updated) updated.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+
+      var pendingCount = 0;
+      var deniedCount = 0;
+      for (var c = 0; c < approvals.length; c++) {
+        if (approvals[c].denied) deniedCount++;
+        else pendingCount++;
+      }
+
+      var html = '<div class="stats">';
+      html += '<div class="stat"><div class="value">' + pendingCount + '</div><div class="label">Pending</div></div>';
+      if (deniedCount > 0) {
+        html += '<div class="stat"><div class="value">' + deniedCount + '</div><div class="label">Denied</div></div>';
+      }
+      html += '</div>';
+
+      if (!approvals.length) {
+        html += '<p class="empty">No pending approval tokens. Tokens appear here when a restricted tool is called and HITL approval is required.</p>';
+        content.innerHTML = html;
+        return;
+      }
+
+      html += '<div class="approvals">';
+      for (var i = 0; i < approvals.length; i++) {
+        var a = approvals[i];
+        var tr = formatTimeRemaining(a.expiresAt);
+        var tokenDisplay = esc(a.token);
+        var cardStatus = a.denied ? 'status-denied' : 'status-pending';
+        var statusLabel = a.denied
+          ? '<span class="approval-status approval-status-denied">denied</span>'
+          : '<span class="approval-status approval-status-pending">pending</span>';
+
+        html += '<div class="approval-card ' + cardStatus + '">';
+        html += '<div class="tool-name">' + esc(a.toolName) + statusLabel + '</div>';
+        html += '<div class="token-prefix">Token: ' + tokenDisplay + '</div>';
+        if (a.sessionId) {
+          html += '<div class="session-context">Session: ' + esc(a.sessionId) + '</div>';
+        }
+        html += '<div class="timing">Created: ' + formatDate(a.createdAt) + ' | Remaining: <span class="time-remaining ' + tr.cls + '">' + tr.text + '</span></div>';
+
+        if (!a.denied) {
+          html += '<div class="actions">';
+          html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+
+      content.innerHTML = html;
     }
 
     async function loadApprovals() {
@@ -996,68 +1086,109 @@ const approvalsHTML = `<!DOCTYPE html>
         var res = await authFetch(API + '/api/approvals');
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var approvals = await res.json();
-        var content = document.getElementById('content');
-
-        // Update timestamp
-        var updated = document.getElementById('last-updated');
-        if (updated) updated.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-
-        var pendingCount = 0;
-        var deniedCount = 0;
-        for (var c = 0; c < approvals.length; c++) {
-          if (approvals[c].denied) deniedCount++;
-          else pendingCount++;
-        }
-
-        var html = '<div class="stats">';
-        html += '<div class="stat"><div class="value">' + pendingCount + '</div><div class="label">Pending</div></div>';
-        if (deniedCount > 0) {
-          html += '<div class="stat"><div class="value">' + deniedCount + '</div><div class="label">Denied</div></div>';
-        }
-        html += '</div>';
-
-        if (!approvals.length) {
-          html += '<p class="empty">No pending approval tokens. Tokens appear here when a restricted tool is called and HITL approval is required.</p>';
-          content.innerHTML = html;
-          return;
-        }
-
-        html += '<div class="approvals">';
-        for (var i = 0; i < approvals.length; i++) {
-          var a = approvals[i];
-          var tr = formatTimeRemaining(a.expiresAt);
-          var tokenDisplay = esc(a.token);
-          var cardStatus = a.denied ? 'status-denied' : 'status-pending';
-          var statusLabel = a.denied
-            ? '<span class="approval-status approval-status-denied">denied</span>'
-            : '<span class="approval-status approval-status-pending">pending</span>';
-
-          html += '<div class="approval-card ' + cardStatus + '">';
-          html += '<div class="tool-name">' + esc(a.toolName) + statusLabel + '</div>';
-          html += '<div class="token-prefix">Token: ' + tokenDisplay + '</div>';
-          if (a.sessionId) {
-            html += '<div class="session-context">Session: ' + esc(a.sessionId) + '</div>';
-          }
-          html += '<div class="timing">Created: ' + formatDate(a.createdAt) + ' | Remaining: <span class="time-remaining ' + tr.cls + '">' + tr.text + '</span></div>';
-
-          if (!a.denied) {
-            html += '<div class="actions">';
-            html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
-            html += '</div>';
-          }
-          html += '</div>';
-        }
-        html += '</div>';
-
-        content.innerHTML = html;
+        cachedApprovals = approvals;
+        renderApprovals(approvals);
       } catch (err) {
         document.getElementById('content').innerHTML = '<div class="error">Failed to load approvals: ' + esc(err.message) + '</div>';
       }
     }
 
-    // Initial load and auto-refresh every 5 seconds
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(loadApprovals, 5000);
+      updateWsStatus('polling');
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    // WebSocket connection with exponential backoff reconnection
+    function connectWebSocket() {
+      var token = sessionStorage.getItem('evokore_dashboard_token') || '';
+      var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      var wsUrl = protocol + '//' + window.location.host + '/ws/approvals';
+      if (token) wsUrl += '?token=' + encodeURIComponent(token);
+
+      try {
+        wsConnection = new WebSocket(wsUrl);
+      } catch (e) {
+        return; // WebSocket not available
+      }
+
+      wsConnection.onopen = function() {
+        wsConnected = true;
+        wsReconnectDelay = 1000; // Reset backoff
+        stopPolling();
+        updateWsStatus('live');
+      };
+
+      wsConnection.onmessage = function(event) {
+        try {
+          var msg = JSON.parse(event.data);
+          if (msg.type === 'snapshot') {
+            cachedApprovals = msg.approvals || [];
+            renderApprovals(cachedApprovals);
+          } else if (msg.type === 'approval_requested') {
+            // Add new approval to cached list
+            if (msg.data) {
+              cachedApprovals.push(msg.data);
+              renderApprovals(cachedApprovals);
+            }
+          } else if (msg.type === 'approval_denied') {
+            // Remove denied approval from cached list
+            if (msg.data && msg.data.prefix) {
+              cachedApprovals = cachedApprovals.filter(function(a) {
+                return !a.token.startsWith(msg.data.prefix);
+              });
+              renderApprovals(cachedApprovals);
+            }
+          } else if (msg.type === 'approval_granted') {
+            // Remove granted approval from cached list
+            if (msg.data && msg.data.token) {
+              cachedApprovals = cachedApprovals.filter(function(a) {
+                return a.token !== msg.data.token;
+              });
+              renderApprovals(cachedApprovals);
+            }
+          } else if (msg.type === 'pong') {
+            // Heartbeat response, no action needed
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      };
+
+      wsConnection.onclose = function() {
+        wsConnected = false;
+        wsConnection = null;
+        updateWsStatus('reconnecting');
+        startPolling(); // Fall back to polling
+        scheduleReconnect();
+      };
+
+      wsConnection.onerror = function() {
+        // onclose will fire after onerror
+      };
+    }
+
+    function scheduleReconnect() {
+      if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+      wsReconnectTimer = setTimeout(function() {
+        wsReconnectTimer = null;
+        connectWebSocket();
+      }, wsReconnectDelay);
+      // Exponential backoff: 1s, 2s, 4s, 8s, ..., max 30s
+      wsReconnectDelay = Math.min(wsReconnectDelay * 2, wsMaxReconnectDelay);
+    }
+
+    // Initial load via HTTP, then attempt WebSocket upgrade
     loadApprovals();
-    pollTimer = setInterval(loadApprovals, 5000);
+    startPolling();
+    connectWebSocket();
   </script>
 </body>
 </html>`;

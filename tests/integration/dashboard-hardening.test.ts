@@ -450,14 +450,16 @@ describe('Dashboard Hardening', () => {
       child = null;
     });
 
-    it('/approvals HTML page contains auto-refresh indicator', async () => {
+    it('/approvals HTML page contains connection status indicator and polling fallback', async () => {
       const { child: c, ready } = startDashboard(PORT + 1);
       child = c;
       await ready;
 
       const res = await request(PORT + 1, '/approvals');
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain('Auto-refresh 5s');
+      // WS status indicator replaces the old auto-refresh indicator
+      expect(res.body).toContain('ws-status');
+      expect(res.body).toContain('Polling (5s)');
       expect(res.body).toContain('setInterval(loadApprovals, 5000)');
 
       c.kill('SIGTERM');
