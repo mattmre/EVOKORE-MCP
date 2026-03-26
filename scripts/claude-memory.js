@@ -287,37 +287,49 @@ ${(claudeContent || '').split(/\r?\n/).filter((line) => line.startsWith('- **'))
 }
 
 function syncMemory(options = {}) {
-  const activeCwd = path.resolve(options.cwd || process.cwd());
-  const workspaceRoot = getCanonicalRepoRoot(activeCwd);
-  const memoryDir = findClaudeMemoryDir(workspaceRoot);
-  ensureDir(memoryDir);
+  const quiet = Boolean(options.quiet);
+  try {
+    const activeCwd = path.resolve(options.cwd || process.cwd());
+    const workspaceRoot = getCanonicalRepoRoot(activeCwd);
+    const memoryDir = findClaudeMemoryDir(workspaceRoot);
+    ensureDir(memoryDir);
 
-  const sessionState = (options.sessionId ? readSessionState(options.sessionId) : null)
-    || findLatestSessionStateForWorkspace(workspaceRoot);
-  const projectState = getProjectState(workspaceRoot, activeCwd);
-  const nextSessionContent = safeRead(path.join(workspaceRoot, 'next-session.md')) || '';
-  const claudeContent = safeRead(path.join(workspaceRoot, 'CLAUDE.md')) || '';
-  const taskPlanContent = safeRead(path.join(workspaceRoot, 'task_plan.md')) || '';
+    const sessionState = (options.sessionId ? readSessionState(options.sessionId) : null)
+      || findLatestSessionStateForWorkspace(workspaceRoot);
+    const projectState = getProjectState(workspaceRoot, activeCwd);
+    const nextSessionContent = safeRead(path.join(workspaceRoot, 'next-session.md')) || '';
+    const claudeContent = safeRead(path.join(workspaceRoot, 'CLAUDE.md')) || '';
+    const taskPlanContent = safeRead(path.join(workspaceRoot, 'task_plan.md')) || '';
 
-  const files = buildManagedFiles({
-    projectState,
-    sessionState,
-    nextSessionContent,
-    claudeContent,
-    taskPlanContent
-  });
+    const files = buildManagedFiles({
+      projectState,
+      sessionState,
+      nextSessionContent,
+      claudeContent,
+      taskPlanContent
+    });
 
-  for (const [name, content] of Object.entries(files)) {
-    fs.writeFileSync(path.join(memoryDir, name), content);
+    for (const [name, content] of Object.entries(files)) {
+      fs.writeFileSync(path.join(memoryDir, name), content);
+    }
+
+    return {
+      synced: true,
+      workspaceRoot,
+      activeCwd,
+      memoryDir,
+      files: Object.keys(files),
+      sessionState
+    };
+  } catch (err) {
+    if (process.env.EVOKORE_DEBUG) {
+      process.stderr.write(`[claude-memory] syncMemory error: ${err && err.message ? err.message : err}\n`);
+    }
+    return {
+      synced: false,
+      error: String(err && err.message ? err.message : err)
+    };
   }
-
-  return {
-    workspaceRoot,
-    activeCwd,
-    memoryDir,
-    files: Object.keys(files),
-    sessionState
-  };
 }
 
 if (require.main === module) {
