@@ -34,7 +34,7 @@ type RequestExtra = { sessionId?: string };
 
 const DEFAULT_SESSION_ID = "__stdio_default_session__";
 
-const SERVER_VERSION = "3.0.0";
+const SERVER_VERSION = "3.1.0";
 
 export class EvokoreMCPServer {
   private server: Server;

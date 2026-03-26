@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.1.0 (2026-03-25)
+
+### New Features
+- **TTS Provider Abstraction** -- Extracted TTSProvider interface and added OpenAI-compatible TTS provider for local text-to-speech (#182, #183)
+- **FileSessionStore Persistence** -- Session state survives process restart via file-based session store (#175)
+- **Cross-CLI Config Sync** -- `npm run sync` merges evokore-mcp entry into each CLI's config with canonical git root resolution
+
+### Bug Fixes
+- Various test and validation fixes across the v3.1 sprint (PRs #157-#184)
+
+### Documentation
+- Updated vitest test count to 117 files / ~1721 tests
+- Updated CLAUDE.md with v3.1 sprint learnings
+
+### Infrastructure
+- Release preparation: version bump from 3.0.0 to 3.1.0
+
 ## v3.0.1 (2026-03-15)
 
 ### New Features

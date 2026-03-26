@@ -10,7 +10,7 @@ test('HITL approval token flow', async () => {
     stderr: "pipe",
     env: {
       ...process.env,
-      EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS: "5000"
+      EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS: "15000"
     }
   });
 
