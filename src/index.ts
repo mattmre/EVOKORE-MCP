@@ -90,10 +90,38 @@ export class EvokoreMCPServer {
     const storeOverride = process.env.EVOKORE_SESSION_STORE;
     if (options?.httpMode && storeOverride !== "memory") {
       const ttlMs = parseInt(process.env.EVOKORE_SESSION_TTL_MS || "3600000", 10);
-      this.sessionIsolation = new SessionIsolation({
-        store: new FileSessionStore(),
-        ttlMs: Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : undefined,
-      });
+      const ttlOpt = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : undefined;
+
+      if (storeOverride === "redis") {
+        // Deferred initialization: RedisSessionStore is set up asynchronously
+        // because ioredis is an optional dynamic import. The sessionIsolation
+        // starts with the default MemorySessionStore and is replaced once
+        // the Redis store is ready.
+        this.sessionIsolation = new SessionIsolation({ ttlMs: ttlOpt });
+        import("./stores/RedisSessionStore").then(({ RedisSessionStore }) => {
+          const redisStore = new RedisSessionStore({
+            url: process.env.EVOKORE_REDIS_URL,
+            keyPrefix: process.env.EVOKORE_REDIS_KEY_PREFIX,
+            ttlMs: ttlOpt,
+          });
+          this.sessionIsolation = new SessionIsolation({
+            store: redisStore,
+            ttlMs: ttlOpt,
+          });
+          console.error("[EVOKORE] Redis session store initialized");
+        }).catch((err) => {
+          console.error("[EVOKORE] Failed to load Redis session store, falling back to file store:", err.message);
+          this.sessionIsolation = new SessionIsolation({
+            store: new FileSessionStore(),
+            ttlMs: ttlOpt,
+          });
+        });
+      } else {
+        this.sessionIsolation = new SessionIsolation({
+          store: new FileSessionStore(),
+          ttlMs: ttlOpt,
+        });
+      }
     } else {
       this.sessionIsolation = new SessionIsolation();
     }
