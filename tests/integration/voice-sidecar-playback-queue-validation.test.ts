@@ -13,6 +13,27 @@ function readSource(): string {
   return fs.readFileSync(SIDECAR_SOURCE_PATH, 'utf8');
 }
 
+function extractBlockFromMarker(src: string, marker: string): string {
+  const start = src.indexOf(marker);
+  expect(start).toBeGreaterThan(-1);
+
+  const openBrace = src.indexOf('{', start);
+  expect(openBrace).toBeGreaterThan(-1);
+
+  let depth = 0;
+  for (let index = openBrace; index < src.length; index++) {
+    const char = src[index];
+    if (char === '{') depth++;
+    else if (char === '}') depth--;
+
+    if (depth === 0) {
+      return src.slice(start, index + 1);
+    }
+  }
+
+  throw new Error(`Failed to extract block for ${marker}`);
+}
+
 // ---------------------------------------------------------------------------
 // Playback Queue Serialization — source-level validation
 // ---------------------------------------------------------------------------
@@ -49,17 +70,13 @@ describe('VoiceSidecar Playback Queue Validation', () => {
     it('returns early if already draining (re-entrant guard)', () => {
       const src = readSource();
       // Extract the drainPlaybackQueue function body
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      expect(fnStart).toBeGreaterThan(-1);
-      // The first thing inside the function should be the re-entrant guard
-      const bodySlice = src.slice(fnStart, fnStart + 300);
+      const bodySlice = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       expect(bodySlice).toMatch(/if\s*\(queueDraining\)\s*return/);
     });
 
     it('sets queueDraining to true before processing', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 400);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // queueDraining = true should appear after the guard and before the while loop
       const guardIndex = fnBody.indexOf('if (queueDraining) return');
       const setTrueIndex = fnBody.indexOf('queueDraining = true');
@@ -70,8 +87,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('processes tasks sequentially via while loop with shift()', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // While loop drains the queue one-at-a-time
       expect(fnBody).toMatch(/while\s*\(playbackQueue\.length\s*>\s*0\)/);
       // Removes first task from queue
@@ -82,9 +98,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('resets queueDraining to false after all tasks complete', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      // Find the closing of drainPlaybackQueue
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // queueDraining = false should appear after the while loop
       const whileIndex = fnBody.indexOf('while (playbackQueue.length > 0)');
       const setFalseIndex = fnBody.indexOf('queueDraining = false');
@@ -93,8 +107,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('uses await (not Promise.all) for sequential execution guarantee', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // Must NOT use Promise.all (which would run tasks concurrently)
       expect(fnBody).not.toContain('Promise.all');
       // Must NOT use Promise.race
@@ -107,8 +120,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
   describe('error isolation in drainPlaybackQueue', () => {
     it('wraps each task in try/catch for error isolation', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // The await task() must be inside a try block
       expect(fnBody).toMatch(/try\s*\{[\s\S]*?await task\(\)/);
       // There must be a catch block that handles the error
@@ -117,14 +129,13 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('logs error but continues processing remaining tasks', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // Error is logged to stderr
       expect(fnBody).toContain('console.error("[VoiceSidecar] Playback queue error:"');
       // The catch block does NOT re-throw or return — so the while loop continues
       // Verify: no 'throw' or 'return' in the catch block
       const catchStart = fnBody.indexOf('catch (err: any)');
-      const catchBody = fnBody.slice(catchStart, catchStart + 150);
+      const catchBody = fnBody.slice(catchStart);
       expect(catchBody).not.toMatch(/\bthrow\b/);
       // 'return' within the catch body would abort remaining tasks
       // Only console.error should be in the catch block
@@ -133,8 +144,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('always resets queueDraining even after errors', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // queueDraining = false must be OUTSIDE the try/catch,
       // after the while loop ends (whether normally or after errors)
       const whileEnd = fnBody.lastIndexOf('}', fnBody.indexOf('queueDraining = false'));
@@ -153,15 +163,13 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('pushes task onto playbackQueue', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function enqueuePlayback');
-      const fnBody = src.slice(fnStart, fnStart + 400);
+      const fnBody = extractBlockFromMarker(src, 'function enqueuePlayback');
       expect(fnBody).toContain('playbackQueue.push(task)');
     });
 
     it('logs queue position when more than one item is queued', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function enqueuePlayback');
-      const fnBody = src.slice(fnStart, fnStart + 400);
+      const fnBody = extractBlockFromMarker(src, 'function enqueuePlayback');
       // Only logs when there are already items in the queue
       expect(fnBody).toMatch(/if\s*\(playbackQueue\.length\s*>\s*1\)/);
       expect(fnBody).toContain('Queued playback (position');
@@ -169,16 +177,14 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('triggers drainPlaybackQueue after enqueuing', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function enqueuePlayback');
-      const fnBody = src.slice(fnStart, fnStart + 400);
+      const fnBody = extractBlockFromMarker(src, 'function enqueuePlayback');
       // Calls drainPlaybackQueue which will process the queue
       expect(fnBody).toContain('drainPlaybackQueue()');
     });
 
     it('catches drain errors to prevent unhandled rejections', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function enqueuePlayback');
-      const fnBody = src.slice(fnStart, fnStart + 400);
+      const fnBody = extractBlockFromMarker(src, 'function enqueuePlayback');
       // drainPlaybackQueue().catch(...)
       expect(fnBody).toMatch(/drainPlaybackQueue\(\)\.catch\(/);
       expect(fnBody).toContain('Queue drain error');
@@ -204,8 +210,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
       const src = readSource();
       // Two concurrent enqueuePlayback calls should not create two drain loops
       // The guard "if (queueDraining) return" ensures only one loop runs
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 200);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // First line of logic must be the guard
       const lines = fnBody.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       // Find the first statement after the function signature
@@ -215,8 +220,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('shift() removes task from queue before await to prevent double-execution', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // shift() removes the task from the queue BEFORE awaiting it
       // This prevents a second drain (if re-entrant guard somehow fails) from
       // re-processing the same task
@@ -229,8 +233,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('enqueuePlayback does not await drainPlaybackQueue (non-blocking enqueue)', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function enqueuePlayback');
-      const fnBody = src.slice(fnStart, fnStart + 400);
+      const fnBody = extractBlockFromMarker(src, 'function enqueuePlayback');
       // enqueuePlayback is sync (returns void, not Promise<void>)
       expect(fnBody).toContain('): void {');
       expect(fnBody).not.toContain('): Promise<void>');
@@ -247,8 +250,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('temp file uses os.tmpdir() as base directory', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 600);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       expect(fnBody).toContain('os.tmpdir()');
       expect(fnBody).toMatch(/path\.join\(tmpDir,\s*`evokore-voice-/);
     });
@@ -257,16 +259,14 @@ describe('VoiceSidecar Playback Queue Validation', () => {
       const src = readSource();
       // Within the enqueuePlayback callback in finalizeAudio,
       // the temp file is cleaned up after playback
-      const finalizeStart = src.indexOf('async function finalizeAudio');
-      const finalizeBody = src.slice(finalizeStart, finalizeStart + 2000);
+      const finalizeBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       // Cleanup with fs.unlinkSync wrapped in try/catch
       expect(finalizeBody).toMatch(/fs\.unlinkSync\(capturedTmpFile\)/);
     });
 
     it('enqueued task cleans up post-processed file if different from source', () => {
       const src = readSource();
-      const finalizeStart = src.indexOf('async function finalizeAudio');
-      const finalizeBody = src.slice(finalizeStart, finalizeStart + 2000);
+      const finalizeBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       // Conditional cleanup: only remove processedFile if it differs from tmpFile
       expect(finalizeBody).toMatch(/capturedPlayFile\s*!==\s*capturedTmpFile/);
       expect(finalizeBody).toMatch(/fs\.unlinkSync\(capturedPlayFile\)/);
@@ -274,11 +274,13 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('temp file cleanup is silent (empty catch blocks)', () => {
       const src = readSource();
-      const finalizeStart = src.indexOf('async function finalizeAudio');
-      const finalizeBody = src.slice(finalizeStart, finalizeStart + 2000);
-      // Unlink calls are wrapped in try {} catch {}
-      // The catch blocks are empty to avoid crashing on already-deleted files
-      expect(finalizeBody).toMatch(/try\s*\{\s*fs\.unlinkSync\(capturedTmpFile\);\s*\}\s*catch\s*\{\s*\}/);
+      const finalizeBody = extractBlockFromMarker(src, 'async function finalizeAudio');
+      const cleanupIndex = finalizeBody.indexOf('fs.unlinkSync(capturedTmpFile)');
+      const tryIndex = finalizeBody.lastIndexOf('try', cleanupIndex);
+      const catchIndex = finalizeBody.indexOf('catch', cleanupIndex);
+      expect(cleanupIndex).toBeGreaterThan(-1);
+      expect(tryIndex).toBeGreaterThan(-1);
+      expect(catchIndex).toBeGreaterThan(cleanupIndex);
     });
 
     it('startup cleanupStaleTempFiles removes orphaned temp files', () => {
@@ -307,37 +309,32 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('returns early if audio is null or empty', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 300);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       expect(fnBody).toMatch(/if\s*\(!audio\s*\|\|\s*audio\.length\s*===\s*0\)\s*return/);
     });
 
     it('writes audio buffer to temp file with writeFileSync', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       expect(fnBody).toContain('fs.writeFileSync(tmpFile, audio)');
     });
 
     it('applies post-process tempo if configured and not 1.0', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 800);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       expect(fnBody).toMatch(/voice\.postProcessTempo\s*&&\s*voice\.postProcessTempo\s*!==\s*1\.0/);
       expect(fnBody).toContain('postProcessSpeed');
     });
 
     it('saves audio artifact if ARTIFACT_DIR is configured', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 800);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       expect(fnBody).toContain('saveAudioArtifact(playFile)');
     });
 
     it('calls enqueuePlayback (not playAudio directly) for serialized playback', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1200);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       // Must use enqueuePlayback (the serialization entry point)
       expect(fnBody).toContain('enqueuePlayback(');
       // Must NOT call playAudio directly from finalizeAudio scope
@@ -348,8 +345,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('enqueued task respects PLAYBACK_DISABLED flag', () => {
       const src = readSource();
-      const finalizeStart = src.indexOf('async function finalizeAudio');
-      const finalizeBody = src.slice(finalizeStart, finalizeStart + 2000);
+      const finalizeBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       expect(finalizeBody).toContain('PLAYBACK_DISABLED');
       expect(finalizeBody).toContain('Playback disabled by VOICE_SIDECAR_DISABLE_PLAYBACK=1');
     });
@@ -379,8 +375,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('uses powershell Start-Process on win32', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function playAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1000);
+      const fnBody = extractBlockFromMarker(src, 'function playAudio');
       expect(fnBody).toMatch(/platform\s*===\s*"win32"/);
       expect(fnBody).toContain('spawn("powershell"');
       expect(fnBody).toContain('Start-Process');
@@ -389,16 +384,14 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('uses afplay on darwin (macOS)', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function playAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1000);
+      const fnBody = extractBlockFromMarker(src, 'function playAudio');
       expect(fnBody).toMatch(/platform\s*===\s*"darwin"/);
       expect(fnBody).toContain('spawn("afplay"');
     });
 
     it('tries mpv first on Linux, falls back to aplay', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function playAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1000);
+      const fnBody = extractBlockFromMarker(src, 'function playAudio');
       // Linux: tries mpv via which check
       expect(fnBody).toContain('which mpv');
       expect(fnBody).toContain('spawn("mpv"');
@@ -409,8 +402,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('resolves (not rejects) on playback error to avoid crashing', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function playAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1000);
+      const fnBody = extractBlockFromMarker(src, 'function playAudio');
       // Error handler calls resolve(), not reject()
       expect(fnBody).toContain('proc.on("error"');
       // After the error log, it resolves the promise (not reject)
@@ -420,16 +412,14 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('resolves on close event', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function playAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1000);
+      const fnBody = extractBlockFromMarker(src, 'function playAudio');
       expect(fnBody).toContain('proc.on("close"');
       expect(fnBody).toContain('resolve()');
     });
 
     it('uses stdio: "ignore" for all player spawns', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function playAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1000);
+      const fnBody = extractBlockFromMarker(src, 'function playAudio');
       // All spawn invocations in playAudio include stdio: "ignore"
       // There are 4 spawn calls (powershell, afplay, mpv, aplay) and 1 execSync
       // At least 4 uses of stdio: "ignore" (spawn calls) + 1 from execSync
@@ -446,8 +436,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('chains atempo filters for speeds exceeding 2.0', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function postProcessSpeed');
-      const fnBody = src.slice(fnStart, fnStart + 600);
+      const fnBody = extractBlockFromMarker(src, 'function postProcessSpeed');
       // atempo max is 2.0 per pass; multiple passes needed for higher speeds
       expect(fnBody).toContain('while (remaining > 2.0)');
       expect(fnBody).toContain('atempo=2.0');
@@ -456,8 +445,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('checks ffmpeg availability before processing', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function postProcessSpeed');
-      const fnBody = src.slice(fnStart, fnStart + 600);
+      const fnBody = extractBlockFromMarker(src, 'function postProcessSpeed');
       // Platform-aware ffmpeg detection
       expect(fnBody).toContain('which ffmpeg');
       expect(fnBody).toContain('where ffmpeg');
@@ -465,8 +453,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('returns false if ffmpeg is not available', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function postProcessSpeed');
-      const fnBody = src.slice(fnStart, fnStart + 600);
+      const fnBody = extractBlockFromMarker(src, 'function postProcessSpeed');
       // In the catch block for the ffmpeg check
       expect(fnBody).toMatch(/catch\s*\{\s*\n?\s*resolve\(false\)/);
     });
@@ -477,8 +464,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
       // The combination of queueDraining flag + early return guarantees
       // mutual exclusion on the drain loop
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
 
       // 1. Guard: if queueDraining, bail out
       expect(fnBody).toContain('if (queueDraining) return');
@@ -502,8 +488,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('queue drains completely (while loop condition checks length each iteration)', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function drainPlaybackQueue');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       // The while loop checks playbackQueue.length > 0, which means
       // items added during drain execution will also be processed
       expect(fnBody).toMatch(/while\s*\(playbackQueue\.length\s*>\s*0\)/);
@@ -516,13 +501,11 @@ describe('VoiceSidecar Playback Queue Validation', () => {
       const src = readSource();
 
       // enqueuePlayback pushes to the shared array
-      const enqueueStart = src.indexOf('function enqueuePlayback');
-      const enqueueBody = src.slice(enqueueStart, enqueueStart + 400);
+      const enqueueBody = extractBlockFromMarker(src, 'function enqueuePlayback');
       expect(enqueueBody).toContain('playbackQueue.push(task)');
 
       // drainPlaybackQueue loops until array is empty
-      const drainStart = src.indexOf('async function drainPlaybackQueue');
-      const drainBody = src.slice(drainStart, drainStart + 500);
+      const drainBody = extractBlockFromMarker(src, 'async function drainPlaybackQueue');
       expect(drainBody).toMatch(/while\s*\(playbackQueue\.length\s*>\s*0\)/);
 
       // Re-entrant call from enqueuePlayback will return immediately (noop)
@@ -532,8 +515,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('finalizeAudio captures tmpFile and playFile in closure for correct cleanup', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1200);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       // Variables are captured before the async enqueue to prevent race conditions
       expect(fnBody).toContain('const capturedTmpFile = tmpFile');
       expect(fnBody).toContain('const capturedPlayFile = playFile');
@@ -556,8 +538,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('skips playAudio call when PLAYBACK_DISABLED is true', () => {
       const src = readSource();
-      const finalizeStart = src.indexOf('async function finalizeAudio');
-      const finalizeBody = src.slice(finalizeStart, finalizeStart + 2000);
+      const finalizeBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       // Inside the enqueued task, PLAYBACK_DISABLED gates playAudio
       expect(finalizeBody).toContain('if (PLAYBACK_DISABLED)');
       // When disabled, logs message instead of playing
@@ -566,8 +547,7 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('temp file cleanup still runs even when playback is disabled', () => {
       const src = readSource();
-      const finalizeStart = src.indexOf('async function finalizeAudio');
-      const finalizeBody = src.slice(finalizeStart, finalizeStart + 2000);
+      const finalizeBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       // The cleanup code is outside the PLAYBACK_DISABLED conditional
       // It runs after the if/else block
       const disabledCheck = finalizeBody.indexOf('if (PLAYBACK_DISABLED)');
@@ -587,31 +567,27 @@ describe('VoiceSidecar Playback Queue Validation', () => {
 
     it('returns null when ARTIFACT_DIR is not configured', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function saveAudioArtifact');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'function saveAudioArtifact');
       expect(fnBody).toMatch(/if\s*\(!ARTIFACT_DIR\)/);
       expect(fnBody).toContain('return null');
     });
 
     it('creates artifact directory recursively', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function saveAudioArtifact');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'function saveAudioArtifact');
       expect(fnBody).toContain("fs.mkdirSync(ARTIFACT_DIR, { recursive: true })");
     });
 
     it('copies audio file to artifact directory with timestamped name', () => {
       const src = readSource();
-      const fnStart = src.indexOf('function saveAudioArtifact');
-      const fnBody = src.slice(fnStart, fnStart + 500);
+      const fnBody = extractBlockFromMarker(src, 'function saveAudioArtifact');
       expect(fnBody).toContain('fs.copyFileSync(filePath, artifactPath)');
       expect(fnBody).toMatch(/evokore-voice-\$\{Date\.now\(\)\}/);
     });
 
     it('saveAudioArtifact is called before enqueuePlayback in finalizeAudio', () => {
       const src = readSource();
-      const fnStart = src.indexOf('async function finalizeAudio');
-      const fnBody = src.slice(fnStart, fnStart + 1200);
+      const fnBody = extractBlockFromMarker(src, 'async function finalizeAudio');
       const saveIdx = fnBody.indexOf('saveAudioArtifact(');
       const enqueueIdx = fnBody.indexOf('enqueuePlayback(');
       expect(saveIdx).toBeGreaterThan(-1);
