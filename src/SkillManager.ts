@@ -11,6 +11,13 @@ import { ProxyManager } from "./ProxyManager";
 import { RegistryManager, RegistryEntry, RegistryIndex } from "./RegistryManager";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import {
+  createSandbox,
+  type SandboxLanguage,
+  type SandboxOptions,
+  type SandboxResult,
+  type SandboxMode,
+} from "./ContainerSandbox";
 
 const execFileAsync = promisify(execFile);
 
@@ -696,7 +703,7 @@ export class SkillManager {
     stepIndex: number,
     userEnv?: Record<string, string>,
     context?: SkillExecutionContext
-  ): Promise<{stdout: string; stderr: string; exitCode: number; timedOut: boolean}> {
+  ): Promise<{stdout: string; stderr: string; exitCode: number; timedOut: boolean; sandboxType?: string}> {
     const blocks = this.extractCodeBlocks(skillName);
     if (stepIndex < 0 || stepIndex >= blocks.length) {
       throw new Error(`Step ${stepIndex} out of range (0-${blocks.length - 1})`);
@@ -712,69 +719,48 @@ export class SkillManager {
     }
 
     const block = blocks[stepIndex];
+    const language = block.language.toLowerCase() as SandboxLanguage;
 
-    // Determine executor based on language
-    const executors: Record<string, {command: string; args: string[]; ext: string}> = {
-      "bash": { command: "bash", args: ["-e"], ext: ".sh" },
-      "sh": { command: "sh", args: ["-e"], ext: ".sh" },
-      "javascript": { command: "node", args: ["--max-old-space-size=128"], ext: ".js" },
-      "js": { command: "node", args: ["--max-old-space-size=128"], ext: ".js" },
-      "python": { command: "python3", args: [], ext: ".py" },
-      "py": { command: "python3", args: [], ext: ".py" },
-      "typescript": { command: "npx", args: ["tsx", "--max-old-space-size=128"], ext: ".ts" },
-      "ts": { command: "npx", args: ["tsx", "--max-old-space-size=128"], ext: ".ts" },
-    };
-
-    const executor = executors[block.language.toLowerCase()];
-    if (!executor) {
+    // Validate language is supported before creating sandbox
+    const supportedLanguages = new Set(["bash", "sh", "javascript", "js", "python", "py", "typescript", "ts"]);
+    if (!supportedLanguages.has(language)) {
       throw new Error("Unsupported language for execution: " + block.language);
     }
 
-    // Create a private temp directory for this execution
-    const sandboxDir = fsSync.mkdtempSync(path.join(os.tmpdir(), 'evokore-sandbox-'));
-    const tmpFile = path.join(sandboxDir, `script${executor.ext}`);
-    fsSync.writeFileSync(tmpFile, block.code);
-
-    try {
-      // Build filtered environment: only safe keys from process.env
-      const env: Record<string, string> = {};
-      for (const key of Object.keys(process.env)) {
-        if (SkillManager.SAFE_ENV_KEYS.has(key)) {
-          env[key] = process.env[key]!;
-        }
+    // Build filtered environment: only safe keys from process.env
+    const env: Record<string, string> = {};
+    for (const key of Object.keys(process.env)) {
+      if (SkillManager.SAFE_ENV_KEYS.has(key)) {
+        env[key] = process.env[key]!;
       }
-      // Merge user-provided env (already validated against blocklist above)
-      if (userEnv) {
-        Object.assign(env, userEnv);
-      }
-      // Set sandbox-specific variables
-      env.EVOKORE_SANDBOX = "true";
-      env.EVOKORE_SESSION_ROLE = context?.role || "";
-      env.EVOKORE_SESSION_ID = context?.sessionId || "";
-      env.EVOKORE_SANDBOX_DIR = sandboxDir;
-
-      const result = await execFileAsync(executor.command, [...executor.args, tmpFile], {
-        encoding: "utf8",
-        timeout: 30000,  // 30s timeout
-        maxBuffer: 1024 * 1024,  // 1MB output limit
-        env,
-        cwd: sandboxDir,
-      });
-
-      return { stdout: result.stdout, stderr: result.stderr || "", exitCode: 0, timedOut: false };
-    } catch (err: any) {
-      if (err.killed) {
-        return { stdout: err.stdout || "", stderr: err.stderr || "", exitCode: -1, timedOut: true };
-      }
-      return {
-        stdout: err.stdout || "",
-        stderr: err.stderr || err.message || "",
-        exitCode: err.status || 1,
-        timedOut: false
-      };
-    } finally {
-      try { fsSync.rmSync(sandboxDir, { recursive: true, force: true }); } catch {}
     }
+    // Merge user-provided env (already validated against blocklist above)
+    if (userEnv) {
+      Object.assign(env, userEnv);
+    }
+    // Set sandbox-specific variables
+    env.EVOKORE_SESSION_ROLE = context?.role || "";
+    env.EVOKORE_SESSION_ID = context?.sessionId || "";
+
+    const sandboxOpts: SandboxOptions = {
+      language,
+      code: block.code,
+      timeout: 30000,  // 30s timeout
+      maxOutputSize: 1024 * 1024,  // 1MB output limit
+      env,
+    };
+
+    // Create and execute via the unified sandbox layer
+    const { sandbox, mode } = await createSandbox();
+    const result: SandboxResult = await sandbox.execute(sandboxOpts);
+
+    return {
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exitCode: result.exitCode,
+      timedOut: result.timedOut,
+      sandboxType: result.sandboxType,
+    };
   }
 
   getTools(): Tool[] {
@@ -1328,6 +1314,9 @@ export class SkillManager {
             const result = await this.executeCodeBlock(skillName, stepIndex, userEnv, context);
 
             const parts: string[] = [];
+            if (result.sandboxType) {
+                parts.push("[sandbox: " + result.sandboxType + "]");
+            }
             if (result.timedOut) {
                 parts.push("[TIMED OUT after 30s]");
             }

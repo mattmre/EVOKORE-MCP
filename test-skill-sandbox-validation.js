@@ -27,19 +27,23 @@ test('skill sandbox - source contains execute_skill tool definition', () => {
 });
 
 test('skill sandbox - source contains sandbox safety measures', () => {
-  const src = fs.readFileSync(path.resolve(__dirname, 'src/SkillManager.ts'), 'utf8');
+  const smSrc = fs.readFileSync(path.resolve(__dirname, 'src/SkillManager.ts'), 'utf8');
+  const csSrc = fs.readFileSync(path.resolve(__dirname, 'src/ContainerSandbox.ts'), 'utf8');
+  const combined = smSrc + csSrc;
 
-  // Timeout enforcement
-  assert.match(src, /timeout:\s*30000/,
+  // Timeout enforcement (may be in SkillManager sandbox options or ContainerSandbox)
+  assert.match(combined, /timeout:\s*30000/,
     'Expected 30s timeout for sandboxed execution');
-  // Max buffer
-  assert.match(src, /maxBuffer:\s*1024\s*\*\s*1024/,
-    'Expected 1MB output buffer limit');
+  // Max output size limit: SkillManager sets maxOutputSize, ContainerSandbox passes it as maxBuffer
+  assert.match(smSrc, /maxOutputSize:\s*1024\s*\*\s*1024/,
+    'Expected 1MB output limit in SkillManager sandbox options');
+  assert.match(csSrc, /maxBuffer:\s*options\.maxOutputSize/,
+    'Expected maxBuffer to use maxOutputSize in ContainerSandbox');
   // EVOKORE_SANDBOX env signal
-  assert.match(src, /EVOKORE_SANDBOX/,
+  assert.match(combined, /EVOKORE_SANDBOX/,
     'Expected EVOKORE_SANDBOX environment variable injection');
-  // Sandbox directory cleanup in finally block
-  assert.match(src, /finally\s*\{[\s\S]*?rmSync/,
+  // Sandbox directory cleanup in finally block (in ContainerSandbox.ts)
+  assert.match(csSrc, /finally\s*\{[\s\S]*?rmSync/,
     'Expected sandbox directory cleanup in finally block');
 });
 
@@ -134,7 +138,8 @@ test('skill sandbox - executeCodeBlock throws for unknown skill', async () => {
 // ===================================================================
 
 test('skill sandbox - source supports expected languages', () => {
-  const src = fs.readFileSync(path.resolve(__dirname, 'src/SkillManager.ts'), 'utf8');
+  // Executor mappings are now in ContainerSandbox.ts (ProcessSandbox class)
+  const src = fs.readFileSync(path.resolve(__dirname, 'src/ContainerSandbox.ts'), 'utf8');
 
   const expectedLanguages = ['bash', 'sh', 'javascript', 'js', 'python', 'py', 'typescript', 'ts'];
   for (const lang of expectedLanguages) {
