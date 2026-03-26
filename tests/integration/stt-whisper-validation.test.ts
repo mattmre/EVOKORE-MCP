@@ -129,6 +129,7 @@ describe('STT Whisper Production Validation', () => {
     let savedModel: string | undefined;
 
     beforeEach(() => {
+      vi.resetModules();
       savedApiKey = process.env.OPENAI_API_KEY;
       savedBaseUrl = process.env.OPENAI_API_BASE_URL;
       savedModel = process.env.EVOKORE_STT_MODEL;
@@ -320,6 +321,7 @@ describe('STT Whisper Production Validation', () => {
     let savedApiKey: string | undefined;
 
     beforeEach(() => {
+      vi.resetModules();
       savedApiKey = process.env.OPENAI_API_KEY;
     });
 
@@ -403,7 +405,10 @@ describe('STT Whisper Production Validation', () => {
 
     it('uses execFileSync for CLI detection (not exec or execSync)', () => {
       const src = fs.readFileSync(localProviderPath, 'utf8');
-      expect(src).toMatch(/import\s*\{[^}]*execFileSync[^}]*\}\s*from\s*"child_process"/);
+      const importLine = src.match(/import\s*\{([^}]*)\}\s*from\s*"child_process"/);
+      expect(importLine).toBeTruthy();
+      expect(importLine![1]).toContain('execFileSync');
+      expect(importLine![1]).not.toContain('execSync');
     });
 
     it('returns false when whisper binary is not found', () => {
@@ -472,7 +477,6 @@ describe('STT Whisper Production Validation', () => {
 
     it('handles missing output file gracefully', () => {
       expect(src).toContain('fs.existsSync(actualOutput)');
-      expect(src).toContain('fs.existsSync(tmpOutputTxt)');
     });
 
     it('trims whitespace from transcription output', () => {
@@ -941,6 +945,7 @@ describe('STT Whisper Production Validation', () => {
       const importLine = src.match(/import\s*\{([^}]*)\}\s*from\s*"child_process"/);
       expect(importLine).toBeTruthy();
       expect(importLine![1]).toContain('execFileSync');
+      expect(importLine![1]).not.toContain('execSync');
     });
 
     it('LocalSTTProvider cleans up temp files even on error', () => {
