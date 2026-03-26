@@ -28,6 +28,7 @@ import { SessionIsolation } from "./SessionIsolation";
 import { FileSessionStore } from "./stores/FileSessionStore";
 import { loadAuthConfig } from "./auth/OAuthProvider";
 import { TelemetryManager } from "./TelemetryManager";
+import { TelemetryExporter } from "./TelemetryExporter";
 import { RegistryManager } from "./RegistryManager";
 import { AuditLog } from "./AuditLog";
 
@@ -52,6 +53,7 @@ export class EvokoreMCPServer {
   private toolCatalog: ToolCatalogIndex;
   private webhookManager: WebhookManager;
   private telemetryManager: TelemetryManager;
+  private telemetryExporter: TelemetryExporter;
   private registryManager: RegistryManager;
   private auditLog: AuditLog;
   private discoveryMode: ToolDiscoveryMode;
@@ -81,6 +83,11 @@ export class EvokoreMCPServer {
     this.proxyManager = new ProxyManager(this.securityManager, this.webhookManager);
     this.pluginManager = new PluginManager(this.webhookManager);
     this.telemetryManager = new TelemetryManager();
+    this.telemetryExporter = new TelemetryExporter(this.telemetryManager, {
+      exportUrl: process.env.EVOKORE_TELEMETRY_EXPORT_URL,
+      intervalMs: parseInt(process.env.EVOKORE_TELEMETRY_EXPORT_INTERVAL_MS || "60000", 10),
+      secret: process.env.EVOKORE_TELEMETRY_EXPORT_SECRET,
+    });
     this.registryManager = new RegistryManager();
     this.auditLog = AuditLog.getInstance();
     this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
@@ -714,6 +721,9 @@ export class EvokoreMCPServer {
     // Initialize telemetry (no-ops if EVOKORE_TELEMETRY is not "true")
     this.telemetryManager.initialize();
 
+    // Initialize telemetry exporter (no-ops unless double opt-in is met)
+    this.telemetryExporter.initialize();
+
     this.rebuildToolCatalog();
 
     // Opt-in filesystem watcher for auto-refreshing skills
@@ -748,6 +758,7 @@ export class EvokoreMCPServer {
     // Graceful shutdown for stdio mode
     const shutdown = () => {
       this.webhookManager.emit("session_end", { transport: "stdio", reason: "shutdown" });
+      this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
       this.telemetryManager.shutdown();
       // Grace period to allow fire-and-forget webhook delivery
       setTimeout(() => process.exit(0), 500);
@@ -783,6 +794,7 @@ export class EvokoreMCPServer {
     const shutdown = async () => {
       console.error("[EVOKORE] Shutting down HTTP server...");
       this.webhookManager.emit("session_end", { transport: "http", reason: "shutdown" });
+      await this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
       this.telemetryManager.shutdown();
       // Grace period to allow fire-and-forget webhook delivery
       await new Promise(resolve => setTimeout(resolve, 500));
