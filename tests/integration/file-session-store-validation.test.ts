@@ -835,42 +835,99 @@ describe('FileSessionStore Production Validation', () => {
   });
 
   // ========================================================================
-  // 9. Gap documentation: HTTP mcp-session-id reattachment NOT implemented
+  // 9. HTTP session reattachment via loadSession (M1.1)
   // ========================================================================
 
-  describe('gap documentation: HTTP mcp-session-id reattachment is NOT yet implemented', () => {
-    it('HttpServer returns 404 for unknown session IDs (no loadSession call)', () => {
+  describe('HTTP session reattachment is wired via loadSession (M1.1)', () => {
+    it('HttpServer calls loadSession before returning 404 for unknown sessions', () => {
       const httpSrc = fs.readFileSync(httpServerTsPath, 'utf8');
 
-      // The handleMcpRequest method should return 404 for unknown session IDs
+      // The handleMcpRequest method should still return 404 as final fallback
       expect(httpSrc).toMatch(/Session not found/);
 
-      // Verify it does NOT call loadSession in the request handler
-      // Extract the handleMcpRequest method body
+      // Verify that loadSession IS called in the request handler before the 404 path
       const methodMatch = httpSrc.match(/handleMcpRequest[\s\S]*?Session not found/);
       expect(methodMatch).not.toBeNull();
       const methodBody = methodMatch![0];
-      expect(methodBody).not.toMatch(/loadSession/);
+      expect(methodBody).toMatch(/\.loadSession\s*\(/);
     });
 
-    it('research doc acknowledges the reattachment gap', () => {
-      const researchPath = path.join(ROOT, 'docs', 'research', 'file-session-store-restart-smoke-2026-03-20.md');
-      expect(fs.existsSync(researchPath)).toBe(true);
+    it('loadSession restores session state across a fresh SessionIsolation + FileSessionStore boundary', async () => {
+      const { FileSessionStore } = require(fileStoreJsPath);
+      const { SessionIsolation } = require(sessionIsolationJsPath);
+      const dir = tempDir('reattach-boundary');
 
-      const content = fs.readFileSync(researchPath, 'utf8');
-      // Doc should explicitly note that runtime HTTP reattachment is not implemented
-      expect(content).toMatch(/loadSession.*not wired|not.*runtime|404.*restart|reattachment.*not implemented/i);
+      // Create store and SessionIsolation, create a session with state
+      const store1 = new FileSessionStore({ directory: dir });
+      const iso1 = new SessionIsolation({ store: store1, ttlMs: 60000 });
+      const session = iso1.createSession('reattach-1', 'admin');
+      session.activatedTools.add('tool_a');
+      session.activatedTools.add('tool_b');
+      session.metadata.set('custom', 'value');
+      await iso1.persistSession('reattach-1');
+
+      // Simulate restart: create new instances pointing at same directory
+      const store2 = new FileSessionStore({ directory: dir });
+      const iso2 = new SessionIsolation({ store: store2, ttlMs: 60000 });
+
+      // Session should not be in memory yet
+      expect(iso2.getSession('reattach-1')).toBeNull();
+
+      // loadSession should restore it
+      const loaded = await iso2.loadSession('reattach-1');
+      expect(loaded).not.toBeNull();
+      expect(loaded!.sessionId).toBe('reattach-1');
+      expect(loaded!.role).toBe('admin');
+      expect(loaded!.activatedTools.has('tool_a')).toBe(true);
+      expect(loaded!.activatedTools.has('tool_b')).toBe(true);
+      expect(loaded!.metadata.get('custom')).toBe('value');
     });
 
-    it('SessionIsolation.loadSession exists but is not called by HttpServer', () => {
+    it('expired sessions return null from loadSession after restart', async () => {
+      const { FileSessionStore } = require(fileStoreJsPath);
+      const { SessionIsolation } = require(sessionIsolationJsPath);
+      const dir = tempDir('reattach-expired');
+
+      const store1 = new FileSessionStore({ directory: dir });
+      const iso1 = new SessionIsolation({ store: store1, ttlMs: 1000 });
+      const session = iso1.createSession('expired-1');
+      // Backdate the session so it is expired
+      session.lastAccessedAt = Date.now() - 5000;
+      await iso1.persistSession('expired-1');
+
+      // Simulate restart with same TTL
+      const store2 = new FileSessionStore({ directory: dir });
+      const iso2 = new SessionIsolation({ store: store2, ttlMs: 1000 });
+
+      const loaded = await iso2.loadSession('expired-1');
+      expect(loaded).toBeNull();
+    });
+
+    it('session_resumed webhook event type exists in WebhookManager', () => {
+      const webhookSrc = fs.readFileSync(path.join(ROOT, 'src', 'WebhookManager.ts'), 'utf8');
+      expect(webhookSrc).toMatch(/session_resumed/);
+      // Verify it is in the WEBHOOK_EVENT_TYPES array
+      expect(webhookSrc).toMatch(/"session_resumed"/);
+    });
+
+    it('HttpServer emits session_resumed webhook on reattachment', () => {
       const httpSrc = fs.readFileSync(httpServerTsPath, 'utf8');
-      const siSrc = fs.readFileSync(path.join(ROOT, 'src', 'SessionIsolation.ts'), 'utf8');
+      // The reattachment path should emit session_resumed
+      expect(httpSrc).toMatch(/emit\s*\(\s*["']session_resumed["']/);
+    });
 
-      // loadSession is defined in SessionIsolation
-      expect(siSrc).toMatch(/async\s+loadSession\s*\(/);
+    it('index.ts constructs SessionIsolation with FileSessionStore for HTTP mode', () => {
+      const indexSrc = fs.readFileSync(path.join(ROOT, 'src', 'index.ts'), 'utf8');
+      // Should import FileSessionStore
+      expect(indexSrc).toMatch(/FileSessionStore/);
+      // Should check httpMode and storeOverride
+      expect(indexSrc).toMatch(/EVOKORE_SESSION_STORE/);
+      expect(indexSrc).toMatch(/httpMode/);
+    });
 
-      // But HttpServer does not import or call it
-      expect(httpSrc).not.toMatch(/\.loadSession\s*\(/);
+    it('persistSession is called after tool activation changes in index.ts', () => {
+      const indexSrc = fs.readFileSync(path.join(ROOT, 'src', 'index.ts'), 'utf8');
+      expect(indexSrc).toMatch(/persistSession/);
     });
   });
 

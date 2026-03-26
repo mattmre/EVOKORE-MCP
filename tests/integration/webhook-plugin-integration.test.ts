@@ -29,12 +29,13 @@ describe('Webhook-Plugin Integration', () => {
       expect(webhookSrc).toMatch(/"plugin_load_error"/);
     });
 
-    it('WEBHOOK_EVENT_TYPES array contains all 9 event types', () => {
+    it('WEBHOOK_EVENT_TYPES array contains all 10 event types', () => {
       const { WEBHOOK_EVENT_TYPES } = require(webhookManagerJsPath);
       expect(WEBHOOK_EVENT_TYPES).toContain('plugin_loaded');
       expect(WEBHOOK_EVENT_TYPES).toContain('plugin_unloaded');
       expect(WEBHOOK_EVENT_TYPES).toContain('plugin_load_error');
-      expect(WEBHOOK_EVENT_TYPES.length).toBe(9);
+      expect(WEBHOOK_EVENT_TYPES).toContain('session_resumed');
+      expect(WEBHOOK_EVENT_TYPES.length).toBe(10);
     });
   });
 

@@ -25,6 +25,7 @@ import { PluginManager } from "./PluginManager";
 import { HttpServer } from "./HttpServer";
 import { WebhookManager } from "./WebhookManager";
 import { SessionIsolation } from "./SessionIsolation";
+import { FileSessionStore } from "./stores/FileSessionStore";
 import { loadAuthConfig } from "./auth/OAuthProvider";
 import { TelemetryManager } from "./TelemetryManager";
 import { RegistryManager } from "./RegistryManager";
@@ -35,6 +36,11 @@ type RequestExtra = { sessionId?: string };
 const DEFAULT_SESSION_ID = "__stdio_default_session__";
 
 const SERVER_VERSION = "3.1.0";
+
+export interface EvokoreMCPServerOptions {
+  /** When true, SessionIsolation uses FileSessionStore for persistence. */
+  httpMode?: boolean;
+}
 
 export class EvokoreMCPServer {
   private server: Server;
@@ -49,7 +55,7 @@ export class EvokoreMCPServer {
   private discoveryMode: ToolDiscoveryMode;
   private sessionIsolation: SessionIsolation;
 
-  constructor() {
+  constructor(options?: EvokoreMCPServerOptions) {
     this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
     this.server = new Server(
       {
@@ -76,7 +82,18 @@ export class EvokoreMCPServer {
     this.registryManager = new RegistryManager();
     this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
-    this.sessionIsolation = new SessionIsolation();
+
+    // In HTTP mode, use FileSessionStore for persistence unless explicitly overridden
+    const storeOverride = process.env.EVOKORE_SESSION_STORE;
+    if (options?.httpMode && storeOverride !== "memory") {
+      const ttlMs = parseInt(process.env.EVOKORE_SESSION_TTL_MS || "3600000", 10);
+      this.sessionIsolation = new SessionIsolation({
+        store: new FileSessionStore(),
+        ttlMs: Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : undefined,
+      });
+    } else {
+      this.sessionIsolation = new SessionIsolation();
+    }
 
     this.setupHandlers();
     this.server.onerror = (error) => console.error("[MCP Error]", error);
@@ -243,6 +260,14 @@ export class EvokoreMCPServer {
     }
 
     await this.notifyToolListChangedIfNeeded(activatedCount > 0);
+
+    // Persist session state if tool activation changed
+    if (activatedCount > 0) {
+      const sessionId = this.getSessionId(extra);
+      this.sessionIsolation.persistSession(sessionId).catch(() => {
+        // Best-effort persistence; errors are non-fatal
+      });
+    }
 
     return {
       content: [{ type: "text", text: lines.join("\n") }]
@@ -684,6 +709,7 @@ export class EvokoreMCPServer {
     const httpServer = new HttpServer(this.server, {
       sessionIsolation: this.sessionIsolation,
       authConfig,
+      webhookManager: this.webhookManager,
     });
     await httpServer.start();
 
@@ -714,8 +740,8 @@ export class EvokoreMCPServer {
 }
 
 if (require.main === module) {
-  const server = new EvokoreMCPServer();
   const isHttpMode = process.env.EVOKORE_HTTP_MODE === "true" || process.argv.includes("--http");
+  const server = new EvokoreMCPServer({ httpMode: isHttpMode });
 
   if (isHttpMode) {
     server.runHttp().catch(console.error);

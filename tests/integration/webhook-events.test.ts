@@ -63,7 +63,8 @@ describe('T29: Webhook Event System', () => {
       expect(WEBHOOK_EVENT_TYPES).toContain('session_end');
       expect(WEBHOOK_EVENT_TYPES).toContain('approval_requested');
       expect(WEBHOOK_EVENT_TYPES).toContain('approval_granted');
-      expect(WEBHOOK_EVENT_TYPES.length).toBe(9);
+      expect(WEBHOOK_EVENT_TYPES).toContain('session_resumed');
+      expect(WEBHOOK_EVENT_TYPES.length).toBe(10);
     });
   });
 
