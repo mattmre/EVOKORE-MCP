@@ -19,6 +19,7 @@ const ROOT = path.resolve(__dirname, '../..');
 describe('OpenAICompatTTSProvider — production validation', () => {
   const srcPath = path.join(ROOT, 'src', 'tts', 'OpenAICompatTTSProvider.ts');
   const sidecarPath = path.join(ROOT, 'src', 'VoiceSidecar.ts');
+  const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
 
   // -----------------------------------------------------------------------
   // 1. Provider construction with various config combinations
@@ -26,7 +27,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
   describe('construction — baseUrl normalization', () => {
     it('strips single trailing slash from baseUrl', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880/',
@@ -36,7 +36,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('strips multiple trailing slashes from baseUrl', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880///',
@@ -45,7 +44,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('preserves baseUrl without trailing slash', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -54,7 +52,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('stores empty string when apiKey is omitted', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -63,7 +60,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('stores apiKey when provided', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -79,7 +75,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
   describe('text buffer accumulation', () => {
     it('buffers a single sendText call', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -89,7 +84,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('buffers multiple sendText calls in order', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -101,7 +95,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('ignores empty string in sendText', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -111,7 +104,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('ignores falsy values in sendText but keeps whitespace-only strings', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -147,7 +139,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3', openaiVoice: 'alloy', openaiModel: 'kokoro' },
         'http://127.0.0.1:8880',
@@ -167,7 +158,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1.2, outputFormat: 'mp3', openaiVoice: 'alloy', openaiModel: 'kokoro' },
         'http://127.0.0.1:8880',
@@ -190,7 +180,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3', openaiVoice: 'nova' },
         'http://127.0.0.1:8880',
@@ -210,7 +199,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -229,7 +217,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -249,7 +236,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff, 0xfb, 0x90, 0x00]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -267,7 +253,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(audioBytes, { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -284,7 +269,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -303,7 +287,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 0, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -332,7 +315,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('returns null when text buffer is empty (no sendText calls)', async () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -342,7 +324,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('returns null when text buffer contains only whitespace', async () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -358,7 +339,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response('Internal Server Error', { status: 500 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -373,7 +353,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response('Not Found', { status: 404 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -388,7 +367,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         throw new Error('ECONNREFUSED');
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -403,7 +381,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         throw new Error('getaddrinfo ENOTFOUND nonexistent.local');
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://nonexistent.local:8880',
@@ -418,7 +395,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -429,7 +405,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('returns null on real unreachable port (no mock)', async () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:19998',
@@ -458,7 +433,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('uses openaiVoice from voice config when present', () => {
       delete process.env.EVOKORE_TTS_VOICE;
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3', openaiVoice: 'shimmer' },
         'http://127.0.0.1:8880',
@@ -468,7 +442,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('falls back to EVOKORE_TTS_VOICE env var when openaiVoice absent', () => {
       process.env.EVOKORE_TTS_VOICE = 'echo';
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -478,7 +451,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('falls back to "nova" when neither openaiVoice nor env var set', () => {
       delete process.env.EVOKORE_TTS_VOICE;
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -488,7 +460,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('uses openaiModel from voice config when present', () => {
       delete process.env.EVOKORE_TTS_MODEL;
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3', openaiModel: 'kokoro' },
         'http://127.0.0.1:8880',
@@ -498,7 +469,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('falls back to EVOKORE_TTS_MODEL env var when openaiModel absent', () => {
       process.env.EVOKORE_TTS_MODEL = 'tts-1-hd';
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -508,7 +478,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('falls back to "tts-1" when neither openaiModel nor env var set', () => {
       delete process.env.EVOKORE_TTS_MODEL;
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -518,7 +487,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('openaiVoice takes priority over EVOKORE_TTS_VOICE env var', () => {
       process.env.EVOKORE_TTS_VOICE = 'env-voice';
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3', openaiVoice: 'config-voice' },
         'http://127.0.0.1:8880',
@@ -528,7 +496,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('openaiModel takes priority over EVOKORE_TTS_MODEL env var', () => {
       process.env.EVOKORE_TTS_MODEL = 'env-model';
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3', openaiModel: 'config-model' },
         'http://127.0.0.1:8880',
@@ -543,7 +510,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
   describe('provider identity and interface compliance', () => {
     it('name is "openai-compat"', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -552,7 +518,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('isAvailable always returns true', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -561,7 +526,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('isAvailable returns true even with no apiKey', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://localhost:8880',
@@ -570,7 +534,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('connect is async and resets the text buffer', async () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -583,7 +546,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('connect returns a resolved promise (no-op)', async () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -594,7 +556,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
     });
 
     it('has sendText, flush, connect, isAvailable as callable methods', () => {
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -630,7 +591,7 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('VoiceSidecar defaults TTS_BASE_URL to http://127.0.0.1:8880', () => {
       const src = fs.readFileSync(sidecarPath, 'utf8');
-      expect(src).toMatch(/EVOKORE_TTS_BASE_URL.*"http:\/\/127\.0\.0\.1:8880"/);
+      expect(src).toMatch(/EVOKORE_TTS_BASE_URL\s*\|\|\s*"http:\/\/127\.0\.0\.1:8880"/);
     });
 
     it('VoiceSidecar defaults TTS_API_KEY to empty string', () => {
@@ -640,8 +601,7 @@ describe('OpenAICompatTTSProvider — production validation', () => {
 
     it('VoiceSidecar logs TTS endpoint URL when openai-compat is active', () => {
       const src = fs.readFileSync(sidecarPath, 'utf8');
-      expect(src).toContain('/v1/audio/speech');
-      expect(src).toMatch(/console\.error.*TTS endpoint/);
+      expect(src).toMatch(/console\.error\(`\[VoiceSidecar\] TTS endpoint: \${TTS_BASE_URL}\/v1\/audio\/speech`\)/);
     });
   });
 
@@ -698,7 +658,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(fakeAudio, { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3', openaiVoice: 'nova', openaiModel: 'tts-1' },
         'http://127.0.0.1:8880',
@@ -717,7 +676,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([0xff]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
@@ -740,7 +698,6 @@ describe('OpenAICompatTTSProvider — production validation', () => {
         return new Response(new Uint8Array([callCount, callCount]), { status: 200 });
       }) as any;
 
-      const { OpenAICompatTTSProvider } = require('../../dist/tts/OpenAICompatTTSProvider.js');
       const p = new OpenAICompatTTSProvider(
         { voiceId: 'v', voiceName: 'V', model: 'm', stability: 0.5, similarityBoost: 0.5, speed: 1, outputFormat: 'mp3' },
         'http://127.0.0.1:8880',
