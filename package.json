@@ -43,7 +43,9 @@
     "dashboard": "node scripts/dashboard.js",
     "actions:quota": "node scripts/gh-actions-quota.js",
     "bench": "node scripts/benchmark.js",
-    "docs:api": "typedoc"
+    "docs:api": "typedoc",
+    "worktree:cleanup": "node scripts/worktree-cleanup.js --dry-run",
+    "worktree:cleanup:apply": "node scripts/worktree-cleanup.js --apply"
   },
   "keywords": [
     "mcp",
