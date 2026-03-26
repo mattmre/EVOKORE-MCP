@@ -60,19 +60,80 @@ A `workflow_dispatch` run does not create a GitHub Release because the `if: star
 
 The workflow requires `contents: write` permission on the `GITHUB_TOKEN` to allow release creation.
 
+## Preflight Command
+
+Before tagging a release, run the automated preflight checks:
+
+```bash
+npm run release:preflight
+```
+
+This executes `scripts/release-preflight.js`, which performs both blocking and warning-level checks in a single pass.
+
+### Blocking checks (exit code 1 if any fail)
+
+| Check | What it verifies |
+|-------|-----------------|
+| Version | `package.json` version is valid semver |
+| CHANGELOG | An entry for the current version exists in `CHANGELOG.md` |
+| Build | `dist/index.js` exists (runs `tsc` if missing) |
+| Pack | `npm pack --dry-run` succeeds, tarball under 5 MB |
+| Clean tree | No uncommitted changes in the working tree |
+| Ancestor | Current HEAD is reachable from `origin/main` |
+| Tag | Git tag `v{version}` does not already exist |
+
+### Warning checks (exit code 0, printed as warnings)
+
+| Check | What it verifies |
+|-------|-----------------|
+| NPM_TOKEN | `NPM_TOKEN` is present in GitHub repository secrets (checked via `gh secret list`) |
+| Tarball size | Tarball is under 2 MB (advisory threshold) |
+
+### Interpreting output
+
+- Lines prefixed with a check mark indicate passing checks.
+- Lines prefixed with an X indicate blocking failures. Fix these before tagging.
+- Lines prefixed with a warning symbol are advisory. The release workflow will still succeed, but the operator should be aware (for example, a missing `NPM_TOKEN` means npm publish will be silently skipped).
+
+### Dry-run mode
+
+To run only the checks that do not depend on remote git state:
+
+```bash
+npm run release:preflight -- --dry-run
+```
+
+This skips the `origin/main` ancestry check, which is useful during local development or in CI environments where the full remote history may not be available.
+
+### JSON output
+
+For programmatic consumption:
+
+```bash
+node scripts/release-preflight.js --json
+```
+
+### Environment variables
+
+- `EVOKORE_RELEASE_PREFLIGHT_SKIP_SECRETS` — Set to any truthy value to skip the `NPM_TOKEN` secret check. Useful in CI where secrets are not exposed to the preflight step.
+
 ## Operator Checklist
 
 1. Confirm local branch is clean and merged to `main`.
 2. Update package version as needed.
-3. Run the release validators:
+3. Run the preflight checks:
+   ```bash
+   npm run release:preflight
+   ```
+4. Run the release validators:
    ```bash
    npm run release:check
    npm run docs:check
    ```
-4. Create and push a version tag:
+5. Create and push a version tag:
    ```bash
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-5. For manual `workflow_dispatch` runs, set `chain_complete=true` only after verifying dependency chain completion.
-6. Verify the Release workflow completed and published successfully.
+6. For manual `workflow_dispatch` runs, set `chain_complete=true` only after verifying dependency chain completion.
+7. Verify the Release workflow completed and published successfully.
