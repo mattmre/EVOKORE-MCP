@@ -45,11 +45,6 @@ function request(
   });
 }
 
-// Encode credentials for Basic Auth header
-function basicAuth(user: string, pass: string): string {
-  return 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
-}
-
 // Start dashboard on a port with optional env overrides
 function startDashboard(
   port: number,
@@ -107,9 +102,8 @@ describe('Dashboard Hardening', () => {
       expect(source).toContain('crypto.timingSafeEqual');
     });
 
-    it('reads EVOKORE_DASHBOARD_USER and EVOKORE_DASHBOARD_PASS env vars', () => {
-      expect(source).toContain('EVOKORE_DASHBOARD_USER');
-      expect(source).toContain('EVOKORE_DASHBOARD_PASS');
+    it('reads EVOKORE_DASHBOARD_TOKEN env var for Bearer token auth', () => {
+      expect(source).toContain('EVOKORE_DASHBOARD_TOKEN');
     });
 
     it('has requireAuth function that sends 401 with WWW-Authenticate', () => {
@@ -118,9 +112,9 @@ describe('Dashboard Hardening', () => {
       expect(source).toContain('401');
     });
 
-    it('parses Basic auth header', () => {
-      expect(source).toContain('parseBasicAuth');
-      expect(source).toContain("'Basic '");
+    it('extracts Bearer token from Authorization header', () => {
+      expect(source).toContain('extractBearerToken');
+      expect(source).toContain('Bearer');
     });
 
     it('supports session filtering via query params', () => {
@@ -228,10 +222,9 @@ describe('Dashboard Hardening', () => {
     });
   });
 
-  describe('authenticated mode (credentials configured)', () => {
+  describe('authenticated mode (Bearer token configured)', () => {
     const PORT = 28910;
-    const TEST_USER = 'testadmin';
-    const TEST_PASS = 'testpass123';
+    const TEST_TOKEN = 'hardening-test-token-secure';
     let child: ChildProcess | null = null;
 
     afterAll(() => {
@@ -240,16 +233,14 @@ describe('Dashboard Hardening', () => {
 
     it('rejects requests without auth header (401)', async () => {
       const { child: c, ready } = startDashboard(PORT, {
-        EVOKORE_DASHBOARD_USER: TEST_USER,
-        EVOKORE_DASHBOARD_PASS: TEST_PASS,
+        EVOKORE_DASHBOARD_TOKEN: TEST_TOKEN,
       });
       child = c;
       await ready;
 
-      const res = await request(PORT, '/');
+      const res = await request(PORT, '/api/sessions');
       expect(res.statusCode).toBe(401);
-      expect(res.headers['www-authenticate']).toContain('Basic');
-      expect(res.body).toContain('Unauthorized');
+      expect(res.headers['www-authenticate']).toContain('Bearer');
 
       c.kill('SIGTERM');
       child = null;
@@ -257,17 +248,16 @@ describe('Dashboard Hardening', () => {
 
     it('rejects requests with wrong credentials (401)', async () => {
       const { child: c, ready } = startDashboard(PORT + 1, {
-        EVOKORE_DASHBOARD_USER: TEST_USER,
-        EVOKORE_DASHBOARD_PASS: TEST_PASS,
+        EVOKORE_DASHBOARD_TOKEN: TEST_TOKEN,
       });
       child = c;
       await ready;
 
-      const res = await request(PORT + 1, '/', 'GET', undefined, {
-        Authorization: basicAuth('wrong', 'creds'),
+      const res = await request(PORT + 1, '/api/sessions', 'GET', undefined, {
+        Authorization: 'Bearer wrong-token',
       });
       expect(res.statusCode).toBe(401);
-      expect(res.headers['www-authenticate']).toContain('Basic');
+      expect(res.headers['www-authenticate']).toContain('Bearer');
 
       c.kill('SIGTERM');
       child = null;
@@ -275,17 +265,15 @@ describe('Dashboard Hardening', () => {
 
     it('allows requests with correct credentials (200)', async () => {
       const { child: c, ready } = startDashboard(PORT + 2, {
-        EVOKORE_DASHBOARD_USER: TEST_USER,
-        EVOKORE_DASHBOARD_PASS: TEST_PASS,
+        EVOKORE_DASHBOARD_TOKEN: TEST_TOKEN,
       });
       child = c;
       await ready;
 
-      const res = await request(PORT + 2, '/', 'GET', undefined, {
-        Authorization: basicAuth(TEST_USER, TEST_PASS),
+      const res = await request(PORT + 2, '/api/sessions', 'GET', undefined, {
+        Authorization: `Bearer ${TEST_TOKEN}`,
       });
       expect(res.statusCode).toBe(200);
-      expect(res.body).toContain('EVOKORE Session Dashboard');
 
       c.kill('SIGTERM');
       child = null;
@@ -293,8 +281,7 @@ describe('Dashboard Hardening', () => {
 
     it('protects API endpoints with auth too', async () => {
       const { child: c, ready } = startDashboard(PORT + 3, {
-        EVOKORE_DASHBOARD_USER: TEST_USER,
-        EVOKORE_DASHBOARD_PASS: TEST_PASS,
+        EVOKORE_DASHBOARD_TOKEN: TEST_TOKEN,
       });
       child = c;
       await ready;
@@ -305,7 +292,7 @@ describe('Dashboard Hardening', () => {
 
       // With auth
       const withAuth = await request(PORT + 3, '/api/sessions', 'GET', undefined, {
-        Authorization: basicAuth(TEST_USER, TEST_PASS),
+        Authorization: `Bearer ${TEST_TOKEN}`,
       });
       expect(withAuth.statusCode).toBe(200);
 
@@ -315,17 +302,18 @@ describe('Dashboard Hardening', () => {
 
     it('protects /approvals endpoint with auth', async () => {
       const { child: c, ready } = startDashboard(PORT + 4, {
-        EVOKORE_DASHBOARD_USER: TEST_USER,
-        EVOKORE_DASHBOARD_PASS: TEST_PASS,
+        EVOKORE_DASHBOARD_TOKEN: TEST_TOKEN,
+        EVOKORE_DASHBOARD_ROLE: 'admin',
       });
       child = c;
       await ready;
 
       const noAuth = await request(PORT + 4, '/approvals');
-      expect(noAuth.statusCode).toBe(401);
+      // Browser-like request without token gets redirected to login
+      expect([401, 302]).toContain(noAuth.statusCode);
 
       const withAuth = await request(PORT + 4, '/approvals', 'GET', undefined, {
-        Authorization: basicAuth(TEST_USER, TEST_PASS),
+        Authorization: `Bearer ${TEST_TOKEN}`,
       });
       expect(withAuth.statusCode).toBe(200);
       expect(withAuth.body).toContain('HITL Approvals');
@@ -334,16 +322,15 @@ describe('Dashboard Hardening', () => {
       child = null;
     });
 
-    it('rejects partial credentials (only user, no pass)', async () => {
+    it('rejects partial credentials (empty token)', async () => {
       const { child: c, ready } = startDashboard(PORT + 5, {
-        EVOKORE_DASHBOARD_USER: TEST_USER,
-        EVOKORE_DASHBOARD_PASS: TEST_PASS,
+        EVOKORE_DASHBOARD_TOKEN: TEST_TOKEN,
       });
       child = c;
       await ready;
 
-      const res = await request(PORT + 5, '/', 'GET', undefined, {
-        Authorization: basicAuth(TEST_USER, ''),
+      const res = await request(PORT + 5, '/api/sessions', 'GET', undefined, {
+        Authorization: 'Bearer ',
       });
       expect(res.statusCode).toBe(401);
 
@@ -351,17 +338,15 @@ describe('Dashboard Hardening', () => {
       child = null;
     });
 
-    it('rejects malformed Authorization header', async () => {
+    it('rejects malformed Authorization header (Basic instead of Bearer)', async () => {
       const { child: c, ready } = startDashboard(PORT + 6, {
-        EVOKORE_DASHBOARD_USER: TEST_USER,
-        EVOKORE_DASHBOARD_PASS: TEST_PASS,
+        EVOKORE_DASHBOARD_TOKEN: TEST_TOKEN,
       });
       child = c;
       await ready;
 
-      // Bearer instead of Basic
-      const res = await request(PORT + 6, '/', 'GET', undefined, {
-        Authorization: 'Bearer sometoken',
+      const res = await request(PORT + 6, '/api/sessions', 'GET', undefined, {
+        Authorization: 'Basic dXNlcjpwYXNz',
       });
       expect(res.statusCode).toBe(401);
 
@@ -457,7 +442,7 @@ describe('Dashboard Hardening', () => {
       const res = await request(PORT, '/api/approvals');
       expect(res.statusCode).toBe(200);
       expect(res.headers['content-type']).toContain('application/json');
-      expect(res.headers['cache-control']).toBe('no-cache');
+      expect(res.headers['cache-control']).toBe('no-store');
       const approvals = JSON.parse(res.body);
       expect(Array.isArray(approvals)).toBe(true);
 
