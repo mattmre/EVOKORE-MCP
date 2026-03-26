@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SessionIsolation } from "./SessionIsolation";
+import { WebhookManager } from "./WebhookManager";
 import {
   authenticateRequest,
   sendUnauthorizedResponse,
@@ -18,6 +19,7 @@ export interface HttpServerOptions {
   host?: string;
   sessionIsolation?: SessionIsolation;
   authConfig?: AuthConfig;
+  webhookManager?: WebhookManager;
 }
 
 /**
@@ -36,7 +38,9 @@ export class HttpServer {
   private transports: Map<string, StreamableHTTPServerTransport> = new Map();
   private sessionIsolation: SessionIsolation | null;
   private authConfig: AuthConfig | null;
+  private webhookManager: WebhookManager | null;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+  private persistInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(mcpServer: Server, options?: HttpServerOptions) {
     this.mcpServer = mcpServer;
@@ -45,6 +49,7 @@ export class HttpServer {
     this.host = options?.host ?? process.env.EVOKORE_HTTP_HOST ?? DEFAULT_HTTP_HOST;
     this.sessionIsolation = options?.sessionIsolation ?? null;
     this.authConfig = options?.authConfig ?? null;
+    this.webhookManager = options?.webhookManager ?? null;
   }
 
   /**
@@ -99,6 +104,22 @@ export class HttpServer {
       }
     }
 
+    // Periodically persist all active sessions to the backing store (every 30 seconds).
+    // This ensures state survives crashes between explicit persist points.
+    if (this.sessionIsolation) {
+      this.persistInterval = setInterval(() => {
+        const sessionIds = this.sessionIsolation?.listSessions() ?? [];
+        for (const sid of sessionIds) {
+          this.sessionIsolation?.persistSession(sid).catch((err) => {
+            console.error(`[EVOKORE-HTTP] Periodic persist failed for session ${sid}:`, err?.message || err);
+          });
+        }
+      }, 30_000);
+      if (this.persistInterval.unref) {
+        this.persistInterval.unref();
+      }
+    }
+
     return new Promise<void>((resolve, reject) => {
       this.httpServer!.on("error", (err) => {
         console.error("[EVOKORE-HTTP] Server error:", err.message);
@@ -120,6 +141,12 @@ export class HttpServer {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
+    }
+
+    // Clear the periodic persistence interval
+    if (this.persistInterval) {
+      clearInterval(this.persistInterval);
+      this.persistInterval = null;
     }
 
     // Destroy all sessions in SessionIsolation before closing transports
@@ -210,7 +237,49 @@ export class HttpServer {
     }
 
     if (sessionId && !this.transports.has(sessionId)) {
-      // Unknown session ID: reject with 404
+      // Attempt to reattach: load session from persistent store
+      if (this.sessionIsolation) {
+        try {
+          const loaded = await this.sessionIsolation.loadSession(sessionId);
+          if (loaded) {
+            // Recreate a transport bound to the recovered session ID
+            const reattachedTransport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: () => sessionId,
+              onsessioninitialized: (restoredId: string) => {
+                this.transports.set(restoredId, reattachedTransport);
+              },
+            });
+
+            reattachedTransport.onclose = () => {
+              const sid = reattachedTransport.sessionId;
+              if (sid) {
+                this.transports.delete(sid);
+                this.sessionIsolation?.destroySession(sid);
+                console.error(`[EVOKORE-HTTP] Reattached session closed: ${sid}`);
+              }
+            };
+
+            // Connect the MCP server to the reattached transport
+            await this.mcpServer.connect(reattachedTransport);
+            this.transports.set(sessionId, reattachedTransport);
+
+            console.error(`[EVOKORE-HTTP] Session reattached: ${sessionId}`);
+
+            // Emit webhook event for reattachment
+            if (this.webhookManager) {
+              this.webhookManager.emit("session_resumed", { sessionId });
+            }
+
+            // Handle the request with the reattached transport
+            await reattachedTransport.handleRequest(req, res);
+            return;
+          }
+        } catch (err: any) {
+          console.error(`[EVOKORE-HTTP] Session reattachment failed for ${sessionId}:`, err?.message || err);
+        }
+      }
+
+      // Session not found in persistent store (or no store configured): 404
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Session not found" }));
       return;

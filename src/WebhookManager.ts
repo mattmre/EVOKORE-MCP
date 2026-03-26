@@ -12,6 +12,7 @@ export type WebhookEventType =
   | "tool_error"
   | "session_start"
   | "session_end"
+  | "session_resumed"
   | "approval_requested"
   | "approval_granted"
   | "plugin_loaded"
@@ -23,6 +24,7 @@ export const WEBHOOK_EVENT_TYPES: readonly WebhookEventType[] = [
   "tool_error",
   "session_start",
   "session_end",
+  "session_resumed",
   "approval_requested",
   "approval_granted",
   "plugin_loaded",
