@@ -3,6 +3,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import path from 'path';
 import os from 'os';
+import type { SessionState } from '../../src/SessionIsolation';
 
 const ROOT = path.resolve(__dirname, '../..');
 const fileStoreJsPath = path.join(ROOT, 'dist', 'stores', 'FileSessionStore.js');
@@ -32,7 +33,7 @@ function createTestSessionState(id: string, overrides?: Partial<{
   createdAt: number;
   lastAccessedAt: number;
   role: string | null;
-}>): any {
+}>): SessionState {
   const now = Date.now();
   return {
     sessionId: id,
@@ -43,6 +44,26 @@ function createTestSessionState(id: string, overrides?: Partial<{
     rateLimitCounters: new Map(),
     metadata: new Map(),
   };
+}
+
+async function waitForSessionVisibility(
+  store: { get(sessionId: string): Promise<unknown> },
+  sessionId: string,
+  { shouldExist = true, timeoutMs = 1000, intervalMs = 25 }: { shouldExist?: boolean; timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    const session = await store.get(sessionId);
+    if (shouldExist ? session !== undefined : session === undefined) {
+      return;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+
+  const expectation = shouldExist ? 'to persist' : 'to be removed';
+  throw new Error(`Timed out waiting for session "${sessionId}" ${expectation}.`);
 }
 
 describe('FileSessionStore Production Validation', () => {
@@ -296,6 +317,17 @@ describe('FileSessionStore Production Validation', () => {
 
       expect(await store2.get('will-delete')).toBeUndefined();
       expect(await store2.get('will-keep')).toBeDefined();
+    });
+
+    it('list() returns sanitized filenames for sessions with special characters in the ID', async () => {
+      const { FileSessionStore } = require(fileStoreJsPath);
+      const dir = tempDir('restart-list-sanitized');
+
+      const store = new FileSessionStore({ directory: dir });
+      await store.set('user/123', createTestSessionState('user/123'));
+
+      const ids = await store.list();
+      expect(ids).toContain('user_123');
     });
 
     it('cleanup on a fresh instance removes expired sessions from a prior instance', async () => {
@@ -654,8 +686,7 @@ describe('FileSessionStore Production Validation', () => {
 
       iso.createSession('iso-1', 'developer');
 
-      // Wait for fire-and-forget persistence
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await waitForSessionVisibility(store, 'iso-1');
 
       const persisted = await store.get('iso-1');
       expect(persisted).toBeDefined();
@@ -750,15 +781,13 @@ describe('FileSessionStore Production Validation', () => {
 
       iso.createSession('destroy-me');
 
-      // Wait for fire-and-forget persistence
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await waitForSessionVisibility(store, 'destroy-me');
 
       expect(await store.get('destroy-me')).toBeDefined();
 
       iso.destroySession('destroy-me');
 
-      // Wait for fire-and-forget store delete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await waitForSessionVisibility(store, 'destroy-me', { shouldExist: false });
 
       expect(iso.getSession('destroy-me')).toBeNull();
       expect(await store.get('destroy-me')).toBeUndefined();
@@ -1033,7 +1062,7 @@ describe('FileSessionStore Production Validation', () => {
 
       // Wait for fire-and-forget createSession persistence to settle,
       // then explicitly persist to ensure the file exists on disk.
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await waitForSessionVisibility(store, 'gc-target');
       await iso.persistSession('gc-target');
 
       // Confirm the file exists before cleanup
@@ -1044,8 +1073,7 @@ describe('FileSessionStore Production Validation', () => {
 
       iso.cleanExpired();
 
-      // Wait for fire-and-forget store.delete to settle
-      await new Promise(resolve => setTimeout(resolve, 150));
+      await waitForSessionVisibility(store, 'gc-target', { shouldExist: false });
 
       // Should be gone from both memory and disk
       expect(iso.getSession('gc-target')).toBeNull();
