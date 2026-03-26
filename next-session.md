@@ -36,7 +36,7 @@ Last Updated (UTC): 2026-03-26
 - Start with the canonical session contract and HTTP session reattachment
 - Wire `SessionIsolation.loadSession()` into `HttpServer` so existing `mcp-session-id` values survive process restart
 - Keep Auto-Memory and dashboard session filtering behind that contract instead of evolving them independently
-- Insert an ARCH-AEP checkpoint before Phase 6 implementation begins so names, non-goals, and exit criteria are normalized
+- Insert an ARCH-AEP checkpoint before M1.1 implementation begins so names, non-goals, and exit criteria are normalized
 
 ### Priority 3: Milestone M2 — Secure Operator Platform
 - Dashboard auth/authz validation and hardening

@@ -24,7 +24,7 @@
 - Pushed empty sync commit `27a2cd5` so CI re-read the corrected PR body
 
 ### Review-Fix Outcomes
-- `#186`: review fixes already present on branch; no additional code changes needed in this session
+- `#186`: applied 3 review-response fixes (hoisted provider require, tightened env regex, replaced broad assertions with precise regex)
 - `#187`: hardened brittle source-shape assertions and cleanup checks
 - `#188`: tightened the `execFileSync` import assertion to explicitly reject `execSync`
 - `#189`: replaced timing sleeps with polling and added sanitized `list()` coverage
@@ -53,4 +53,4 @@
 - `main` at `3fae08a`
 - No open PRs remaining
 - Root worktree only; local branch list reduced to `main`
-- Next work begins at Phase 6: HTTP session reattachment
+- Next work follows the revised milestone roadmap starting at M0 (Release Closure), then M1.1 (HTTP session reattachment)

@@ -391,7 +391,7 @@ Every future phase should follow this template:
 ## Recommended Immediate Execution Order
 
 1. M0: Release Closure
-2. ARCH-AEP checkpoint: normalize phase names, non-goals, and exit criteria before Phase 6 starts
+2. ARCH-AEP checkpoint: normalize phase names, non-goals, and exit criteria before M1.1 starts
 3. M1.1: Canonical session contract + HTTP reattachment
 4. M1.2: Auto-memory event trigger on session-wrap boundary
 5. M1.3: Dashboard session-filter alignment and validation hardening
