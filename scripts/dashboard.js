@@ -11,6 +11,7 @@ const PORT = parseInt(process.env.EVOKORE_DASHBOARD_PORT || '8899', 10);
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
 const SESSION_STORE_DIR = path.join(os.homedir(), '.evokore', 'session-store');
 const EVOKORE_STATE_DIR = path.join(os.homedir(), '.evokore');
+const AUDIT_FILE = path.join(os.homedir(), '.evokore', 'audit', 'audit.jsonl');
 const PENDING_APPROVALS_FILE = path.join(EVOKORE_STATE_DIR, 'pending-approvals.json');
 const DENIED_TOKENS_FILE = path.join(EVOKORE_STATE_DIR, 'denied-tokens.json');
 
@@ -206,6 +207,53 @@ function readJsonl(filePath) {
       .filter(Boolean);
   } catch {
     return [];
+  }
+}
+
+// Read audit log entries from JSONL, newest first, with pagination
+function readAuditEntries(limit, offset) {
+  if (!fs.existsSync(AUDIT_FILE)) return [];
+  try {
+    const lines = fs.readFileSync(AUDIT_FILE, 'utf8')
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+
+    // Parse all valid lines
+    const entries = [];
+    for (const line of lines) {
+      try { entries.push(JSON.parse(line)); } catch { /* skip */ }
+    }
+
+    // Reverse to newest-first, then paginate
+    entries.reverse();
+    return entries.slice(offset, offset + limit);
+  } catch {
+    return [];
+  }
+}
+
+// Get audit summary counts by eventType
+function getAuditSummary() {
+  if (!fs.existsSync(AUDIT_FILE)) return {};
+  try {
+    const lines = fs.readFileSync(AUDIT_FILE, 'utf8')
+      .trim()
+      .split('\n')
+      .filter(Boolean);
+
+    const counts = {};
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+        if (entry.eventType) {
+          counts[entry.eventType] = (counts[entry.eventType] || 0) + 1;
+        }
+      } catch { /* skip */ }
+    }
+    return counts;
+  } catch {
+    return {};
   }
 }
 
@@ -1182,6 +1230,34 @@ function handleRequest(req, res) {
     return;
   }
 
+  // API: audit log entries (requires admin)
+  if (url.pathname === '/api/audit' && req.method === 'GET') {
+    if (!requireRole(res, 'admin')) return;
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 1000);
+    const offset = Math.max(parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
+    const entries = readAuditEntries(limit, offset);
+    applySecurityHeaders(res, true);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store'
+    });
+    res.end(JSON.stringify(entries));
+    return;
+  }
+
+  // API: audit summary counts (requires admin)
+  if (url.pathname === '/api/audit/summary' && req.method === 'GET') {
+    if (!requireRole(res, 'admin')) return;
+    const summary = getAuditSummary();
+    applySecurityHeaders(res, true);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store'
+    });
+    res.end(JSON.stringify(summary));
+    return;
+  }
+
   // 404 for everything else
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
@@ -1201,7 +1277,9 @@ if (typeof module !== 'undefined' && module.exports) {
     API_SECURITY_HEADERS,
     TOKEN_AUTH_ENABLED,
     DASHBOARD_ROLE,
-    handleRequest
+    handleRequest,
+    readAuditEntries,
+    getAuditSummary
   };
 }
 

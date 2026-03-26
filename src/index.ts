@@ -29,6 +29,7 @@ import { FileSessionStore } from "./stores/FileSessionStore";
 import { loadAuthConfig } from "./auth/OAuthProvider";
 import { TelemetryManager } from "./TelemetryManager";
 import { RegistryManager } from "./RegistryManager";
+import { AuditLog } from "./AuditLog";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -52,6 +53,7 @@ export class EvokoreMCPServer {
   private webhookManager: WebhookManager;
   private telemetryManager: TelemetryManager;
   private registryManager: RegistryManager;
+  private auditLog: AuditLog;
   private discoveryMode: ToolDiscoveryMode;
   private sessionIsolation: SessionIsolation;
 
@@ -80,6 +82,7 @@ export class EvokoreMCPServer {
     this.pluginManager = new PluginManager(this.webhookManager);
     this.telemetryManager = new TelemetryManager();
     this.registryManager = new RegistryManager();
+    this.auditLog = AuditLog.getInstance();
     this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
 
@@ -579,23 +582,27 @@ export class EvokoreMCPServer {
       const toolName = request.params.name;
       const args = request.params.arguments || {};
 
-      try {
-        // Determine tool source for webhook metadata
-        let source: string;
-        if (toolName === "discover_tools" || toolName === "refresh_skills" || toolName === "fetch_skill" || toolName === "reload_plugins") {
-          source = "builtin";
-        } else if (this.telemetryManager.isTelemetryTool(toolName)) {
-          source = "builtin";
-        } else if (this.pluginManager.isPluginTool(toolName)) {
-          source = "plugin";
-        } else if (this.toolCatalog.isNativeTool(toolName)) {
-          source = "native";
-        } else if (this.proxyManager.canHandle(toolName)) {
-          source = "proxied";
-        } else {
-          source = "unknown";
-        }
+      // Selective audit logging for admin/config/approval tools
+      const AUDITED_TOOLS = new Set(["reload_plugins", "reset_telemetry", "refresh_skills", "fetch_skill"]);
+      const shouldAudit = AUDITED_TOOLS.has(toolName) || toolName.includes("approval");
 
+      // Determine tool source for webhook metadata
+      let source: string;
+      if (toolName === "discover_tools" || toolName === "refresh_skills" || toolName === "fetch_skill" || toolName === "reload_plugins") {
+        source = "builtin";
+      } else if (this.telemetryManager.isTelemetryTool(toolName)) {
+        source = "builtin";
+      } else if (this.pluginManager.isPluginTool(toolName)) {
+        source = "plugin";
+      } else if (this.toolCatalog.isNativeTool(toolName)) {
+        source = "native";
+      } else if (this.proxyManager.canHandle(toolName)) {
+        source = "proxied";
+      } else {
+        source = "unknown";
+      }
+
+      try {
         this.webhookManager.emit("tool_call", { tool: toolName, source, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
 
         const callStartTime = Date.now();
@@ -633,11 +640,29 @@ export class EvokoreMCPServer {
         }
 
         this.telemetryManager.recordToolCall(Date.now() - callStartTime);
+
+        if (shouldAudit) {
+          this.auditLog.log("tool_call", "success", {
+            sessionId: this.getSessionId(extra),
+            resource: toolName,
+            metadata: { source, latencyMs: Date.now() - callStartTime },
+          });
+        }
+
         return result;
       } catch (error: any) {
         this.telemetryManager.recordToolCall();
         this.telemetryManager.recordToolError();
         this.webhookManager.emit("tool_error", { tool: toolName, arguments: this.redactSensitiveArgs(args as Record<string, unknown>), error: error?.message || String(error) });
+
+        if (shouldAudit) {
+          this.auditLog.log("tool_call", "failure", {
+            sessionId: this.getSessionId(extra),
+            resource: toolName,
+            metadata: { source, error: error?.message || String(error) },
+          });
+        }
+
         throw error;
       }
     });
@@ -687,6 +712,7 @@ export class EvokoreMCPServer {
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
     this.webhookManager.emit("session_start", { transport: "stdio" });
     this.telemetryManager.recordSessionStart();
+    this.auditLog.log("session_create", "success", { metadata: { transport: "stdio" } });
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
     );
@@ -710,6 +736,8 @@ export class EvokoreMCPServer {
       sessionIsolation: this.sessionIsolation,
       authConfig,
       webhookManager: this.webhookManager,
+      auditLog: this.auditLog,
+      telemetryManager: this.telemetryManager,
     });
     await httpServer.start();
 
@@ -717,6 +745,7 @@ export class EvokoreMCPServer {
     console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on HTTP at http://${addr.host}:${addr.port} (tool discovery mode: ${this.discoveryMode})`);
     this.webhookManager.emit("session_start", { transport: "http", host: addr.host, port: addr.port });
     this.telemetryManager.recordSessionStart();
+    this.auditLog.log("session_create", "success", { metadata: { transport: "http", host: addr.host, port: addr.port } });
 
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)

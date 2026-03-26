@@ -11,12 +11,30 @@ const DEFAULT_FLUSH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
  * Aggregate telemetry metrics. No PII is collected.
  */
 export interface TelemetryMetrics {
+  /** Schema version for future evolution. */
+  telemetryVersion: number;
+
   toolCallCount: number;
   toolErrorCount: number;
   sessionCount: number;
   avgLatencyMs: number;
   startTime: string;
   uptime: number;
+
+  /** Session lifecycle metrics. */
+  sessions: {
+    activeCount: number;
+    totalCreated: number;
+    totalResumed: number;
+    totalExpired: number;
+  };
+
+  /** Authentication metrics. */
+  auth: {
+    successCount: number;
+    failureCount: number;
+    rateLimitedCount: number;
+  };
 }
 
 /**
@@ -38,6 +56,9 @@ interface LatencyAccumulator {
  * - Periodic flush to disk (every 5 minutes when enabled).
  * - Exposed via get_telemetry and reset_telemetry native tools.
  */
+/** Current telemetry schema version. Increment when TelemetryMetrics shape changes. */
+const TELEMETRY_VERSION = 2;
+
 export class TelemetryManager {
   private enabled: boolean;
   private toolCallCount: number = 0;
@@ -47,6 +68,17 @@ export class TelemetryManager {
   private startTime: string;
   private flushInterval: ReturnType<typeof setInterval> | null = null;
   private flushIntervalMs: number;
+
+  // Session lifecycle counters
+  private sessionsCreated: number = 0;
+  private sessionsResumed: number = 0;
+  private sessionsExpired: number = 0;
+  private sessionsActive: number = 0;
+
+  // Auth counters
+  private authSuccess: number = 0;
+  private authFailure: number = 0;
+  private authRateLimited: number = 0;
 
   constructor(flushIntervalMs: number = DEFAULT_FLUSH_INTERVAL_MS) {
     this.enabled = process.env.EVOKORE_TELEMETRY === "true";
@@ -107,6 +139,54 @@ export class TelemetryManager {
     if (!this.enabled) return;
 
     this.sessionCount++;
+    this.sessionsCreated++;
+    this.sessionsActive++;
+  }
+
+  /**
+   * Record a session resume (reattachment).
+   */
+  recordSessionResume(): void {
+    if (!this.enabled) return;
+
+    this.sessionsResumed++;
+  }
+
+  /**
+   * Record a session expiry or close.
+   */
+  recordSessionExpire(): void {
+    if (!this.enabled) return;
+
+    this.sessionsExpired++;
+    if (this.sessionsActive > 0) this.sessionsActive--;
+  }
+
+  /**
+   * Record a successful authentication event.
+   */
+  recordAuthSuccess(): void {
+    if (!this.enabled) return;
+
+    this.authSuccess++;
+  }
+
+  /**
+   * Record a failed authentication event.
+   */
+  recordAuthFailure(): void {
+    if (!this.enabled) return;
+
+    this.authFailure++;
+  }
+
+  /**
+   * Record a rate-limited authentication attempt.
+   */
+  recordAuthRateLimited(): void {
+    if (!this.enabled) return;
+
+    this.authRateLimited++;
   }
 
   /**
@@ -114,6 +194,7 @@ export class TelemetryManager {
    */
   getMetrics(): TelemetryMetrics {
     return {
+      telemetryVersion: TELEMETRY_VERSION,
       toolCallCount: this.toolCallCount,
       toolErrorCount: this.toolErrorCount,
       sessionCount: this.sessionCount,
@@ -122,6 +203,17 @@ export class TelemetryManager {
         : 0,
       startTime: this.startTime,
       uptime: Date.now() - new Date(this.startTime).getTime(),
+      sessions: {
+        activeCount: this.sessionsActive,
+        totalCreated: this.sessionsCreated,
+        totalResumed: this.sessionsResumed,
+        totalExpired: this.sessionsExpired,
+      },
+      auth: {
+        successCount: this.authSuccess,
+        failureCount: this.authFailure,
+        rateLimitedCount: this.authRateLimited,
+      },
     };
   }
 
@@ -134,6 +226,15 @@ export class TelemetryManager {
     this.sessionCount = 0;
     this.latency = { totalMs: 0, count: 0 };
     this.startTime = new Date().toISOString();
+
+    this.sessionsCreated = 0;
+    this.sessionsResumed = 0;
+    this.sessionsExpired = 0;
+    this.sessionsActive = 0;
+
+    this.authSuccess = 0;
+    this.authFailure = 0;
+    this.authRateLimited = 0;
 
     if (this.enabled) {
       this.flushToDisk();
@@ -190,6 +291,19 @@ export class TelemetryManager {
       if (typeof data.avgLatencyMs === "number" && data.avgLatencyMs > 0) {
         this.latency.totalMs = data.avgLatencyMs * this.toolCallCount;
         this.latency.count = this.toolCallCount;
+      }
+
+      // Load v2 session/auth counters (backward compatible)
+      if (data.sessions && typeof data.sessions === "object") {
+        if (typeof data.sessions.totalCreated === "number") this.sessionsCreated = data.sessions.totalCreated;
+        if (typeof data.sessions.totalResumed === "number") this.sessionsResumed = data.sessions.totalResumed;
+        if (typeof data.sessions.totalExpired === "number") this.sessionsExpired = data.sessions.totalExpired;
+        if (typeof data.sessions.activeCount === "number") this.sessionsActive = data.sessions.activeCount;
+      }
+      if (data.auth && typeof data.auth === "object") {
+        if (typeof data.auth.successCount === "number") this.authSuccess = data.auth.successCount;
+        if (typeof data.auth.failureCount === "number") this.authFailure = data.auth.failureCount;
+        if (typeof data.auth.rateLimitedCount === "number") this.authRateLimited = data.auth.rateLimitedCount;
       }
     } catch (err: any) {
       console.error("[EVOKORE] Failed to load telemetry metrics: " + (err?.message || err));
