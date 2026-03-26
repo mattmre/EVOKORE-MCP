@@ -246,6 +246,54 @@ process.stdin.on('end', () => {
       event: 'hook_mode_allow',
       session_id: sessionId
     });
+
+    // Auto-memory sync on session-wrap boundary (M1.2)
+    if (String(process.env.EVOKORE_AUTO_MEMORY_SYNC || '').toLowerCase() !== 'false') {
+      try {
+        // Only sync if the session had meaningful activity
+        const { readSessionState: readState } = require('./session-continuity');
+        const sessionState = readState(sessionId);
+        const hasActivity = sessionState && (
+          (sessionState.metrics && sessionState.metrics.replayEntries > 0) ||
+          (sessionState.metrics && sessionState.metrics.evidenceEntries > 0) ||
+          sessionState.lastToolName ||
+          sessionState.lastActivityAt
+        );
+        if (hasActivity) {
+          const { syncMemory } = require('./claude-memory');
+          const memResult = syncMemory({ quiet: true, sessionId });
+          writeHookEvent({
+            hook: 'tilldone',
+            mode: 'hook',
+            event: 'auto_memory_sync',
+            session_id: sessionId,
+            synced: memResult.synced,
+            error: memResult.error || null
+          });
+        } else {
+          writeHookEvent({
+            hook: 'tilldone',
+            mode: 'hook',
+            event: 'auto_memory_sync_skipped',
+            session_id: sessionId,
+            reason: 'no_meaningful_activity'
+          });
+        }
+      } catch (memErr) {
+        // Fail-safe: never block session stop due to memory sync failure
+        if (process.env.EVOKORE_DEBUG) {
+          process.stderr.write(`[auto-memory] sync failed: ${memErr && memErr.message ? memErr.message : memErr}\n`);
+        }
+        writeHookEvent({
+          hook: 'tilldone',
+          mode: 'hook',
+          event: 'auto_memory_sync_error',
+          session_id: sessionId,
+          error: String(memErr && memErr.message ? memErr.message : memErr)
+        });
+      }
+    }
+
     process.exit(0);
   } catch (error) {
     // Fail safe — allow stop
