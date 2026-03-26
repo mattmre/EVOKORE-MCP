@@ -9,6 +9,7 @@ const crypto = require('crypto');
 
 const PORT = parseInt(process.env.EVOKORE_DASHBOARD_PORT || '8899', 10);
 const SESSIONS_DIR = path.join(os.homedir(), '.evokore', 'sessions');
+const SESSION_STORE_DIR = path.join(os.homedir(), '.evokore', 'session-store');
 const EVOKORE_STATE_DIR = path.join(os.homedir(), '.evokore');
 const PENDING_APPROVALS_FILE = path.join(EVOKORE_STATE_DIR, 'pending-approvals.json');
 const DENIED_TOKENS_FILE = path.join(EVOKORE_STATE_DIR, 'denied-tokens.json');
@@ -125,42 +126,135 @@ function countLines(filePath) {
   }
 }
 
-// List all sessions with metadata, with optional filtering
-function listSessions(filters) {
+// Derive HTTP session status from TTL/activity
+function deriveHttpSessionStatus(data) {
+  const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour, mirrors SessionIsolation default
+  const ttl = parseInt(process.env.EVOKORE_SESSION_TTL_MS || '', 10) || DEFAULT_TTL_MS;
+  const now = Date.now();
+  const lastAccess = data.lastAccessedAt || data.createdAt || 0;
+  if ((now - lastAccess) > ttl) return 'expired';
+  return 'active';
+}
+
+// Normalize a hook-side session manifest into the unified response shape
+function normalizeHookSession(id, manifest) {
+  const replayFile = path.join(SESSIONS_DIR, id + '-replay.jsonl');
+  const evidenceFile = path.join(SESSIONS_DIR, id + '-evidence.jsonl');
+  return {
+    id,
+    type: 'hook',
+    createdAt: manifest.createdAt || manifest.created || null,
+    lastActivity: manifest.lastActivityAt || manifest.lastActivity || null,
+    status: manifest.status || null,
+    purpose: manifest.purpose || null,
+    replayCount: countLines(replayFile),
+    evidenceCount: countLines(evidenceFile),
+    metadata: {
+      replayPath: (manifest.artifacts && manifest.artifacts.replayLogPath) || null,
+      evidencePath: (manifest.artifacts && manifest.artifacts.evidenceLogPath) || null,
+      metrics: manifest.metrics || null
+    }
+  };
+}
+
+// Normalize an HTTP transport session (from FileSessionStore) into the unified response shape
+function normalizeHttpSession(id, data) {
+  return {
+    id,
+    type: 'http',
+    createdAt: data.createdAt || null,
+    lastActivity: data.lastAccessedAt || null,
+    status: deriveHttpSessionStatus(data),
+    purpose: null,
+    replayCount: 0,
+    evidenceCount: 0,
+    metadata: {
+      activatedTools: data.activatedTools || [],
+      role: data.role || null,
+      rateLimitCounters: data.rateLimitCounters || {},
+      sessionMetadata: data.metadata || {}
+    }
+  };
+}
+
+// Read hook-side sessions from ~/.evokore/sessions/
+function readHookSessions() {
   if (!fs.existsSync(SESSIONS_DIR)) return [];
   const files = fs.readdirSync(SESSIONS_DIR);
 
-  // Manifest files are {sessionId}.json without hyphens in the base name
-  // (replay/evidence/tasks files all have a hyphen before their suffix)
+  // Manifest files are {sessionId}.json
+  // Exclude files like {id}-tasks.json, {id}-replay.jsonl, {id}-evidence.jsonl
   const manifestFiles = files.filter(f => {
     if (!f.endsWith('.json')) return false;
     const base = f.replace('.json', '');
-    // Exclude files like {id}-tasks.json, {id}-evidence.jsonl etc.
-    // A manifest file should not end with -tasks, -replay, -evidence
     return !base.endsWith('-tasks');
   });
 
-  let sessions = manifestFiles.map(f => {
+  return manifestFiles.map(f => {
     const id = f.replace('.json', '');
     try {
       const manifest = JSON.parse(fs.readFileSync(path.join(SESSIONS_DIR, f), 'utf8'));
-      const replayFile = path.join(SESSIONS_DIR, id + '-replay.jsonl');
-      const evidenceFile = path.join(SESSIONS_DIR, id + '-evidence.jsonl');
-      return {
-        id,
-        purpose: manifest.purpose || null,
-        status: manifest.status || null,
-        replayCount: countLines(replayFile),
-        evidenceCount: countLines(evidenceFile),
-        lastActivity: manifest.lastActivityAt || manifest.lastActivity || null
-      };
+      return normalizeHookSession(id, manifest);
     } catch {
-      return { id, purpose: null, status: null, replayCount: 0, evidenceCount: 0, lastActivity: null };
+      return normalizeHookSession(id, {});
     }
-  }).sort((a, b) => (b.lastActivity || '').localeCompare(a.lastActivity || ''));
+  });
+}
+
+// Read HTTP transport sessions from ~/.evokore/session-store/
+function readHttpSessions() {
+  if (!fs.existsSync(SESSION_STORE_DIR)) return [];
+  const files = fs.readdirSync(SESSION_STORE_DIR);
+
+  const jsonFiles = files.filter(f => f.endsWith('.json') && !f.endsWith('.tmp'));
+
+  return jsonFiles.map(f => {
+    const id = f.replace('.json', '');
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(SESSION_STORE_DIR, f), 'utf8'));
+      return normalizeHttpSession(id, data);
+    } catch {
+      return normalizeHttpSession(id, {});
+    }
+  });
+}
+
+// List all sessions with metadata, with optional filtering
+// Reads from both ~/.evokore/sessions/ (hook) and ~/.evokore/session-store/ (http)
+function listSessions(filters) {
+  const hookSessions = readHookSessions();
+  const httpSessions = readHttpSessions();
+
+  // Deduplicate: if a session ID exists in both, prefer hook-side (richer metadata)
+  const seen = new Set();
+  const merged = [];
+
+  for (const s of hookSessions) {
+    seen.add(s.id);
+    merged.push(s);
+  }
+
+  for (const s of httpSessions) {
+    if (!seen.has(s.id)) {
+      seen.add(s.id);
+      merged.push(s);
+    }
+  }
+
+  // Sort by last activity descending
+  let sessions = merged.sort((a, b) => {
+    const aTime = a.lastActivity || '';
+    const bTime = b.lastActivity || '';
+    // Handle both ISO strings and numeric timestamps
+    if (typeof aTime === 'number' && typeof bTime === 'number') return bTime - aTime;
+    return String(bTime).localeCompare(String(aTime));
+  });
 
   // Apply filters if provided
   if (filters) {
+    if (filters.type) {
+      sessions = sessions.filter(s => s.type === filters.type);
+    }
     if (filters.status) {
       sessions = sessions.filter(s => s.status === filters.status);
     }
@@ -168,12 +262,37 @@ function listSessions(filters) {
       const sinceDate = new Date(filters.since);
       if (!isNaN(sinceDate.getTime())) {
         const sinceISO = sinceDate.toISOString();
-        sessions = sessions.filter(s => s.lastActivity && s.lastActivity >= sinceISO);
+        const sinceMs = sinceDate.getTime();
+        sessions = sessions.filter(s => {
+          if (!s.lastActivity) return false;
+          if (typeof s.lastActivity === 'number') return s.lastActivity >= sinceMs;
+          return s.lastActivity >= sinceISO;
+        });
       }
     }
   }
 
   return sessions;
+}
+
+// Return summary counts by session type
+function getSessionTypeCounts() {
+  const hookSessions = readHookSessions();
+  const httpSessions = readHttpSessions();
+
+  // Deduplicate for total count
+  const seen = new Set();
+  for (const s of hookSessions) seen.add(s.id);
+  let httpUnique = 0;
+  for (const s of httpSessions) {
+    if (!seen.has(s.id)) httpUnique++;
+  }
+
+  return {
+    hook: hookSessions.length,
+    http: httpUnique,
+    total: hookSessions.length + httpUnique
+  };
 }
 
 // Read pending approvals from the shared state file
@@ -279,6 +398,7 @@ const dashboardHTML = `<!DOCTYPE html>
     .status-active { background: #065f46; color: #6ee7b7; }
     .status-awaiting { background: #78350f; color: #fcd34d; }
     .status-completed { background: #1e3a5f; color: #93c5fd; }
+    .status-expired { background: #7f1d1d; color: #fca5a5; }
     .status-other { background: #334155; color: #94a3b8; }
     .timeline { margin-top: 16px; }
     .event { display: flex; gap: 12px; padding: 8px 12px; border-left: 2px solid #334155; margin-left: 8px; font-size: 14px; }
@@ -336,6 +456,7 @@ const dashboardHTML = `<!DOCTYPE html>
       if (status === 'active') return '<span class="status-badge status-active">active</span>';
       if (status === 'awaiting-purpose') return '<span class="status-badge status-awaiting">awaiting purpose</span>';
       if (status === 'completed') return '<span class="status-badge status-completed">completed</span>';
+      if (status === 'expired') return '<span class="status-badge status-expired">expired</span>';
       return '<span class="status-badge status-other">' + esc(status) + '</span>';
     }
 
@@ -364,10 +485,19 @@ const dashboardHTML = `<!DOCTYPE html>
       var params = new URLSearchParams();
       var statusFilter = document.getElementById('status-filter');
       var sinceFilter = document.getElementById('since-filter');
+      var typeFilter = document.getElementById('type-filter');
       if (statusFilter && statusFilter.value) params.set('status', statusFilter.value);
       if (sinceFilter && sinceFilter.value) params.set('since', sinceFilter.value);
+      if (typeFilter && typeFilter.value) params.set('type', typeFilter.value);
       var qs = params.toString();
       return API + '/api/sessions' + (qs ? '?' + qs : '');
+    }
+
+    function typeBadge(type) {
+      if (!type) return '';
+      if (type === 'hook') return '<span class="status-badge" style="background:#1e3a5f;color:#93c5fd;margin-left:6px;">hook</span>';
+      if (type === 'http') return '<span class="status-badge" style="background:#3b0764;color:#c4b5fd;margin-left:6px;">http</span>';
+      return '<span class="status-badge status-other" style="margin-left:6px;">' + esc(type) + '</span>';
     }
 
     async function loadSessions() {
@@ -380,11 +510,17 @@ const dashboardHTML = `<!DOCTYPE html>
 
         var html = '<div class="filter-bar">';
         html += '<input type="text" id="session-filter" placeholder="Search sessions..." oninput="filterSessionsLocal()">';
+        html += '<label>Type: </label><select id="type-filter" onchange="loadSessions()">';
+        html += '<option value="">All</option>';
+        html += '<option value="hook">Hook</option>';
+        html += '<option value="http">HTTP</option>';
+        html += '</select>';
         html += '<label>Status: </label><select id="status-filter" onchange="loadSessions()">';
         html += '<option value="">All</option>';
         html += '<option value="active">Active</option>';
         html += '<option value="completed">Completed</option>';
         html += '<option value="awaiting-purpose">Awaiting Purpose</option>';
+        html += '<option value="expired">Expired</option>';
         html += '</select>';
         html += '<label>Since: </label><input type="date" id="since-filter" onchange="loadSessions()">';
         html += '</div>';
@@ -401,7 +537,7 @@ const dashboardHTML = `<!DOCTYPE html>
           html += '<div class="session" data-id="' + esc(s.id) + '" onclick="loadSession(\\'';
           html += esc(s.id);
           html += '\\')">';
-          html += '<div class="id">' + esc(s.id) + statusBadge(s.status) + '</div>';
+          html += '<div class="id">' + esc(s.id) + typeBadge(s.type) + statusBadge(s.status) + '</div>';
           html += '<div class="purpose">' + esc(s.purpose || 'No purpose set') + '</div>';
           html += '<div class="meta">';
           html += '<span class="meta-item">Replay: ' + (s.replayCount || 0) + '</span>';
@@ -709,13 +845,26 @@ function handleRequest(req, res) {
     return;
   }
 
-  // API: list sessions (with optional ?status= and ?since= filtering)
+  // API: session type counts
+  if (url.pathname === '/api/sessions/types') {
+    const counts = getSessionTypeCounts();
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache'
+    });
+    res.end(JSON.stringify(counts));
+    return;
+  }
+
+  // API: list sessions (with optional ?status=, ?since=, ?type= filtering)
   if (url.pathname === '/api/sessions') {
     const filters = {};
     const statusParam = url.searchParams.get('status');
     const sinceParam = url.searchParams.get('since');
+    const typeParam = url.searchParams.get('type');
     if (statusParam) filters.status = statusParam;
     if (sinceParam) filters.since = sinceParam;
+    if (typeParam) filters.type = typeParam;
     const sessions = listSessions(Object.keys(filters).length ? filters : null);
     res.writeHead(200, {
       'Content-Type': 'application/json',
@@ -814,7 +963,8 @@ function handleRequest(req, res) {
 const server = http.createServer(handleRequest);
 server.listen(PORT, '127.0.0.1', () => {
   console.log('EVOKORE Dashboard running at http://127.0.0.1:' + PORT);
-  console.log('Sessions directory: ' + SESSIONS_DIR);
+  console.log('Hook sessions directory: ' + SESSIONS_DIR);
+  console.log('HTTP sessions directory: ' + SESSION_STORE_DIR);
   console.log('Approvals page: http://127.0.0.1:' + PORT + '/approvals');
   if (AUTH_ENABLED) {
     console.log('Authentication: ENABLED (Basic Auth)');
