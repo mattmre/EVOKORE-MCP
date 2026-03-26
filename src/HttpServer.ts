@@ -4,6 +4,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { SessionIsolation } from "./SessionIsolation";
 import { WebhookManager } from "./WebhookManager";
+import { AuditLog } from "./AuditLog";
+import { TelemetryManager } from "./TelemetryManager";
 import {
   authenticateRequest,
   sendUnauthorizedResponse,
@@ -20,6 +22,8 @@ export interface HttpServerOptions {
   sessionIsolation?: SessionIsolation;
   authConfig?: AuthConfig;
   webhookManager?: WebhookManager;
+  auditLog?: AuditLog;
+  telemetryManager?: TelemetryManager;
 }
 
 /**
@@ -39,6 +43,8 @@ export class HttpServer {
   private sessionIsolation: SessionIsolation | null;
   private authConfig: AuthConfig | null;
   private webhookManager: WebhookManager | null;
+  private auditLog: AuditLog;
+  private telemetryManager: TelemetryManager | null;
   private cleanupInterval: ReturnType<typeof setInterval> | null = null;
   private persistInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -50,6 +56,8 @@ export class HttpServer {
     this.sessionIsolation = options?.sessionIsolation ?? null;
     this.authConfig = options?.authConfig ?? null;
     this.webhookManager = options?.webhookManager ?? null;
+    this.auditLog = options?.auditLog ?? AuditLog.getInstance();
+    this.telemetryManager = options?.telemetryManager ?? null;
   }
 
   /**
@@ -91,6 +99,8 @@ export class HttpServer {
           for (const [sessionId, transport] of this.transports.entries()) {
             if (!this.sessionIsolation?.hasSession(sessionId)) {
               this.transports.delete(sessionId);
+              this.auditLog.log("session_expire", "success", { sessionId });
+              this.telemetryManager?.recordSessionExpire();
               transport.close().catch((err) => {
                 console.error(`[EVOKORE-HTTP] Error closing orphaned transport for expired session ${sessionId}:`, err.message);
               });
@@ -206,9 +216,18 @@ export class HttpServer {
       if (!isPublicPath(url)) {
         const authResult = await authenticateRequest(req, this.authConfig);
         if (!authResult.authorized) {
+          this.auditLog.log("auth_failure", "failure", {
+            metadata: { path: url, error: authResult.error || "Unauthorized" },
+          });
+          this.telemetryManager?.recordAuthFailure();
           sendUnauthorizedResponse(res, authResult.error || "Unauthorized");
           return;
         }
+        this.auditLog.log("auth_success", "success", {
+          actor: (authResult.claims?.sub as string) ?? "unknown",
+          metadata: { path: url },
+        });
+        this.telemetryManager?.recordAuthSuccess();
         authClaims = authResult.claims;
       }
     }
@@ -269,6 +288,8 @@ export class HttpServer {
             if (this.webhookManager) {
               this.webhookManager.emit("session_resumed", { sessionId });
             }
+            this.auditLog.log("session_resume", "success", { sessionId });
+            this.telemetryManager?.recordSessionResume();
 
             // Handle the request with the reattached transport
             await reattachedTransport.handleRequest(req, res);
@@ -299,6 +320,12 @@ export class HttpServer {
         this.transports.set(newSessionId, transport);
         const role = roleOverride ?? process.env.EVOKORE_ROLE ?? null;
         this.sessionIsolation?.createSession(newSessionId, role);
+        this.auditLog.log("session_create", "success", {
+          sessionId: newSessionId,
+          actor: role ?? "system",
+          metadata: { transport: "http" },
+        });
+        this.telemetryManager?.recordSessionStart();
         console.error(`[EVOKORE-HTTP] Session initialized: ${newSessionId}`);
       },
     });
