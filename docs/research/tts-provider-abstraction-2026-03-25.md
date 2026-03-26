@@ -1,8 +1,8 @@
 # TTS Provider Abstraction Research
 
 **Date:** 2026-03-25
-**Status:** Implementation approved
-**Related PRs:** TBD (PR 1: interface extraction, PR 2: openai-compat provider)
+**Status:** Implementation complete
+**Related PRs:** #182 (interface extraction), #183 (openai-compat provider)
 
 ## Problem Statement
 
@@ -93,7 +93,7 @@ Response: raw audio bytes (mp3/wav/opus).
 
 ### Voice Persona Mapping
 
-`voices.json` gains optional `openaiVoice` and `openaiModel` fields per persona. Each provider reads the fields it needs; unknown fields are ignored.
+`voices.json` gains optional `openaiVoice` field per persona. The `openaiModel` field is supported in the TypeScript `TTSVoiceConfig` type but falls back to the `EVOKORE_TTS_MODEL` env var (default `tts-1`). Each provider reads the fields it needs; unknown fields are ignored.
 
 ## Implementation Plan
 
