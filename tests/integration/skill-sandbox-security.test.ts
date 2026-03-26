@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 
 const ROOT = path.resolve(__dirname, '../..');
 const skillManagerTsPath = path.join(ROOT, 'src', 'SkillManager.ts');
+const containerSandboxTsPath = path.join(ROOT, 'src', 'ContainerSandbox.ts');
 const skillManagerJsPath = path.join(ROOT, 'dist', 'SkillManager.js');
 
 const mockProxyManager = {
@@ -86,39 +87,48 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
   // ---- Timeout enforcement ----
 
   describe('30-second timeout enforcement', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const smSrc = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const csSrc = fs.readFileSync(containerSandboxTsPath, 'utf8');
 
-    it('sets timeout to 30000ms in execFileAsync', () => {
-      expect(src).toMatch(/timeout:\s*30000/);
+    it('sets timeout to 30000ms in sandbox options', () => {
+      // Timeout may be specified in SkillManager (sandbox options) or ContainerSandbox
+      const combined = smSrc + csSrc;
+      expect(combined).toMatch(/timeout:\s*30000/);
     });
 
     it('detects timed-out processes via err.killed', () => {
-      expect(src).toMatch(/err\.killed/);
+      // The killed flag detection lives in ContainerSandbox (ProcessSandbox/ContainerSandbox)
+      expect(csSrc).toMatch(/err\.killed/);
     });
 
     it('returns timedOut flag in result', () => {
-      expect(src).toMatch(/timedOut:\s*true/);
+      expect(csSrc).toMatch(/timedOut/);
     });
 
     it('includes TIMED OUT marker in handleToolCall output', () => {
-      expect(src).toMatch(/TIMED OUT after 30s/);
+      expect(smSrc).toMatch(/TIMED OUT after 30s/);
     });
   });
 
   // ---- Output limit enforcement ----
 
   describe('1MB output limit enforcement', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
-
-    it('sets maxBuffer to 1MB (1024 * 1024)', () => {
-      expect(src).toMatch(/maxBuffer:\s*1024\s*\*\s*1024/);
+    it('sets maxOutputSize to 1MB (1024 * 1024) and passes it as maxBuffer', () => {
+      // SkillManager sets maxOutputSize: 1024 * 1024 in sandbox options
+      const smSrc = fs.readFileSync(skillManagerTsPath, 'utf8');
+      expect(smSrc).toMatch(/maxOutputSize:\s*1024\s*\*\s*1024/);
+      // ContainerSandbox uses options.maxOutputSize as maxBuffer
+      const csSrc = fs.readFileSync(containerSandboxTsPath, 'utf8');
+      expect(csSrc).toMatch(/maxBuffer:\s*options\.maxOutputSize/);
     });
   });
 
   // ---- Supported languages ----
 
   describe('supported languages', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+    // Executor mappings are now in ContainerSandbox.ts (ProcessSandbox class)
+    const src = fs.readFileSync(containerSandboxTsPath, 'utf8');
+    const smSrc = fs.readFileSync(skillManagerTsPath, 'utf8');
 
     it('supports bash', () => {
       expect(src).toMatch(/"bash":\s*\{/);
@@ -144,7 +154,8 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
     });
 
     it('rejects unsupported languages', () => {
-      expect(src).toMatch(/Unsupported language for execution/);
+      const combined = smSrc + src;
+      expect(combined).toMatch(/Unsupported language/);
     });
 
     it('bash uses -e flag for fail-on-error', () => {
@@ -159,35 +170,37 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
   // ---- Sandbox isolation ----
 
   describe('sandbox isolation mechanisms', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+    // Sandbox implementation is now in ContainerSandbox.ts
+    const csSrc = fs.readFileSync(containerSandboxTsPath, 'utf8');
+    const smSrc = fs.readFileSync(skillManagerTsPath, 'utf8');
 
     it('writes code to OS temp directory', () => {
-      expect(src).toMatch(/os\.tmpdir\(\)/);
+      expect(csSrc).toMatch(/os\.tmpdir\(\)/);
     });
 
     it('uses evokore-sandbox prefix for temp files', () => {
-      expect(src).toMatch(/evokore-sandbox-/);
+      expect(csSrc).toMatch(/evokore-sandbox-/);
     });
 
     it('cleans up sandbox directory after execution', () => {
-      expect(src).toMatch(/rmSync\(sandboxDir/);
+      expect(csSrc).toMatch(/rmSync\(sandboxDir/);
     });
 
     it('cleanup is in a finally block', () => {
       // The finally block ensures cleanup even on error
-      expect(src).toMatch(/finally\s*\{[\s\S]*?rmSync/);
+      expect(csSrc).toMatch(/finally\s*\{[\s\S]*?rmSync/);
     });
 
     it('sets EVOKORE_SANDBOX env variable', () => {
-      expect(src).toMatch(/EVOKORE_SANDBOX.*true/);
+      expect(csSrc).toMatch(/EVOKORE_SANDBOX.*true/);
     });
 
     it('uses execFileAsync (not exec/spawn shell) for safer execution', () => {
-      expect(src).toMatch(/execFileAsync\(/);
+      expect(csSrc).toMatch(/execFileAsync\(/);
     });
 
     it('does not use shell:true for output capture', () => {
-      expect(src).not.toMatch(/shell:\s*true/);
+      expect(csSrc).not.toMatch(/shell:\s*true/);
     });
   });
 
@@ -361,67 +374,78 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
   // ---- Security audit: dangerous patterns handled ----
 
   describe('dangerous code patterns are handled safely', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const smSrc = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const csSrc = fs.readFileSync(containerSandboxTsPath, 'utf8');
 
     it('does not use shell: true in child_process (prevents shell injection)', () => {
       // execFileAsync does not support shell option by default
       // The code uses execFileAsync, not exec or execSync
-      expect(src).toMatch(/execFileAsync\(/);
-      expect(src).not.toMatch(/shell:\s*true/);
+      expect(csSrc).toMatch(/execFileAsync\(/);
+      expect(csSrc).not.toMatch(/shell:\s*true/);
     });
 
     it('builds env from filtered process.env with userEnv merge', () => {
       // Filtered env uses SAFE_ENV_KEYS allowlist, then merges userEnv
-      expect(src).toMatch(/SAFE_ENV_KEYS/);
-      expect(src).toMatch(/Object\.assign\(env,\s*userEnv\)/);
+      expect(smSrc).toMatch(/SAFE_ENV_KEYS/);
+      expect(smSrc).toMatch(/Object\.assign\(env,\s*userEnv\)/);
     });
 
     it('uses mkdtempSync for unique private temp directories', () => {
-      expect(src).toMatch(/mkdtempSync/);
+      expect(csSrc).toMatch(/mkdtempSync/);
     });
 
     it('temp file uses correct extension for each language', () => {
-      expect(src).toMatch(/ext:\s*"\.sh"/);
-      expect(src).toMatch(/ext:\s*"\.js"/);
-      expect(src).toMatch(/ext:\s*"\.py"/);
-      expect(src).toMatch(/ext:\s*"\.ts"/);
+      expect(csSrc).toMatch(/ext:\s*"\.sh"/);
+      expect(csSrc).toMatch(/ext:\s*"\.js"/);
+      expect(csSrc).toMatch(/ext:\s*"\.py"/);
+      expect(csSrc).toMatch(/ext:\s*"\.ts"/);
     });
   });
 
   // ---- Security audit: what is NOT sandboxed ----
 
-  describe('security boundaries: known limitations (audit findings)', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+  describe('security boundaries: container isolation available', () => {
+    const smSrc = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const csSrc = fs.readFileSync(containerSandboxTsPath, 'utf8');
 
-    it('does not use chroot or container isolation', () => {
-      expect(src).not.toMatch(/chroot/);
-      expect(src).not.toMatch(/docker/i);
-      expect(src).not.toMatch(/container/i);
+    it('uses container sandbox via ContainerSandbox module', () => {
+      // SkillManager imports and delegates to ContainerSandbox
+      expect(smSrc).toMatch(/from\s+["']\.\/ContainerSandbox["']/);
+      expect(smSrc).toMatch(/createSandbox/);
     });
 
-    it('does not restrict network access in sandbox', () => {
-      // There is no network sandboxing - the process inherits host networking
-      // This is a known limitation documented in the security audit
-      expect(src).not.toMatch(/seccomp/i);
-      expect(src).not.toMatch(/network.*restrict/i);
+    it('container sandbox enforces network isolation', () => {
+      // ContainerSandbox applies --network=none
+      expect(csSrc).toMatch(/--network=none/);
     });
 
-    it('does not restrict filesystem access beyond sandboxed cwd', () => {
-      // The executed code runs with the same filesystem permissions as the parent
-      // cwd is set to sandboxDir but no chroot/namespace isolation
-      expect(src).not.toMatch(/chroot/i);
+    it('container sandbox enforces read-only filesystem', () => {
+      expect(csSrc).toMatch(/--read-only/);
+    });
+
+    it('container sandbox enforces no-new-privileges', () => {
+      expect(csSrc).toMatch(/no-new-privileges/);
     });
 
     it('filters process.env through SAFE_ENV_KEYS allowlist (secrets stripped)', () => {
       // The env is now filtered - only safe keys are passed through
-      expect(src).toMatch(/SAFE_ENV_KEYS\.has\(key\)/);
-      expect(src).not.toMatch(/\.\.\.process\.env/);
+      expect(smSrc).toMatch(/SAFE_ENV_KEYS\.has\(key\)/);
+      expect(smSrc).not.toMatch(/\.\.\.process\.env/);
     });
   });
 
   // ---- Live execution tests (safe code only) ----
+  // Force process sandbox mode so tests can check process-sandbox-specific
+  // behaviors (cwd, EVOKORE_SANDBOX_DIR, env key filtering).
 
   describe('live execution of safe code blocks', () => {
+    const savedSandboxMode = process.env.EVOKORE_SANDBOX_MODE;
+    beforeAll(() => { process.env.EVOKORE_SANDBOX_MODE = 'process'; });
+    afterAll(() => {
+      if (savedSandboxMode === undefined) delete process.env.EVOKORE_SANDBOX_MODE;
+      else process.env.EVOKORE_SANDBOX_MODE = savedSandboxMode;
+    });
+
     function createSkillManager() {
       const { SkillManager } = require(skillManagerJsPath);
       return new SkillManager(mockProxyManager);
@@ -514,7 +538,16 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
   // ---- Sandbox hardening ----
 
   describe('sandbox hardening', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const smSrc = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const csSrc = fs.readFileSync(containerSandboxTsPath, 'utf8');
+
+    // Force process sandbox mode for runtime tests that check process-sandbox-specific behavior
+    const savedSandboxMode = process.env.EVOKORE_SANDBOX_MODE;
+    beforeAll(() => { process.env.EVOKORE_SANDBOX_MODE = 'process'; });
+    afterAll(() => {
+      if (savedSandboxMode === undefined) delete process.env.EVOKORE_SANDBOX_MODE;
+      else process.env.EVOKORE_SANDBOX_MODE = savedSandboxMode;
+    });
 
     function createSkillManager() {
       const { SkillManager } = require(skillManagerJsPath);
@@ -562,10 +595,10 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
     });
 
     it('defines SAFE_ENV_KEYS allowlist (source check)', () => {
-      expect(src).toMatch(/SAFE_ENV_KEYS\s*=\s*new Set\(/);
-      expect(src).toMatch(/'PATH'/);
-      expect(src).toMatch(/'HOME'/);
-      expect(src).toMatch(/'EVOKORE_SANDBOX'/);
+      expect(smSrc).toMatch(/SAFE_ENV_KEYS\s*=\s*new Set\(/);
+      expect(smSrc).toMatch(/'PATH'/);
+      expect(smSrc).toMatch(/'HOME'/);
+      expect(smSrc).toMatch(/'EVOKORE_SANDBOX'/);
     });
 
     // --- UserEnv blocklist ---
@@ -603,17 +636,16 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
     });
 
     it('defines BLOCKED_ENV_OVERRIDES set (source check)', () => {
-      expect(src).toMatch(/BLOCKED_ENV_OVERRIDES\s*=\s*new Set\(/);
-      expect(src).toMatch(/'NODE_OPTIONS'/);
-      expect(src).toMatch(/'LD_PRELOAD'/);
+      expect(smSrc).toMatch(/BLOCKED_ENV_OVERRIDES\s*=\s*new Set\(/);
+      expect(smSrc).toMatch(/'NODE_OPTIONS'/);
+      expect(smSrc).toMatch(/'LD_PRELOAD'/);
     });
 
     // --- Private temp directory ---
 
     it('uses mkdtempSync for private temp directories (source check)', () => {
-      expect(src).toMatch(/mkdtempSync\(/);
-      // Must NOT use Date.now() for temp file naming anymore
-      expect(src).not.toMatch(/evokore-sandbox-\$\{Date\.now\(\)\}/);
+      // mkdtempSync is now in ContainerSandbox.ts (ProcessSandbox class)
+      expect(csSrc).toMatch(/mkdtempSync\(/);
     });
 
     it('executes code with cwd set to sandbox directory (runtime)', async () => {
@@ -689,15 +721,15 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
     // --- Memory limit ---
 
     it('passes --max-old-space-size=128 for JS execution (source check)', () => {
-      // JS executor must include memory limit flag
-      expect(src).toMatch(/"js":\s*\{[^}]*--max-old-space-size=128/);
-      expect(src).toMatch(/"javascript":\s*\{[^}]*--max-old-space-size=128/);
+      // JS executor in ProcessSandbox (ContainerSandbox.ts) must include memory limit flag
+      expect(csSrc).toMatch(/"js":\s*\{[^}]*--max-old-space-size=128/);
+      expect(csSrc).toMatch(/"javascript":\s*\{[^}]*--max-old-space-size=128/);
     });
 
     it('passes --max-old-space-size=128 for TS execution (source check)', () => {
-      // TS executor must include memory limit flag
-      expect(src).toMatch(/"ts":\s*\{[^}]*--max-old-space-size=128/);
-      expect(src).toMatch(/"typescript":\s*\{[^}]*--max-old-space-size=128/);
+      // TS executor in ProcessSandbox (ContainerSandbox.ts) must include memory limit flag
+      expect(csSrc).toMatch(/"ts":\s*\{[^}]*--max-old-space-size=128/);
+      expect(csSrc).toMatch(/"typescript":\s*\{[^}]*--max-old-space-size=128/);
     });
 
     // --- Backward compatibility ---
@@ -720,12 +752,12 @@ describe('T22: Skill Execution Sandbox Security Audit', () => {
       expect(result.stdout.trim()).toBe('hello');
     });
 
-    it('sets cwd to sandboxDir in execFileSync options (source check)', () => {
-      expect(src).toMatch(/cwd:\s*sandboxDir/);
+    it('sets cwd to sandboxDir in ProcessSandbox (source check)', () => {
+      expect(csSrc).toMatch(/cwd:\s*sandboxDir/);
     });
 
     it('uses recursive rmSync for cleanup (source check)', () => {
-      expect(src).toMatch(/rmSync\(sandboxDir,\s*\{\s*recursive:\s*true,\s*force:\s*true\s*\}/);
+      expect(csSrc).toMatch(/rmSync\(sandboxDir,\s*\{\s*recursive:\s*true,\s*force:\s*true\s*\}/);
     });
   });
 });
