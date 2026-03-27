@@ -138,14 +138,19 @@ test('skill sandbox - executeCodeBlock throws for unknown skill', async () => {
 // ===================================================================
 
 test('skill sandbox - source supports expected languages', () => {
-  // Executor mappings are now in ContainerSandbox.ts (ProcessSandbox class)
+  // Canonical language normalization lives in ContainerSandbox.ts
   const src = fs.readFileSync(path.resolve(__dirname, 'src/ContainerSandbox.ts'), 'utf8');
 
-  const expectedLanguages = ['bash', 'sh', 'javascript', 'js', 'python', 'py', 'typescript', 'ts'];
-  for (const lang of expectedLanguages) {
-    assert.match(src, new RegExp('"' + lang + '"\\s*:'),
-      'Expected executor mapping for language: ' + lang);
-  }
+  assert.match(src, /export function normalizeSandboxLanguage/,
+    'Expected normalizeSandboxLanguage helper in ContainerSandbox');
+  assert.match(src, /case "sh":[\s\S]*return "bash"/,
+    'Expected sh alias to normalize to bash');
+  assert.match(src, /case "js":[\s\S]*return "javascript"/,
+    'Expected js alias to normalize to javascript');
+  assert.match(src, /case "py":[\s\S]*return "python"/,
+    'Expected py alias to normalize to python');
+  assert.match(src, /case "ts":[\s\S]*return "typescript"/,
+    'Expected ts alias to normalize to typescript');
 });
 
 test('skill sandbox - unsupported language error in source', () => {

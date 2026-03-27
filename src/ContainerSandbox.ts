@@ -69,6 +69,14 @@ export interface ContainerImageSpec {
   ext: string;
 }
 
+export type CanonicalSandboxLanguage = "bash" | "javascript" | "typescript" | "python";
+
+export interface ContainerResourceProfile {
+  language: CanonicalSandboxLanguage;
+  memoryMb: number;
+  cpuLimit: number;
+}
+
 export interface ContainerSandboxWarmupResult {
   mode: SandboxMode;
   runtime: ContainerRuntime | null;
@@ -96,6 +104,26 @@ export function getImageSpec(language: SandboxLanguage): ContainerImageSpec {
     case "python":
     case "py":
       return { image: "python:3.12-alpine", command: ["python3"], ext: ".py" };
+    default:
+      throw new Error("Unsupported container sandbox language: " + language);
+  }
+}
+
+export function normalizeSandboxLanguage(language: SandboxLanguage): CanonicalSandboxLanguage {
+  const normalized = language.toLowerCase() as SandboxLanguage;
+  switch (normalized) {
+    case "bash":
+    case "sh":
+      return "bash";
+    case "javascript":
+    case "js":
+      return "javascript";
+    case "typescript":
+    case "ts":
+      return "typescript";
+    case "python":
+    case "py":
+      return "python";
     default:
       throw new Error("Unsupported container sandbox language: " + language);
   }
@@ -198,6 +226,46 @@ export interface ContainerSecurityFlags {
   user: string;
 }
 
+function parseMemoryLimit(value: string | undefined, fallback: number): number {
+  const parsed = parseInt(value || "", 10);
+  return Number.isFinite(parsed) && parsed >= 16 ? parsed : fallback;
+}
+
+function parseCpuLimit(value: string | undefined, fallback: number): number {
+  const parsed = parseFloat(value || "");
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getLanguageResourceEnvKeys(language: CanonicalSandboxLanguage): { memory: string; cpu: string } {
+  const prefix = `EVOKORE_SANDBOX_${language.toUpperCase()}`;
+  return {
+    memory: `${prefix}_MEMORY_MB`,
+    cpu: `${prefix}_CPU_LIMIT`,
+  };
+}
+
+export function resolveContainerResourceProfile(
+  language: SandboxLanguage,
+  opts?: { defaultMemoryMb?: number; defaultCpuLimit?: number },
+): ContainerResourceProfile {
+  const normalizedLanguage = normalizeSandboxLanguage(language);
+  const defaultMemoryMb = parseMemoryLimit(
+    opts?.defaultMemoryMb !== undefined ? String(opts.defaultMemoryMb) : process.env.EVOKORE_SANDBOX_MEMORY_MB,
+    256,
+  );
+  const defaultCpuLimit = parseCpuLimit(
+    opts?.defaultCpuLimit !== undefined ? String(opts.defaultCpuLimit) : process.env.EVOKORE_SANDBOX_CPU_LIMIT,
+    1,
+  );
+  const envKeys = getLanguageResourceEnvKeys(normalizedLanguage);
+
+  return {
+    language: normalizedLanguage,
+    memoryMb: parseMemoryLimit(process.env[envKeys.memory], defaultMemoryMb),
+    cpuLimit: parseCpuLimit(process.env[envKeys.cpu], defaultCpuLimit),
+  };
+}
+
 /**
  * Build the Docker/Podman CLI security flags from options.
  * Exported for testing so that assertions can verify the exact flags without
@@ -252,17 +320,20 @@ export function getSecurityFlagDescriptor(
 // ---------------------------------------------------------------------------
 
 export class ContainerSandbox {
-  private memoryMb: number;
-  private cpuLimit: number;
+  private defaultMemoryMb: number;
+  private defaultCpuLimit: number;
   private seccompProfilePath: string | null;
 
   constructor(opts?: { memoryMb?: number; cpuLimit?: number; seccompProfilePath?: string | null }) {
-    this.memoryMb = opts?.memoryMb ?? parseInt(process.env.EVOKORE_SANDBOX_MEMORY_MB || "256", 10);
-    this.cpuLimit = opts?.cpuLimit ?? parseFloat(process.env.EVOKORE_SANDBOX_CPU_LIMIT || "1");
+    this.defaultMemoryMb = parseMemoryLimit(
+      opts?.memoryMb !== undefined ? String(opts.memoryMb) : process.env.EVOKORE_SANDBOX_MEMORY_MB,
+      256,
+    );
+    this.defaultCpuLimit = parseCpuLimit(
+      opts?.cpuLimit !== undefined ? String(opts.cpuLimit) : process.env.EVOKORE_SANDBOX_CPU_LIMIT,
+      1,
+    );
     this.seccompProfilePath = opts?.seccompProfilePath ?? resolveSeccompProfilePath();
-
-    if (!Number.isFinite(this.memoryMb) || this.memoryMb < 16) this.memoryMb = 256;
-    if (!Number.isFinite(this.cpuLimit) || this.cpuLimit <= 0) this.cpuLimit = 1;
   }
 
   /**
@@ -285,6 +356,10 @@ export class ContainerSandbox {
     options: SandboxOptions,
   ): Promise<SandboxResult> {
     const spec = getImageSpec(options.language);
+    const resourceProfile = resolveContainerResourceProfile(options.language, {
+      defaultMemoryMb: this.defaultMemoryMb,
+      defaultCpuLimit: this.defaultCpuLimit,
+    });
 
     // Create a temp directory on the host to hold the script file.
     // This directory will be bind-mounted read-only into the container.
@@ -300,7 +375,7 @@ export class ContainerSandbox {
     const runArgs: string[] = [
       "run",
       "--rm",
-      ...buildSecurityArgs(this.memoryMb, this.cpuLimit, this.seccompProfilePath),
+      ...buildSecurityArgs(resourceProfile.memoryMb, resourceProfile.cpuLimit, this.seccompProfilePath),
       // Bind-mount the host script directory as read-only
       "-v", `${hostDir}:${containerWorkdir}:ro`,
       "-w", "/tmp",

@@ -209,6 +209,9 @@ The `execute_skill` tool extracts fenced code blocks from a skill file and runs 
 - Timeout: 30 seconds per execution
 - Output limit: 1 MB
 - Isolation: runs in a subprocess, not in the MCP server process
+- Container mode uses the global `EVOKORE_SANDBOX_MEMORY_MB` / `EVOKORE_SANDBOX_CPU_LIMIT`
+  baseline plus optional per-language overrides for `bash`, `javascript`, `typescript`,
+  and `python`
 
 Example usage through your AI client: *"Execute the setup steps from the 'project-bootstrap' skill."*
 
