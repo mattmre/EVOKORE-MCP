@@ -1,5 +1,23 @@
 # Findings
 
+## Session 3: Slice S3.4 / S3.5 Review Closure
+
+### PR #209 Review Outcome
+- The only actionable finding on the open wrap PR was semantic drift in the handoff docs: `next-session.md` and the new wrap log were written from the "PR still open" perspective and would have become stale immediately after merge.
+- That was corrected in commit `4ec7226` before PR `#209` merged as `8dc1ad4`.
+- Fresh CI on `#209` went green after the fix, and clean merged-main validation passed locally afterward.
+
+### Post-M3 ARCH-AEP Review Result
+- The new review artifact is `docs/research/arch-aep-post-m3-review-2026-03-27.md`.
+- Verdict: **PASS with follow-up queue**.
+- No blocking contract, privacy, governance, or operational regressions were identified across M3.1 through M3.4.
+
+### Explicit Follow-Up Queue Confirmed By Review
+- Prometheus `/metrics` pull endpoint remains a deliberate follow-up to telemetry export, not a hidden regression in M3.
+- Dashboard approve-over-WebSocket remains a deliberate follow-up to the live approval-event channel, not a broken approval contract.
+- Audit event export remains intentionally separate from aggregate telemetry export.
+- Sandbox hardening beyond the landed container isolation (`seccomp`, image pre-pull, per-language limits) remains a queued follow-up, not unfinished M3 scope.
+
 ## Session 3: Post-Roadmap Remaining Work
 
 ### Current Execution Constraint
