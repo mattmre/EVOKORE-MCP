@@ -32,6 +32,7 @@ import { TelemetryExporter } from "./TelemetryExporter";
 import { RegistryManager } from "./RegistryManager";
 import { AuditLog } from "./AuditLog";
 import { AuditExporter } from "./AuditExporter";
+import { warmContainerSandboxImages } from "./ContainerSandbox";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -734,6 +735,25 @@ export class EvokoreMCPServer {
 
     // Initialize audit exporter (no-ops unless audit logging and export are both enabled)
     this.auditExporter.initialize();
+
+    if (process.env.EVOKORE_SANDBOX_PREPULL === "true") {
+      try {
+        const warmup = await warmContainerSandboxImages();
+        if (warmup.skippedReason) {
+          console.error(`[EVOKORE] Container sandbox image warmup skipped: ${warmup.skippedReason}.`);
+        } else if (warmup.failures.length > 0) {
+          console.error(
+            `[EVOKORE] Container sandbox image warmup completed with ${warmup.failures.length} failure(s): ${warmup.failures.join("; ")}`
+          );
+        } else {
+          console.error(
+            `[EVOKORE] Container sandbox images ready (${warmup.warmedImages.length}/${warmup.candidateImages.length}).`
+          );
+        }
+      } catch (error: any) {
+        console.error(`[EVOKORE] Container sandbox image warmup failed: ${error?.message || error}`);
+      }
+    }
 
     this.rebuildToolCatalog();
 
