@@ -67,7 +67,8 @@ then squash-merged sequentially.
 
 ## Next Session
 
-- Merge the control-plane/session-wrap PR
+- Start from the merged control-plane wrap on `main`
+- Refresh the canonical root checkout and rerun `npm run repo:audit`
 - Then do the next executable engineering slice:
   - post-M3 ARCH-AEP / M4 review
 - Keep release closure parked behind operator action on `NPM_TOKEN`

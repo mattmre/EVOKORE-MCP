@@ -3,10 +3,10 @@
 Last Updated (UTC): 2026-03-27
 
 ## Current Handoff State
-- **Main branch:** `2a84de2` — full M0-M3 roadmap execution complete, plus S3.1/S3.2 stabilization merged
-- **Open PRs:** `#209` — control-plane/session-wrap handoff
-- **Worktrees:** session-wrap/control-plane PR `#209` is open from a dedicated branch; canonical repo baseline is `origin/main`
-- **Local branches:** `main` on the root checkout; this wrap is being prepared on a dedicated `chore/session-wrap-*` branch
+- **Main branch:** `main` contains the full M0-M3 roadmap execution, S3.1/S3.2 stabilization, and the control-plane wrap from PR `#209`
+- **Open PRs:** none at wrap completion; verify with `gh pr list --state open` before starting the next slice
+- **Worktrees:** use the root checkout as the canonical handoff workspace and create fresh disposable worktrees for new slices
+- **Local branches:** refresh the root checkout onto the latest `main` before starting S3.5
 - **Validation:** 135 test files, 2462 tests passing, 24 skipped
 - **Release:** GitHub release/tag `v3.1.0` exists; npm package is still unpublished and `NPM_TOKEN` is missing or unconfirmed
 - **Session logs:** `docs/session-logs/session-2026-03-26-post-roadmap-stabilization-wrap.md`
@@ -28,9 +28,10 @@ Last Updated (UTC): 2026-03-27
 - Choose the publish path for the existing `v3.1.0` tag / GitHub release
 - Verify npm publication externally after operator action
 
-### Priority 1: Land The Control-Plane Wrap PR
-- Merge PR `#209`, which updates `next-session.md`, `CLAUDE.md`, roadmap status, and session logs
-- Keep the dirty root workspace off stale `main` history until the control-plane wrap is preserved
+### Priority 1: Post-Wrap Transition
+- Refresh the canonical root checkout onto the latest `main`
+- Run `npm run repo:audit` after the wrap lands to confirm there is no new drift
+- Retire the dedicated `chore/session-wrap-*` branch/worktree once its state is preserved
 
 ### Priority 2: M4 Continuous Improvement
 - Run a post-M3 ARCH-AEP review to assess cross-milestone coherence

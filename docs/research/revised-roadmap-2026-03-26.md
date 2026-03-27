@@ -14,7 +14,7 @@ This document is the durable planning artifact. `next-session.md` should remain 
 
 ## Current Baseline
 
-- `origin/main` is at `2a84de2`
+- `main` contains the full M0-M3 execution wave plus S3.1/S3.2 stabilization; this wrap synchronizes the control-plane artifacts to that state
 - `v3.1.0` was released on GitHub
 - npm publication is still blocked by missing or unconfirmed `NPM_TOKEN`
 - Validation coverage on current `main`: 135 test files, 2462 tests passing, 24 skipped

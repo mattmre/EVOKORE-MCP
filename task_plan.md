@@ -9,13 +9,13 @@ Execute the remaining post-roadmap work sequentially with fresh branches/agents 
 5. queue lower-priority expansion follow-ups as separate PR-sized slices
 
 ## Current Phase
-Phase S3.4 execution: release closure is researched and currently operator-gated on `NPM_TOKEN`, and the active work is packaging the docs/control-plane sync as a dedicated session-wrap PR.
+Phase S3.5 preparation: this control-plane wrap is the final S3.4 preservation step, and the next executable slice after it lands is the post-M3 ARCH-AEP / M4 review.
 
 ## Current Repo / PR State
-- Open PRs: `#209` (session-wrap / control-plane handoff)
+- Active wrap PR: `#209` while this branch is under review; expected open-PR state after merge: none
 - Local branch: `main`
 - Existing root-checkout drift: planning files plus `test-worktree-cleanup-validation.js`; this wrap branch exists to preserve that control-plane state cleanly
-- Constraint: the requested "review open PR comments" workflow is currently blocked by GitHub state, so execution starts with creating the next sequential PR slices instead
+- Constraint: the original "review open PR comments" request was blocked at Session 3 kickoff because GitHub had no open implementation PRs, so the work pivoted into fresh sequential slices. After this wrap lands, the next active phase is S3.5.
 
 ## Remaining Execution Queue
 
