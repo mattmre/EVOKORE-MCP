@@ -1,5 +1,26 @@
 # Progress
 
+## 2026-03-26
+- Merged PR `#210` to `main` as `ce1a75f`, closing the post-M3 ARCH-AEP / M4 review slice
+- Created fresh worktree `D:/GITHUB/EVOKORE-MCP-s3-6` on branch `feat/prometheus-metrics-endpoint`
+- Researched the S3.6 metrics surface across `TelemetryManager`, `HttpServer`, auth middleware, and existing integration tests
+- Added `docs/research/prometheus-metrics-endpoint-2026-03-26.md` to record the scope/auth/disabled-state decisions for the pull endpoint
+- Implemented Prometheus text exposition in `TelemetryManager.getPrometheusMetrics()`
+- Added `GET /metrics` to `HttpServer`:
+  - returns Prometheus text when telemetry is enabled
+  - returns `503` text when telemetry is disabled or unavailable
+  - stays behind the existing auth middleware when `EVOKORE_AUTH_REQUIRED=true`
+  - does not let Prometheus scrapes mutate auth success/failure telemetry
+- Updated `.env.example` to document the new scrape surface and auth expectation
+- Added targeted validation coverage for:
+  - Prometheus exposition output
+  - unauthenticated and authenticated `/metrics` behavior
+  - `/metrics` remaining non-public in `isPublicPath()`
+  - `/metrics` scrapes not incrementing auth counters
+- Targeted local validation passed:
+  - `npx vitest run tests/integration/telemetry-manager.test.ts tests/integration/http-server-transport.test.ts tests/integration/oauth-authentication.test.ts tests/integration/oauth-httpserver-middleware.test.ts`
+  - `npm run build`
+
 ## 2026-03-27
 - Completed PR-manager self-review and merge of PR `#209`:
   - found and fixed pre-merge wording drift in the wrap handoff artifacts

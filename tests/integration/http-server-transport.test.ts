@@ -76,6 +76,10 @@ describe('T26: StreamableHTTP Server Transport', () => {
       expect(src).toMatch(/\/health/);
     });
 
+    it('handles /metrics GET requests', () => {
+      expect(src).toMatch(/\/metrics/);
+    });
+
     it('handles /mcp endpoint', () => {
       expect(src).toMatch(/\/mcp/);
     });
@@ -198,6 +202,61 @@ describe('T26: StreamableHTTP Server Transport', () => {
         method: 'GET',
       });
       expect(res.statusCode).toBe(404);
+    });
+
+    it('GET /metrics returns 503 when telemetry is unavailable', async () => {
+      const addr = httpServer.getAddress();
+      const res = await httpRequest({
+        hostname: '127.0.0.1',
+        port: addr.port,
+        path: '/metrics',
+        method: 'GET',
+      });
+
+      expect(res.statusCode).toBe(503);
+      expect(res.headers['content-type']).toContain('text/plain');
+      expect(res.body).toContain('EVOKORE telemetry is disabled');
+    });
+
+    it('GET /metrics returns Prometheus text when telemetry is enabled', async () => {
+      const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
+      const { HttpServer } = require(httpServerJsPath);
+      const { TelemetryManager } = require(path.join(ROOT, 'dist', 'TelemetryManager.js'));
+
+      const mcpServer2 = new Server(
+        { name: 'metrics-test', version: '0.0.1' },
+        { capabilities: { tools: {} } }
+      );
+      const telemetryManager = new TelemetryManager();
+      telemetryManager.setEnabled(true);
+      telemetryManager.recordToolCall(42);
+      telemetryManager.recordSessionStart();
+      telemetryManager.recordAuthSuccess();
+
+      const server2 = new HttpServer(mcpServer2, {
+        port: 0,
+        host: '127.0.0.1',
+        telemetryManager,
+      });
+      await server2.start();
+
+      const addr2 = server2.getAddress();
+      const res = await httpRequest({
+        hostname: '127.0.0.1',
+        port: addr2.port,
+        path: '/metrics',
+        method: 'GET',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/plain');
+      expect(res.body).toContain('# HELP evokore_tool_calls_total');
+      expect(res.body).toContain('evokore_tool_calls_total 1');
+      expect(res.body).toContain('evokore_tool_latency_average_milliseconds 42');
+      expect(res.body).toContain('evokore_sessions_started_total 1');
+      expect(res.body).toContain('evokore_auth_success_total 1');
+
+      await server2.stop();
     });
 
     it('POST /mcp with a valid JSON-RPC initialize request gets a response', async () => {

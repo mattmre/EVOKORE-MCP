@@ -218,6 +218,63 @@ export class TelemetryManager {
   }
 
   /**
+   * Render the current telemetry snapshot in Prometheus text exposition format.
+   */
+  getPrometheusMetrics(): string {
+    const metrics = this.getMetrics();
+    const processStartTimeSeconds = Math.floor(new Date(metrics.startTime).getTime() / 1000);
+    const lines = [
+      "# HELP evokore_telemetry_enabled Whether EVOKORE telemetry collection is enabled.",
+      "# TYPE evokore_telemetry_enabled gauge",
+      `evokore_telemetry_enabled ${this.enabled ? 1 : 0}`,
+      "# HELP evokore_telemetry_schema_version Telemetry schema version exposed by the runtime.",
+      "# TYPE evokore_telemetry_schema_version gauge",
+      `evokore_telemetry_schema_version ${metrics.telemetryVersion}`,
+      "# HELP evokore_tool_calls_total Total MCP tool calls recorded by telemetry.",
+      "# TYPE evokore_tool_calls_total counter",
+      `evokore_tool_calls_total ${metrics.toolCallCount}`,
+      "# HELP evokore_tool_errors_total Total MCP tool call errors recorded by telemetry.",
+      "# TYPE evokore_tool_errors_total counter",
+      `evokore_tool_errors_total ${metrics.toolErrorCount}`,
+      "# HELP evokore_tool_latency_average_milliseconds Average MCP tool latency in milliseconds.",
+      "# TYPE evokore_tool_latency_average_milliseconds gauge",
+      `evokore_tool_latency_average_milliseconds ${metrics.avgLatencyMs}`,
+      "# HELP evokore_sessions_started_total Total EVOKORE sessions started since telemetry reset.",
+      "# TYPE evokore_sessions_started_total counter",
+      `evokore_sessions_started_total ${metrics.sessionCount}`,
+      "# HELP evokore_sessions_active Current number of active EVOKORE sessions.",
+      "# TYPE evokore_sessions_active gauge",
+      `evokore_sessions_active ${metrics.sessions.activeCount}`,
+      "# HELP evokore_sessions_created_total Total EVOKORE sessions created since telemetry reset.",
+      "# TYPE evokore_sessions_created_total counter",
+      `evokore_sessions_created_total ${metrics.sessions.totalCreated}`,
+      "# HELP evokore_sessions_resumed_total Total EVOKORE session resumptions since telemetry reset.",
+      "# TYPE evokore_sessions_resumed_total counter",
+      `evokore_sessions_resumed_total ${metrics.sessions.totalResumed}`,
+      "# HELP evokore_sessions_expired_total Total EVOKORE session expirations since telemetry reset.",
+      "# TYPE evokore_sessions_expired_total counter",
+      `evokore_sessions_expired_total ${metrics.sessions.totalExpired}`,
+      "# HELP evokore_auth_success_total Total successful auth checks recorded by telemetry.",
+      "# TYPE evokore_auth_success_total counter",
+      `evokore_auth_success_total ${metrics.auth.successCount}`,
+      "# HELP evokore_auth_failure_total Total failed auth checks recorded by telemetry.",
+      "# TYPE evokore_auth_failure_total counter",
+      `evokore_auth_failure_total ${metrics.auth.failureCount}`,
+      "# HELP evokore_auth_rate_limited_total Total rate-limited auth checks recorded by telemetry.",
+      "# TYPE evokore_auth_rate_limited_total counter",
+      `evokore_auth_rate_limited_total ${metrics.auth.rateLimitedCount}`,
+      "# HELP evokore_process_start_time_seconds Unix time when telemetry counters were last initialized or reset.",
+      "# TYPE evokore_process_start_time_seconds gauge",
+      `evokore_process_start_time_seconds ${processStartTimeSeconds}`,
+      "# HELP evokore_uptime_milliseconds Telemetry runtime uptime in milliseconds.",
+      "# TYPE evokore_uptime_milliseconds gauge",
+      `evokore_uptime_milliseconds ${metrics.uptime}`,
+    ];
+
+    return `${lines.join("\n")}\n`;
+  }
+
+  /**
    * Reset all metrics to zero.
    */
   resetMetrics(): void {

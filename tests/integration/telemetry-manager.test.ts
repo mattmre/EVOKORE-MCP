@@ -71,6 +71,10 @@ describe('TelemetryManager', () => {
       expect(src).toMatch(/getMetrics\(\):\s*TelemetryMetrics/);
     });
 
+    it('has getPrometheusMetrics method', () => {
+      expect(src).toMatch(/getPrometheusMetrics\(\):\s*string/);
+    });
+
     it('has resetMetrics method', () => {
       expect(src).toMatch(/resetMetrics/);
     });
@@ -475,6 +479,51 @@ describe('TelemetryManager', () => {
       const metrics = JSON.parse(result.content[0].text);
       expect(metrics.toolCallCount).toBe(1);
       expect(metrics.avgLatencyMs).toBe(100);
+    });
+  });
+
+  // ---- Prometheus exposition ----
+
+  describe('Prometheus exposition', () => {
+    it('renders current telemetry snapshot in Prometheus text format', () => {
+      const { TelemetryManager } = require(telemetryManagerJsPath);
+      const tm = new TelemetryManager();
+      tm.setEnabled(true);
+
+      tm.recordToolCall(100);
+      tm.recordToolError();
+      tm.recordSessionStart();
+      tm.recordSessionResume();
+      tm.recordSessionExpire();
+      tm.recordAuthSuccess();
+      tm.recordAuthFailure();
+      tm.recordAuthRateLimited();
+
+      const output = tm.getPrometheusMetrics();
+
+      expect(output).toContain('# HELP evokore_tool_calls_total');
+      expect(output).toContain('# TYPE evokore_tool_calls_total counter');
+      expect(output).toContain('evokore_tool_calls_total 1');
+      expect(output).toContain('evokore_tool_errors_total 1');
+      expect(output).toContain('evokore_sessions_started_total 1');
+      expect(output).toContain('evokore_sessions_resumed_total 1');
+      expect(output).toContain('evokore_sessions_expired_total 1');
+      expect(output).toContain('evokore_auth_success_total 1');
+      expect(output).toContain('evokore_auth_failure_total 1');
+      expect(output).toContain('evokore_auth_rate_limited_total 1');
+      expect(output).toContain('evokore_telemetry_enabled 1');
+      expect(output).toContain('evokore_tool_latency_average_milliseconds 100');
+      expect(output.endsWith('\n')).toBe(true);
+    });
+
+    it('reports telemetry disabled when manager is disabled', () => {
+      const { TelemetryManager } = require(telemetryManagerJsPath);
+      const tm = new TelemetryManager();
+
+      const output = tm.getPrometheusMetrics();
+
+      expect(output).toContain('evokore_telemetry_enabled 0');
+      expect(output).toContain('evokore_tool_calls_total 0');
     });
   });
 
