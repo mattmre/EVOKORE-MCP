@@ -305,8 +305,10 @@ export class HttpServer {
           return;
         }
 
+        const role = (authResult.claims?.role as string) || process.env.EVOKORE_ROLE || "";
+        (req as any)._evokoreRole = role;
+
         // RBAC: require at least developer role for WebSocket connections
-        const role = (authResult.claims?.role as string) || "";
         const roleLevels: Record<string, number> = { admin: 3, developer: 2, readonly: 1 };
         if ((roleLevels[role] || 0) < (roleLevels["developer"] || 0)) {
           socket.write("HTTP/1.1 403 Forbidden\r\nContent-Type: text/plain\r\n\r\nInsufficient role\r\n");
