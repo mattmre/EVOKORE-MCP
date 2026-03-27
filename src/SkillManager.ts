@@ -13,6 +13,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import {
   createSandbox,
+  normalizeSandboxLanguage,
   type SandboxLanguage,
   type SandboxOptions,
   type SandboxResult,
@@ -719,11 +720,10 @@ export class SkillManager {
     }
 
     const block = blocks[stepIndex];
-    const language = block.language.toLowerCase() as SandboxLanguage;
-
-    // Validate language is supported before creating sandbox
-    const supportedLanguages = new Set(["bash", "sh", "javascript", "js", "python", "py", "typescript", "ts"]);
-    if (!supportedLanguages.has(language)) {
+    let language: SandboxLanguage;
+    try {
+      language = normalizeSandboxLanguage(block.language.toLowerCase() as SandboxLanguage);
+    } catch {
       throw new Error("Unsupported language for execution: " + block.language);
     }
 

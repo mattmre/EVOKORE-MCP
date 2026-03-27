@@ -52,6 +52,10 @@ describe('ContainerSandbox module structure', () => {
     expect(sourceCode).toMatch(/export function getImageSpec/);
   });
 
+  it('exports normalizeSandboxLanguage function', () => {
+    expect(sourceCode).toMatch(/export function normalizeSandboxLanguage/);
+  });
+
   it('exports buildSecurityArgs function', () => {
     expect(sourceCode).toMatch(/export function buildSecurityArgs/);
   });
@@ -66,6 +70,10 @@ describe('ContainerSandbox module structure', () => {
 
   it('exports warmContainerSandboxImages function', () => {
     expect(sourceCode).toMatch(/export async function warmContainerSandboxImages/);
+  });
+
+  it('exports resolveContainerResourceProfile function', () => {
+    expect(sourceCode).toMatch(/export function resolveContainerResourceProfile/);
   });
 
   it('exports resolveSandboxMode function', () => {
@@ -156,6 +164,15 @@ describe('ContainerSandbox compiled module', () => {
 
     it('throws on unsupported language', () => {
       expect(() => mod.getImageSpec('ruby' as any)).toThrow(/unsupported/i);
+    });
+  });
+
+  describe('normalizeSandboxLanguage()', () => {
+    it('maps aliases to canonical language families', () => {
+      expect(mod.normalizeSandboxLanguage('sh')).toBe('bash');
+      expect(mod.normalizeSandboxLanguage('js')).toBe('javascript');
+      expect(mod.normalizeSandboxLanguage('ts')).toBe('typescript');
+      expect(mod.normalizeSandboxLanguage('py')).toBe('python');
     });
   });
 
@@ -274,6 +291,73 @@ describe('ContainerSandbox compiled module', () => {
 
     it('throws when the configured seccomp profile path does not exist', () => {
       expect(() => mod.resolveSeccompProfilePath('./does-not-exist.json')).toThrow(/does not exist/i);
+    });
+  });
+
+  describe('resolveContainerResourceProfile()', () => {
+    const originalEnv = {
+      EVOKORE_SANDBOX_MEMORY_MB: process.env.EVOKORE_SANDBOX_MEMORY_MB,
+      EVOKORE_SANDBOX_CPU_LIMIT: process.env.EVOKORE_SANDBOX_CPU_LIMIT,
+      EVOKORE_SANDBOX_BASH_MEMORY_MB: process.env.EVOKORE_SANDBOX_BASH_MEMORY_MB,
+      EVOKORE_SANDBOX_BASH_CPU_LIMIT: process.env.EVOKORE_SANDBOX_BASH_CPU_LIMIT,
+      EVOKORE_SANDBOX_JAVASCRIPT_MEMORY_MB: process.env.EVOKORE_SANDBOX_JAVASCRIPT_MEMORY_MB,
+      EVOKORE_SANDBOX_JAVASCRIPT_CPU_LIMIT: process.env.EVOKORE_SANDBOX_JAVASCRIPT_CPU_LIMIT,
+      EVOKORE_SANDBOX_TYPESCRIPT_MEMORY_MB: process.env.EVOKORE_SANDBOX_TYPESCRIPT_MEMORY_MB,
+      EVOKORE_SANDBOX_TYPESCRIPT_CPU_LIMIT: process.env.EVOKORE_SANDBOX_TYPESCRIPT_CPU_LIMIT,
+      EVOKORE_SANDBOX_PYTHON_MEMORY_MB: process.env.EVOKORE_SANDBOX_PYTHON_MEMORY_MB,
+      EVOKORE_SANDBOX_PYTHON_CPU_LIMIT: process.env.EVOKORE_SANDBOX_PYTHON_CPU_LIMIT,
+    };
+
+    afterAll(() => {
+      for (const [key, value] of Object.entries(originalEnv)) {
+        if (value === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = value;
+        }
+      }
+    });
+
+    it('uses global defaults when no per-language override is configured', () => {
+      process.env.EVOKORE_SANDBOX_MEMORY_MB = '256';
+      process.env.EVOKORE_SANDBOX_CPU_LIMIT = '1';
+      delete process.env.EVOKORE_SANDBOX_PYTHON_MEMORY_MB;
+      delete process.env.EVOKORE_SANDBOX_PYTHON_CPU_LIMIT;
+
+      expect(mod.resolveContainerResourceProfile('python')).toEqual({
+        language: 'python',
+        memoryMb: 256,
+        cpuLimit: 1,
+      });
+    });
+
+    it('applies canonical per-language env overrides', () => {
+      process.env.EVOKORE_SANDBOX_MEMORY_MB = '256';
+      process.env.EVOKORE_SANDBOX_CPU_LIMIT = '1';
+      process.env.EVOKORE_SANDBOX_PYTHON_MEMORY_MB = '512';
+      process.env.EVOKORE_SANDBOX_PYTHON_CPU_LIMIT = '1.5';
+
+      expect(mod.resolveContainerResourceProfile('py')).toEqual({
+        language: 'python',
+        memoryMb: 512,
+        cpuLimit: 1.5,
+      });
+    });
+
+    it('accepts explicit constructor baselines before env overrides', () => {
+      delete process.env.EVOKORE_SANDBOX_TYPESCRIPT_MEMORY_MB;
+      delete process.env.EVOKORE_SANDBOX_TYPESCRIPT_CPU_LIMIT;
+
+      expect(
+        mod.resolveContainerResourceProfile('typescript', {
+          defaultMemoryMb: 384,
+          defaultCpuLimit: 1.25,
+        })
+      ).toEqual({
+        language: 'typescript',
+        memoryMb: 384,
+        cpuLimit: 1.25,
+      });
     });
   });
 
@@ -650,6 +734,38 @@ describe('Container sandbox env var documentation', () => {
 
   it('documents EVOKORE_SANDBOX_SECCOMP_PROFILE', () => {
     expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_SECCOMP_PROFILE/);
+  });
+
+  it('documents EVOKORE_SANDBOX_BASH_MEMORY_MB', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_BASH_MEMORY_MB/);
+  });
+
+  it('documents EVOKORE_SANDBOX_JAVASCRIPT_MEMORY_MB', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_JAVASCRIPT_MEMORY_MB/);
+  });
+
+  it('documents EVOKORE_SANDBOX_TYPESCRIPT_MEMORY_MB', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_TYPESCRIPT_MEMORY_MB/);
+  });
+
+  it('documents EVOKORE_SANDBOX_PYTHON_MEMORY_MB', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_PYTHON_MEMORY_MB/);
+  });
+
+  it('documents EVOKORE_SANDBOX_BASH_CPU_LIMIT', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_BASH_CPU_LIMIT/);
+  });
+
+  it('documents EVOKORE_SANDBOX_JAVASCRIPT_CPU_LIMIT', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_JAVASCRIPT_CPU_LIMIT/);
+  });
+
+  it('documents EVOKORE_SANDBOX_TYPESCRIPT_CPU_LIMIT', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_TYPESCRIPT_CPU_LIMIT/);
+  });
+
+  it('documents EVOKORE_SANDBOX_PYTHON_CPU_LIMIT', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_PYTHON_CPU_LIMIT/);
   });
 });
 
