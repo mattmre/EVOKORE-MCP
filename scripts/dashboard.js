@@ -19,6 +19,20 @@ const DENIED_TOKENS_FILE = path.join(EVOKORE_STATE_DIR, 'denied-tokens.json');
 const DASHBOARD_TOKEN = process.env.EVOKORE_DASHBOARD_TOKEN || '';
 const TOKEN_AUTH_ENABLED = !!DASHBOARD_TOKEN;
 
+// Optional explicit approvals WebSocket endpoint used by the approvals page.
+// This avoids assuming the MCP approvals channel lives on the same origin
+// as the separate dashboard process.
+const APPROVAL_WS_URL = (process.env.EVOKORE_DASHBOARD_APPROVAL_WS_URL || '').trim();
+const APPROVAL_WS_HOST = (process.env.EVOKORE_HTTP_HOST || '').trim();
+const APPROVAL_WS_PORT = (function() {
+  const httpPort = parseInt(process.env.EVOKORE_HTTP_PORT || '3100', 10);
+  return Number.isFinite(httpPort) && httpPort > 0 ? String(httpPort) : '3100';
+})();
+
+// Optional dedicated bearer token for the approvals WebSocket endpoint.
+// When unset, the page falls back to the dashboard session token.
+const APPROVAL_WS_TOKEN = process.env.EVOKORE_DASHBOARD_APPROVAL_WS_TOKEN || '';
+
 // RBAC role: admin (default for local-only), readonly (default for token mode)
 const VALID_ROLES = ['admin', 'developer', 'readonly'];
 const DASHBOARD_ROLE = (function() {
@@ -945,6 +959,10 @@ const approvalsHTML = `<!DOCTYPE html>
     var wsReconnectTimer = null;
     var wsConnected = false;
     var cachedApprovals = [];
+    var approvalWsUrl = ${JSON.stringify(APPROVAL_WS_URL)};
+    var approvalWsHost = ${JSON.stringify(APPROVAL_WS_HOST)};
+    var approvalWsPort = ${JSON.stringify(APPROVAL_WS_PORT)};
+    var approvalWsToken = ${JSON.stringify(APPROVAL_WS_TOKEN)};
 
     // Auth-aware fetch wrapper: injects Bearer token from sessionStorage
     function authFetch(url, opts) {
@@ -1108,10 +1126,24 @@ const approvalsHTML = `<!DOCTYPE html>
 
     // WebSocket connection with exponential backoff reconnection
     function connectWebSocket() {
-      var token = sessionStorage.getItem('evokore_dashboard_token') || '';
-      var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      var wsUrl = protocol + '//' + window.location.host + '/ws/approvals';
-      if (token) wsUrl += '?token=' + encodeURIComponent(token);
+      var token = approvalWsToken || sessionStorage.getItem('evokore_dashboard_token') || '';
+      var wsUrl = approvalWsUrl;
+      if (!wsUrl) {
+        var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var pageHost = window.location.hostname || '127.0.0.1';
+        var loopbackHosts = { '127.0.0.1': true, 'localhost': true, '[::1]': true };
+        var hostOverride = approvalWsHost === '0.0.0.0' ? pageHost : approvalWsHost;
+        if (hostOverride) {
+          wsUrl = protocol + '//' + hostOverride + ':' + approvalWsPort + '/ws/approvals';
+        } else if (loopbackHosts[pageHost]) {
+          wsUrl = protocol + '//' + pageHost + ':' + approvalWsPort + '/ws/approvals';
+        } else {
+          wsUrl = protocol + '//' + window.location.host + '/ws/approvals';
+        }
+      }
+      if (token) {
+        wsUrl += (wsUrl.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(token);
+      }
 
       try {
         wsConnection = new WebSocket(wsUrl);
@@ -1420,6 +1452,13 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log('Hook sessions directory: ' + SESSIONS_DIR);
   console.log('HTTP sessions directory: ' + SESSION_STORE_DIR);
   console.log('Approvals page: http://127.0.0.1:' + PORT + '/approvals');
+  if (APPROVAL_WS_URL) {
+    console.log('Approvals WebSocket target: ' + APPROVAL_WS_URL);
+  } else if (APPROVAL_WS_HOST) {
+    console.log('Approvals WebSocket target: derived from EVOKORE_HTTP_HOST/PORT');
+  } else {
+    console.log('Approvals WebSocket target: local loopback auto-detect or same-origin fallback');
+  }
   if (TOKEN_AUTH_ENABLED) {
     console.log('Authentication: ENABLED (Bearer Token)');
     console.log('Role: ' + DASHBOARD_ROLE);

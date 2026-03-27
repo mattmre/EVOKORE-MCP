@@ -49,6 +49,11 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(envExampleSource).toContain('EVOKORE_WS_HEARTBEAT_MS');
       expect(envExampleSource).toContain('EVOKORE_WS_MAX_CLIENTS');
     });
+
+    it('dashboard approvals WS endpoint vars documented in .env.example', () => {
+      expect(envExampleSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_URL');
+      expect(envExampleSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_TOKEN');
+    });
   });
 
   describe('Section 2: WebSocket Protocol', () => {
@@ -66,6 +71,11 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
     it('missing token rejected with 401 during upgrade', () => {
       expect(httpServerSource).toContain('Missing token query parameter');
       expect(httpServerSource).toContain('401 Unauthorized');
+    });
+
+    it('resolved WebSocket role is propagated onto the request after auth', () => {
+      expect(httpServerSource).toContain('_evokoreRole');
+      expect(httpServerSource).toContain('process.env.EVOKORE_ROLE');
     });
 
     it('snapshot sent on connection', () => {
@@ -174,6 +184,28 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
     it('dashboard approvals page includes WebSocket connection code', () => {
       expect(dashboardSource).toContain('new WebSocket(');
       expect(dashboardSource).toContain('connectWebSocket');
+    });
+
+    it('dashboard can target an explicit approvals WebSocket endpoint', () => {
+      expect(dashboardSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_URL');
+      expect(dashboardSource).toContain('approvalWsUrl');
+      expect(dashboardSource).toContain('approvalWsHost');
+      expect(dashboardSource).toContain('approvalWsPort');
+    });
+
+    it('dashboard supports a dedicated approvals WebSocket token override', () => {
+      expect(dashboardSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_TOKEN');
+      expect(dashboardSource).toContain('approvalWsToken');
+    });
+
+    it('dashboard preserves same-origin fallback for non-loopback deployments', () => {
+      expect(dashboardSource).toContain("window.location.host + '/ws/approvals'");
+      expect(dashboardSource).toContain('loopbackHosts');
+      expect(dashboardSource).toContain("approvalWsHost === '0.0.0.0' ? pageHost : approvalWsHost");
+    });
+
+    it('dashboard appends token with query-safe delimiter handling', () => {
+      expect(dashboardSource).toContain("wsUrl.indexOf('?') === -1 ? '?' : '&'");
     });
 
     it('fallback to polling when WebSocket unavailable', () => {
