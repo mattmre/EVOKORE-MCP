@@ -29,6 +29,7 @@
   - synchronized control-plane artifacts into that wrap worktree for publication on a separate PR
   - refreshed `next-session.md`, `CLAUDE.md`, and `docs/research/revised-roadmap-2026-03-26.md` to match merged `main`
   - added `docs/session-logs/session-2026-03-26-post-roadmap-stabilization-wrap.md` for durable handoff
+  - opened PR `#209` for the session-wrap/control-plane handoff after local docs/build validation
 - Initialized persistent planning files for PR review / fix / merge workflow.
 - Confirmed clean repo state on `main`.
 - Confirmed five open PRs: `#186`, `#187`, `#188`, `#189`, `#190`.

@@ -78,7 +78,7 @@
 
 ## Current Repo State
 - Local checkout is on `main` tracking `origin/main`; only the local planning files (`task_plan.md`, `progress.md`, `findings.md`) are modified and intentionally uncommitted.
-- All previously open PRs `#186` through `#190` are now merged; there are no remaining open PRs.
+- All previously open implementation PRs `#186` through `#190` are now merged; the only open PR is the control-plane/session-wrap handoff PR `#209`.
 - No previous-session catchup artifact was available from the `planning-with-files` script path referenced by the skill; using local planning files directly.
 
 ## Initial Sequencing Decision

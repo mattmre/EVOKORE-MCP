@@ -12,7 +12,7 @@ Execute the remaining post-roadmap work sequentially with fresh branches/agents 
 Phase S3.4 execution: release closure is researched and currently operator-gated on `NPM_TOKEN`, and the active work is packaging the docs/control-plane sync as a dedicated session-wrap PR.
 
 ## Current Repo / PR State
-- Open PRs: none
+- Open PRs: `#209` (session-wrap / control-plane handoff)
 - Local branch: `main`
 - Existing root-checkout drift: planning files plus `test-worktree-cleanup-validation.js`; this wrap branch exists to preserve that control-plane state cleanly
 - Constraint: the requested "review open PR comments" workflow is currently blocked by GitHub state, so execution starts with creating the next sequential PR slices instead
@@ -24,7 +24,7 @@ Phase S3.4 execution: release closure is researched and currently operator-gated
 | S3.1 | F1 redactForAudit wiring / known-safe decision | code + docs | done | #207 | Merged as `03a31b4`; no blocking review findings; PR CI green |
 | S3.2 | Post-merge stabilization: Windows-local worktree cleanup validation failure | test stabilization | done | #208 | Merged as `2a84de2`; local full suite now green again |
 | S3.3 | Release closure follow-up | ops + docs | blocked | TBD | GitHub release/tag exist; npm package absent; `NPM_TOKEN` not visible in repo secrets |
-| S3.4 | Planning/doc sync stabilization | docs/control-plane | in progress | TBD | Reconcile `next-session.md`, roadmap truth doc, stale `CLAUDE.md` notes, and publish session-wrap PR |
+| S3.4 | Planning/doc sync stabilization | docs/control-plane | in review | #209 | Reconcile `next-session.md`, roadmap truth doc, stale `CLAUDE.md` notes, and publish session-wrap PR |
 | S3.5 | Post-M3 ARCH-AEP + M4 loop evidence | research/review | pending | TBD | No post-M3 review artifact found locally |
 | S3.6 | Expansion candidate: Prometheus `/metrics` pull endpoint | feature | pending | TBD | Follow-on to M3.2 export |
 | S3.7 | Expansion candidate: dashboard approve-over-WebSocket | feature | pending | TBD | Current WS flow is deny/push-oriented |

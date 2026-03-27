@@ -4,8 +4,8 @@ Last Updated (UTC): 2026-03-27
 
 ## Current Handoff State
 - **Main branch:** `2a84de2` — full M0-M3 roadmap execution complete, plus S3.1/S3.2 stabilization merged
-- **Open PRs:** none at session-wrap start
-- **Worktrees:** a dedicated session-wrap/control-plane branch is being prepared for publication; canonical repo baseline is `origin/main`
+- **Open PRs:** `#209` — control-plane/session-wrap handoff
+- **Worktrees:** session-wrap/control-plane PR `#209` is open from a dedicated branch; canonical repo baseline is `origin/main`
 - **Local branches:** `main` on the root checkout; this wrap is being prepared on a dedicated `chore/session-wrap-*` branch
 - **Validation:** 135 test files, 2462 tests passing, 24 skipped
 - **Release:** GitHub release/tag `v3.1.0` exists; npm package is still unpublished and `NPM_TOKEN` is missing or unconfirmed
@@ -29,7 +29,7 @@ Last Updated (UTC): 2026-03-27
 - Verify npm publication externally after operator action
 
 ### Priority 1: Land The Control-Plane Wrap PR
-- Merge the control-plane/session-wrap PR that updates `next-session.md`, `CLAUDE.md`, roadmap status, and session logs
+- Merge PR `#209`, which updates `next-session.md`, `CLAUDE.md`, roadmap status, and session logs
 - Keep the dirty root workspace off stale `main` history until the control-plane wrap is preserved
 
 ### Priority 2: M4 Continuous Improvement
