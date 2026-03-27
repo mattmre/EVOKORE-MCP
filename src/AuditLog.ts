@@ -102,7 +102,13 @@ export class AuditLog {
       this.ensureDir();
       this.rotateIfNeeded();
 
-      const line = JSON.stringify(entry) + "\n";
+      // Centralize metadata sanitization so all audit writes get the same
+      // redaction behavior, including direct write() callers.
+      const sanitizedEntry = entry.metadata
+        ? { ...entry, metadata: redactForAudit(entry.metadata) }
+        : entry;
+
+      const line = JSON.stringify(sanitizedEntry) + "\n";
       fs.appendFileSync(this.auditFile, line, "utf-8");
     } catch {
       // Never throw from the audit write path -- fail-safe

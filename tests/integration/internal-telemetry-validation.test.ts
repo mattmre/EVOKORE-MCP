@@ -145,7 +145,7 @@ describe('AuditLog', () => {
     expect(fs.existsSync(auditFile)).toBe(true);
   });
 
-  it('sensitive data is not logged in audit entries', () => {
+  it('redactForAudit redacts sensitive keys', () => {
     const result = redactForAudit({
       username: 'admin',
       token: 'secret123',
@@ -160,6 +160,27 @@ describe('AuditLog', () => {
     expect(result!.password).toBe('[REDACTED]');
     expect(result!.api_key).toBe('[REDACTED]');
     expect(result!.normalField).toBe('visible');
+  });
+
+  it('redacts sensitive metadata before persisting audit entries', () => {
+    const log = new AuditLog({ enabled: true, auditDir: tmpDir, auditFile });
+
+    log.log('auth_failure', 'failure', {
+      actor: 'developer',
+      metadata: {
+        path: '/mcp',
+        token: 'secret123',
+        password: 'hunter2',
+      },
+    });
+
+    const lines = fs.readFileSync(auditFile, 'utf-8').trim().split('\n');
+    expect(lines).toHaveLength(1);
+
+    const entry = JSON.parse(lines[0]);
+    expect(entry.metadata.path).toBe('/mcp');
+    expect(entry.metadata.token).toBe('[REDACTED]');
+    expect(entry.metadata.password).toBe('[REDACTED]');
   });
 
   it('redactForAudit handles undefined input', () => {
