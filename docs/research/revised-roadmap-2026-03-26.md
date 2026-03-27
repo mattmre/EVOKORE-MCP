@@ -14,13 +14,13 @@ This document is the durable planning artifact. `next-session.md` should remain 
 
 ## Current Baseline
 
-- `main` is at `3fae08a`
+- `main` contains the full M0-M3 execution wave plus S3.1/S3.2 stabilization; this wrap synchronizes the control-plane artifacts to that state
 - `v3.1.0` was released on GitHub
-- `npm publish` is still blocked by missing `NPM_TOKEN`
-- Validation coverage for the latest sprint landed on `main`
-- Runtime continuity is only partially complete:
-  - `FileSessionStore` persistence is validated
-  - HTTP session reattachment is still not wired
+- npm publication is still blocked by missing or unconfirmed `NPM_TOKEN`
+- Validation coverage on current `main`: 135 test files, 2462 tests passing, 24 skipped
+- Runtime continuity, secure operator, and scale/runtime roadmap slices have now landed on `main`
+- Post-M2 finding F1 (`redactForAudit()` runtime wiring) was resolved in PR `#207`
+- Post-merge validation stabilization for `test-worktree-cleanup-validation.js` landed in PR `#208`
 - The canonical continuity anchor already exists:
   - `~/.evokore/sessions/{sessionId}.json`
 
@@ -84,11 +84,11 @@ Before Redis, WebSocket HITL, or container isolation expansion, ship the minimal
 
 | Milestone | Name | Goal | Status |
 |---|---|---|---|
-| M0 | Release Closure | Complete release readiness and operator preflight | pending |
-| M1 | Runtime Continuity Platform | Make session continuity real end-to-end | pending |
-| M2 | Secure Operator Platform | Add trust boundaries, operator controls, and reviewable governance | pending |
-| M3 | Scale and Real-Time Runtime | Add distributed/session scale features and live approval transport | pending |
-| M4 | Continuous Improvement Loop | Formalize ARCH-AEP and code-review follow-through after each milestone | pending |
+| M0 | Release Closure | Complete release readiness and operator preflight | complete (operator npm publish follow-up remains) |
+| M1 | Runtime Continuity Platform | Make session continuity real end-to-end | complete |
+| M2 | Secure Operator Platform | Add trust boundaries, operator controls, and reviewable governance | complete |
+| M3 | Scale and Real-Time Runtime | Add distributed/session scale features and live approval transport | complete |
+| M4 | Continuous Improvement Loop | Formalize ARCH-AEP and code-review follow-through after each milestone | ongoing |
 
 ## Milestone M0 — Release Closure
 

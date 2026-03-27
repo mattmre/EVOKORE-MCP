@@ -1,338 +1,132 @@
----
-name: pr-merge-platform-wiring-progress
-description: Progress log for the PR merge and platform wiring sprint.
----
+# Progress
 
-# Progress Log
-
-## Session: 2026-03-15
-
-### Phase 1: PR #134 Review & Merge — complete
-- Full code review: 3 critical, 7 important, 3 minor findings
-- 9 fixes applied (timing-safe HMAC, arg redaction, secret sanitization, URL validation, double-resolve guard, semantic alignment)
-- Merge conflict resolved in .env.example
-- CI green: 687 tests, 92 files
-- PR #134 merged as `26f1ea1`
-
-### Phase 2: Worktree Cleanup — complete
-- 10 agent worktrees removed
-- 14 local branches pruned (squash-merged)
-- 6 stale remote branches deleted
-- Final state: main branch only
-
-### Phase 3: CLAUDE.md Update (T33) — complete
-- 8 new learnings + 4 runtime additions
-- PR #136 merged as `fc72a62`
-
-### Phase 4: SessionIsolation into HttpServer — complete
-- Replaced duplicate tracking with SessionIsolation
-- Added LRU eviction, cleanup interval
-- 28 new tests, 719 total
-- PR #137 merged as `1468a01`
-
-### Phase 5: OAuthProvider into HttpServer — complete
-- Auth middleware in request pipeline
-- 24 new tests, 741 total
-- PR #138 merged as `962056e`
-
-### Phase 6: WebhookManager into PluginManager — complete
-- 3 new event types, emitWebhook in PluginContext, source field
-- 22 new tests, 769 total
-- PR #139 merged as `819119a`
-
-### Phase 7: RBAC into HttpServer — complete
-- Per-session role resolution via optional checkPermission parameter
-- 18 new tests, 787 total
-- PR #140 merged as `fb857a3`
-
-### Phase 8: Rate Limiting into HttpServer — complete
-- Per-session token buckets using SessionState.rateLimitCounters
-- 15 new tests, 803 total
-- PR #141 merged as `3b53f7d`
-
-## Merge Summary
-| PR | Title | Status | Tests Added |
-|----|-------|--------|-------------|
-| #134 | feat: webhook event system + security hardening | merged | ~37 |
-| #136 | chore: CLAUDE.md v3 learnings | merged | 0 |
-| #137 | feat: SessionIsolation into HttpServer | merged | 28 |
-| #138 | feat: OAuth into HttpServer | merged | 24 |
-| #139 | feat: WebhookManager into PluginManager | merged | 22 |
-| #140 | feat: RBAC into HttpServer | merged | 18 |
-| #141 | feat: Rate limiting into HttpServer | merged | 15 |
-
-## Error Log
-| Timestamp | Error | Resolution |
-|-----------|-------|------------|
-| 2026-03-15 | damage-control blocked PR comment mentioning .env | Used --body-file instead of inline |
-| 2026-03-15 | git index.lock from agent worktree | Used unlink per CLAUDE.md guidance |
-
----
-
-## Session: 2026-03-15 (Part 2) — v3.0.0 Hardening Sprint
-
-### Phase 0: PR #146 Review & Merge — complete
-- Full code review of E2E wired pipeline test
-- 6 fixes applied (test isolation, assertion accuracy, cleanup ordering, timeout handling, transport teardown, error message matching)
-- CI green after fixes
-- PR #146 merged
-
-### Phase 1: Documentation Suite — complete
-- Plugin authoring guide: PR #147 merged
-- Webhook configuration guide: PR #148 merged
-- OAuth setup guide: PR #149 merged
-- HTTP deployment guide: PR #150 merged
-- USAGE.md + README.md v3.0 update: PR #151 merged
-
-### Phase 2: Damage Control Regex Coverage — complete
-- 29 rules tested with positive and negative cases
-- Fork bomb regex fix validated
-- DC-21/DC-12 false positive risks documented
-- PR #152 merged
-
-### Phase 3: SkillManager Session Context — complete
-- Fixed RBAC bypass where docs_architect/skill_creator delegated without role
-- Session context passthrough for skill execution
-- PR #153 merged
-
-### Phase 4: GH Actions Quota Monitoring — complete
-- Script to check remaining CI minutes
-- PR #154 merged
-
-### Phase 5: Plugin Webhook Subscriptions — complete
-- Extended emit-only model with subscribe/unsubscribe API
-- Plugins can now register event handlers
-- PR #155 merged
-
-### Phase 6: Log Rotation & Repo Audit — complete
-- Log rotation boundary tests added
-- Repo audit hook changed from opt-in to enabled-by-default
-- PR #156 merged
-
-### Phase 7: Session Wrap — complete
-- Updated next-session.md, progress.md, findings.md, task_plan.md
-- Session log finalized
-
-## Merge Summary (Session 2)
-| PR | Title | Status | Tests Added |
-|----|-------|--------|-------------|
-| #146 | test: E2E wired pipeline (reviewed + 6 fixes) | merged | ~45 |
-| #147 | docs: plugin authoring guide | merged | 0 |
-| #148 | docs: webhook configuration guide | merged | 0 |
-| #149 | docs: OAuth setup guide | merged | 0 |
-| #150 | docs: HTTP deployment guide | merged | 0 |
-| #151 | docs: USAGE.md + README.md v3.0 update | merged | 0 |
-| #152 | test: damage control regex coverage | merged | ~87 |
-| #153 | fix: SkillManager session context RBAC bypass | merged | ~32 |
-| #154 | feat: GH Actions quota monitoring script | merged | ~15 |
-| #155 | feat: plugin webhook subscription API | merged | ~58 |
-| #156 | test: log rotation boundary + repo audit default | merged | ~50 |
-
-## Cumulative Test Growth
-| Milestone | Files | Tests |
-|-----------|-------|-------|
-| Session start (pre-#142) | ~97 | ~937 |
-| After PR #145 (session 1 end) | ~97 | ~937 |
-| After PR #156 (session 2 end) | 106 | 1224 |
-
----
-
-## Session: 2026-03-19 — Release Validation Entry Points
-
-### Phase 0: Live Queue Recheck — complete
-- Verified `gh pr list --state open` returns `[]`
-- Confirmed there is no live PR queue to review/fix/merge sequentially
-
-### Phase 1: Research and Defect Identification — complete
-- Audited release workflow, package scripts, and active operator docs
-- Found `release:check` miswired to raw Node against a Vitest file
-- Found the same migration gap on docs validation commands
-- Confirmed release workflow Node version drift (`18.x` vs package/CI `20`)
-
-### Phase 2: Slice 1 Implementation — complete
-- Added `docs:check` package script
-- Rewired `release:check` to Vitest and widened it to both release validators
-- Updated release workflow to `actions/setup-node@v4` with Node 20 and npm cache
-- Tightened `test-npm-release-flow-validation.js` to assert release script wiring and workflow Node version
-- Updated active operator docs/runbooks to use `npm run release:check` and `npm run docs:check`
-- Added durable research note for this slice
-
-### Phase 3: Validation — complete
-- `npm run release:check` ✅
-- `npm run docs:check` ✅
-- `npm run build` ✅
-
-### Remaining Work
-- Prepare a focused feature branch/PR for the release-validation slice
-- Queue next slices in order: registry validation harness, FileSessionStore restart smoke, then credential-gated production checks
-
----
-
-## Session: 2026-03-19 (Part 2) — Sequential Backlog Re-entry
-
-### Phase 0: Live Queue and Branch Reality Check — complete
-- Re-ran `gh pr list --state open` and confirmed the open PR queue is still empty
-- Fetched/pruned origin and compared the current feature branch to `origin/main`
-- Confirmed the branch commits are already landed upstream as `#172` and `#173`
-
-### Phase 1: Next Slice Selection — complete
-- Reviewed `RegistryManager`, `SkillManager`, and current registry-focused tests
-- Chose the registry validation slice as the next credential-free PR-sized unit
-- Identified a concrete bug/gap to cover in that slice: `listRegistrySkills()` does not parse canonical `{ entries: [...] }` registry indexes even though `RegistryManager` does
-
-### In Flight
-- Prepare the next sequential slice from merged `main`
-
----
-
-## Session: 2026-03-19 (Part 3) — Registry Validation Harness
-
-### Phase 2: Research and Branch Setup — complete
-- Created fresh branch `fix/registry-validation-harness-20260319` from `origin/main`
-- Added `docs/research/registry-validation-harness-2026-03-19.md`
-- Scoped the slice to config-path alignment, shared registry parsing, local/mock runtime tests, and docs schema cleanup
-
-### Phase 3: Implementation — complete
-- Updated `RegistryManager` to preserve optional `category`
-- Refactored `SkillManager` registry listing onto a shared `fetchConfiguredRegistryEntries()` path
-- Added `EVOKORE_MCP_CONFIG_PATH` support to `SkillManager`
-- Normalized registry entry URLs for user-facing output
-- Updated active docs to the object-based `skillRegistries` config shape
-
-### Phase 4: Verification — complete
-- `npm run build` ✅
-- `npx vitest run tests/integration/registry-manager.test.ts tests/integration/skill-registry.test.ts tests/integration/skill-registry-runtime.test.ts` ✅
-- `npm run docs:check` ✅
-- `npm test` ✅ (`115` files, `1629` passed, `3` skipped)
-
-### Phase 5: PR and Merge — complete
-- Branch pushed to origin
-- PR `#174` opened: `fix: add registry validation harness`
-- Self-review comment posted to the PR
-- Follow-up review hardening added in commit `aea250a` for path-prefixed base URLs
-- CI passed on GitHub
-- PR `#174` merged to `main` as `32bee20`
-
-### Phase 6: Post-Merge Main Validation — complete
-- Fast-forwarded clean `main` worktree to `32bee20`
-- `npm run build` on `main` ✅
-- Targeted registry suite on `main` ✅
-- `npm run docs:check` on `main` ✅
-
-### Next Up
-- FileSessionStore restart smoke/evidence PR slice
-- Historical PR review coverage decision
-- Operator/credential-gated validations (`NPM_TOKEN`, Whisper, Supabase, dashboard auth)
-
----
-
-## Session: 2026-03-20 — PR Manager Re-entry
-
-### Phase 0: Live Queue Verification — complete
-- Re-ran `gh pr list --state open`
-- Confirmed GitHub returns `[]`
-- Determined there are no open PR comments to process and no open PRs to review/fix sequentially
-
-### Phase 1: Repo State Reconciliation — complete
-- Inspected `git status --short --branch`
-- Confirmed the root worktree is on stale branch `fix/registry-validation-harness-20260319` with tracker-only dirty state
-- Updated planning artifacts to preserve continuity before starting any new implementation slice
-- Ran `npm run repo:audit` and confirmed `0` open PRs, `2` worktrees, and `14` stale local branch candidates
-- Chose clean worktree `D:/GITHUB/EVOKORE-MCP-PR173` on branch `fix/file-session-store-restart-smoke-20260320` for the next code slice
-- Delegated the FileSessionStore restart-smoke implementation to a fresh worker with a narrow write scope
-
-### Phase 2: FileSessionStore Restart Smoke Slice — complete
-- Worker isolated the slice to `tests/integration/session-store.test.ts` plus a dated evidence note under `docs/research/`
-- Confirmed the true runtime limitation: persisted store recovery exists, but HTTP session reattachment after restart is still not wired
-- Local validation on branch `fix/file-session-store-restart-smoke-20260320` passed:
+## 2026-03-26
+- Session 3 kickoff:
+  - re-read `pr-manager` and `planning-with-files` skills
+  - confirmed `gh pr list --state open` returns `[]`
+  - confirmed local drift exists in planning files plus `test-worktree-cleanup-validation.js`
+  - re-read `task_plan.md`, `findings.md`, and `progress.md` before making new planning decisions
+  - switched the workflow from "review open PR comments" to "create the next sequential PR slices" because there are no open PRs
+  - established the remaining execution queue with F1 audit-redaction work as Slice S3.1
+  - used isolated worktree `D:/GITHUB/EVOKORE-MCP-s3-1` on branch `fix/audit-redaction-wiring-20260326`
+  - implemented centralized audit metadata redaction in `src/AuditLog.ts`
+  - added runtime redaction coverage in `tests/integration/internal-telemetry-validation.test.ts`
+  - documented the design decision in `docs/research/f1-audit-redaction-wiring-2026-03-26.md`
+  - validated Slice S3.1 with targeted tests + build
+  - opened PR `#207`, reviewed it, recorded the review result via PR comment, and merged it
+  - created clean verification worktree `D:/GITHUB/EVOKORE-MCP-verify` at merged `origin/main`
+  - ran `npm ci` in the verification worktree
+  - confirmed clean `origin/main` build passes
+  - found one remaining local full-suite failure on `test-worktree-cleanup-validation.js`
+  - opened/reviewed/merged PR `#208` as the follow-up stabilization slice for that failure
+  - reran full `npm test` after the fix and confirmed the suite passes locally (`135` files, `2462` tests, `24` skipped)
+  - created clean release-status worktree `D:/GITHUB/EVOKORE-MCP-s3-3`
+  - installed dependencies and reran `npm run release:preflight`
+  - confirmed release preflight is clean except for existing `v3.1.0` tag and missing `NPM_TOKEN`
+  - confirmed GitHub release `v3.1.0` exists, while `npm view evokore-mcp version` returns `404`
+  - recorded the release-state analysis in `docs/research/release-closure-status-2026-03-26.md`
+  - created dedicated wrap worktree `D:/GITHUB/EVOKORE-MCP-wrap` on branch `chore/session-wrap-20260326`
+  - synchronized control-plane artifacts into that wrap worktree for publication on a separate PR
+  - refreshed `next-session.md`, `CLAUDE.md`, and `docs/research/revised-roadmap-2026-03-26.md` to match merged `main`
+  - added `docs/session-logs/session-2026-03-26-post-roadmap-stabilization-wrap.md` for durable handoff
+  - opened PR `#209` for the session-wrap/control-plane handoff after local docs/build validation
+- Initialized persistent planning files for PR review / fix / merge workflow.
+- Confirmed clean repo state on `main`.
+- Confirmed five open PRs: `#186`, `#187`, `#188`, `#189`, `#190`.
+- Noted missing `planning-with-files` catchup script at the path specified by the skill instructions.
+- Collected review comments and check state for all five PRs.
+- Identified concrete fix inventory:
+  - `#186`: 3 test-maintainability fixes
+  - `#187`: 2 test-robustness fixes
+  - `#188`: 4 STT test-isolation/accuracy fixes
+  - `#189`: 3 FileSessionStore test fixes
+  - `#190`: 2 doc wording fixes + PR body `Evidence` section repair
+- Processed `#186` on branch `feat/tts-local-production-validation`.
+- Applied review-only patch to [tests/integration/tts-openai-compat-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/tts-openai-compat-validation.test.ts):
+  - hoisted `OpenAICompatTTSProvider` require
+  - tightened `EVOKORE_TTS_BASE_URL` regex
+  - replaced broad TTS endpoint assertions with one precise regex
+- Local validation for `#186`:
+  - `npx vitest run tests/integration/tts-openai-compat-validation.test.ts`
   - `npm run build`
-  - `npx vitest run tests/integration/session-store.test.ts`
-  - `npm run docs:check`
-- Opened PR `#175`: `test: add file session store restart smoke evidence`
-- Posted self-review comment and triggered Gemini review on the PR
-- Added a formal no-blocking-findings review after local inspection
-- Confirmed all GitHub checks passed for `#175`
-- Merged PR `#175` to `main` as `a3d05b0`
-- Revalidated on `main`:
-  - `npm run build` ✅
-  - `npx vitest run tests/integration/session-store.test.ts` ✅
-  - `npm run docs:check` ✅
-  - `npm test` ✅ (`115` files, `1631` passed, `3` skipped)
-- Added dated session log `docs/session-logs/session-2026-03-20-pr-manager-reentry.md`
+- Pushed commit `1f70788` and posted PR update comment on `#186`.
+- Processed `#187` on branch `feat/voice-sidecar-playback-queue-validation`.
+- Applied review-only patch to [tests/integration/voice-sidecar-playback-queue-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/voice-sidecar-playback-queue-validation.test.ts):
+  - added `extractBlockFromMarker()` to structurally extract function bodies
+  - replaced brittle fixed-length source slices with block extraction across the reviewed assertions
+  - replaced the brittle temp-file cleanup regex with ordering checks around `try`, `fs.unlinkSync(capturedTmpFile)`, and `catch`
+- Local validation for `#187`:
+  - `npx vitest run tests/integration/voice-sidecar-playback-queue-validation.test.ts`
+  - `npm run build`
+- Pushed commit `88fa67c` to `#187`.
+- Processed `#188` on branch `feat/stt-whisper-production-validation`.
+- Confirmed the branch already contained most review-response edits locally:
+  - both env-sensitive `beforeEach` hooks call `vi.resetModules()`
+  - the misleading `tmpOutputTxt` assertion was already removed
+  - the later shell-injection guard already rejects `execSync`
+- Added the remaining missing hardening in [tests/integration/stt-whisper-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/stt-whisper-validation.test.ts):
+  - strengthened the earlier `execFileSync` import assertion to explicitly reject `execSync`
+- Local validation for `#188`:
+  - `npx vitest run tests/integration/stt-whisper-validation.test.ts`
+  - `npm run build`
+- Pushed commit `e9deae5` to `#188`.
+- Processed `#189` on branch `feat/file-session-store-validation`.
+- Applied review-response patch to [tests/integration/file-session-store-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/file-session-store-validation.test.ts):
+  - typed `createTestSessionState()` with `SessionState`
+  - added `waitForSessionVisibility()` polling helper for fire-and-forget persistence/delete checks
+  - replaced flaky fixed-delay waits with polling in the `SessionIsolation` persistence and cleanup tests
+  - added a `list()` test that documents sanitized filename behavior for session IDs like `user/123`
+- Local validation for `#189`:
+  - `npx vitest run tests/integration/file-session-store-validation.test.ts`
+  - `npm run build`
+- Pushed commit `3e99e60` to `#189`.
+- Processed `#190` on branch `chore/session-wrap-20260326`.
+- Applied review-response patch to [next-session.md](/D:/GITHUB/EVOKORE-MCP/next-session.md) and [session-2026-03-26-v31-roadmap-implementation.md](/D:/GITHUB/EVOKORE-MCP/docs/session-logs/session-2026-03-26-v31-roadmap-implementation.md):
+  - clarified that the merged wave changed test/docs surfaces, not application source code
+  - collapsed contradictory merge guidance into a single recommended sequential path
+- Local validation for `#190` before push:
+  - `npm test`
+  - `npm run build`
+- Pushed commit `730f9e8` to `#190`.
+- Updated the PR body for `#190` to include an `Evidence` section and accurate testing details.
+- Observed that rerunning the old failed CI run still used the stale pull request event payload, so the metadata check continued to report missing `Evidence`.
+- Pushed empty commit `27a2cd5` to force a fresh `pull_request` event; PR `#190` CI then passed.
+- Merged PRs sequentially with squash merges:
+  - `#186` at merge commit `6295a00`
+  - `#187` at merge commit `3a9ba5c`
+  - `#188` at merge commit `730bf05`
+  - `#189` at merge commit `6883a40`
+  - `#190` at merge commit `3fae08a`
+- Final integrated validation on merged `main`:
+  - `npm test` → `121` test files passed, `2053` tests passed, `3` skipped
+  - `npm run build` passed
+- End state: no open PRs remain; `main` contains the full validation/doc wave.
+- Performed a roadmap redesign pass after merge closure.
+- Added `docs/research/revised-roadmap-2026-03-26.md` to convert the remaining backlog into milestones:
+  - M0 Release Closure
+  - M1 Runtime Continuity Platform
+  - M2 Secure Operator Platform
+  - M3 Scale and Real-Time Runtime
+  - M4 Continuous Improvement Loop
+- Added explicit ARCH-AEP and code-review gates to the standard phase loop.
+- Published the roadmap redesign in PR `#191`.
 
-### Phase 3: Historical Review Coverage Decision — complete
-- Re-opened `docs/research/arch-aep-pr-review-audit-2026-03-16.md`
-- Closed the decision in favor of treating the audit as sufficient historical coverage
-- Chose not to backfill retroactive comments across the `88` already-merged/closed PRs unless a policy or stakeholder explicitly requires that paper trail
-
-### Phase 4: Release Readiness Verification — complete
-- Checked `gh secret list` in the repo context; no repository secrets were returned
-- Checked `git tag --list v3.0.0`; the release tag does not exist yet
-- Recorded the result as a publish blocker: `NPM_TOKEN` is still unverified/unconfirmed and the release tag still needs to be created
-
-### Error Notes
-- A local-only temp commit accidentally captured `.pr-body.md` in the clean worktree after the worker had already pushed the real feature branch.
-- No bad commit was pushed; PR `#175` and merge commit `a3d05b0` came from the clean remote branch state, not the stray local temp commit.
-
-### Next Planned Execution
-- Continue into the credential-gated production validation queue if release prerequisites are satisfied
-- Otherwise wait on operator-side secret verification/tagging before attempting publish
-
----
-
-## Session: 2026-03-20 (Part 2) — Repo Hygiene Cleanup
-
-### Phase 5: Root Control-Plane Cleanup — complete
-- Switched the dirty root worktree from `fix/registry-validation-harness-20260319` to fresh `origin/main`-based branch `chore/control-plane-wrap-20260320`
-- Restored tracked root config state and removed the duplicate raw Stitch skill-pack drop because the cleaned version is already preserved on PR `#176`
-- Deleted `.codex-temp/validator-docs.patch`
-
-### Phase 6: Stale Branch Prune — complete
-- Deleted `16` confirmed already-landed local branches:
-  - `docs/vitest-validator-commands-20260319`
-  - `fix/registry-validation-harness-20260319`
-  - `fix/release-validation-entrypoints-20260319`
-  - `worktree-agent-a0243b9d`
-  - `worktree-agent-a0dee5f3`
-  - `worktree-agent-a24e6c7a`
-  - `worktree-agent-a5085bca`
-  - `worktree-agent-a5a0a0df`
-  - `worktree-agent-a604f035`
-  - `worktree-agent-a66969e9`
-  - `worktree-agent-a68f8449`
-  - `worktree-agent-a739e8ac`
-  - `worktree-agent-ab066893`
-  - `worktree-agent-ac94e2ab`
-  - `worktree-agent-ada0ab21`
-  - `worktree-agent-aec36f5b`
-- Ran `git worktree prune`
-- Verified remaining local branches are now:
-  - `main`
-  - `chore/control-plane-wrap-20260320`
-  - `feat/stitch-skills-and-mcp-20260320`
-
-### Phase 7: Post-Cleanup Audit — complete
-- Re-ran `npm run repo:audit`
-- Confirmed:
-  - current branch `chore/control-plane-wrap-20260320` is aligned with `main` (`behind 0, ahead 0`)
-  - `2` live worktrees remain
-  - `1` open PR remains (`#176`)
-  - stale local branch candidates: none
-  - remaining drift is intentional control-plane tracker/research/session-log preservation only
-
-### Next Up
-- Published the control-plane preservation branch as PR `#177`
-- Reproduce and fix the failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks on PR `#176`
-
-### Phase 8: CI Failure Triage — complete
-- Checked PR `#177` status after publication and found the same shard-2 failure pattern seen on PR `#176`
-- Pulled the failed GitHub Actions log for run `23358331871`
-- Identified the shared blocker:
-  - failing test: `tests/integration/session-store.test.ts`
-  - failure: `ENOENT` on rename from `restart-smoke.json.tmp` to `restart-smoke.json`
-  - call path: `FileSessionStore.set` -> `SessionIsolation.persistSession`
-- Pulled the failed GitHub Actions log for run `23356824665` on PR `#176`
-- Identified the extra Stitch-only blocker on shard 3:
-  - failing test: `test-env-sync-validation.js`
-  - failure: `${STITCH_API_KEY}` referenced in `mcp.config.json` but missing from `.env.example`
-- Conclusion: both open PRs are blocked by a base-lineage Linux session-store failure, and PR `#176` additionally needs `.env.example` sync for `STITCH_API_KEY`
+## Full Roadmap Execution (Session 2)
+- Merged PR #191 (docs-only roadmap refresh).
+- **M0 Release Closure:** PR #192 — release preflight script with 9 checks (7 blocking, 2 warning), 14 tests.
+- **ARCH-AEP pre-M1:** PR #193 — architecture checkpoint with session contract spec, 18 acceptance criteria.
+- **M1.1 Session Reattachment:** PR #194 — wired `SessionIsolation.loadSession()` into `HttpServer`, 21 new tests.
+- **M1.2 Auto-Memory Trigger:** PR #195 — memory sync on Stop hook via tilldone.js.
+- **M1.3 Dashboard Session Filter:** PR #196 — dual-directory scanning, schema normalization, type/status/date filters.
+- **ARCH-AEP post-M1:** PR #197 — PASS.
+- **M2.1 Dashboard Auth:** PR #198 — Bearer token auth, RBAC (admin/developer/readonly), rate limiting, security headers, 47 tests.
+- **M2.2 Internal Telemetry:** PR #199 — AuditLog.ts (structured JSONL), TelemetryManager v2, session/auth metrics, 21 tests.
+- **M2.3 Supabase Validation:** PR #200 — 36 tests with credential-gated pattern.
+- **M2.4 Container Sandbox:** PR #201 — ContainerSandbox.ts with 7 security flags, ProcessSandbox fallback, 64 tests.
+- **ARCH-AEP post-M2:** PR #202 — CONDITIONAL PASS (F1: redactForAudit wiring gap).
+- **M3.1 Redis SessionStore:** PR #205 — ioredis optional dependency, dynamic import, SCAN-based list, Redis TTL.
+- **M3.2 Telemetry Export:** PR #204 — TelemetryExporter.ts, JSON push with HMAC signing, double opt-in.
+- **M3.3 WebSocket HITL:** PR #206 — WS transport on HttpServer at `/ws/approvals`, SecurityManager event callbacks, dashboard WS client with polling fallback.
+- **M3.4 Worktree Cleanup:** PR #203 — standalone script, dry-run default, staleness classification, safety checks.
+- Final integrated validation: 135 test files, 2461 tests passing, 24 skipped, build clean.
+- Cleaned 16 stale agent worktree branches.

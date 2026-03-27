@@ -1,82 +1,56 @@
 # Next Session Priorities
 
-Last Updated (UTC): 2026-03-26
+Last Updated (UTC): 2026-03-27
 
 ## Current Handoff State
-- **Main branch:** `3fae08a` — v3.1.0 tagged and released; PR review/merge wave landed
-- **Open PRs:** `#191` docs-only roadmap/session-wrap refresh
-- **Worktrees:** root only (`D:/GITHUB/EVOKORE-MCP`)
-- **Local branches:** `main` only
-- **Validation:** 121 test files on main, 2053 tests passing, 3 skipped
-- **Release:** v3.1.0 GitHub Release published 2026-03-26T11:12:49Z (npm publish skipped — no NPM_TOKEN secret)
-- **Session logs:** `docs/session-logs/session-2026-03-26-v31-roadmap-implementation.md`, `docs/session-logs/session-2026-03-26-pr-review-merge-wrap.md`
-- **Latest planning log:** `docs/session-logs/session-2026-03-26-roadmap-reframe.md`
+- **Main branch:** `main` contains the full M0-M3 roadmap execution, S3.1/S3.2 stabilization, and the control-plane wrap from PR `#209`
+- **Open PRs:** none at wrap completion; verify with `gh pr list --state open` before starting the next slice
+- **Worktrees:** use the root checkout as the canonical handoff workspace and create fresh disposable worktrees for new slices
+- **Local branches:** refresh the root checkout onto the latest `main` before starting S3.5
+- **Validation:** 135 test files, 2462 tests passing, 24 skipped
+- **Release:** GitHub release/tag `v3.1.0` exists; npm package is still unpublished and `NPM_TOKEN` is missing or unconfirmed
+- **Session logs:** `docs/session-logs/session-2026-03-26-post-roadmap-stabilization-wrap.md`
+- **Research docs:** `docs/research/release-closure-status-2026-03-26.md`
 - **Roadmap source of truth:** `docs/research/revised-roadmap-2026-03-26.md`
 
-## Completed This Session
-- **Release:** Tagged and published `v3.1.0` on GitHub (npm still pending `NPM_TOKEN`)
-- **Validation PR wave:** Reviewed, fixed, and squash-merged `#186`-`#190`
-- **Research docs added:** `docs/research/tts-local-production-validation-2026-03-26.md`, `docs/research/stt-whisper-production-validation-2026-03-26.md`
-- **Tests landed on main:** OpenAI-compatible TTS validation, VoiceSidecar playback queue validation, STT Whisper validation, FileSessionStore restart persistence validation
-- **Final integrated verification:** `npm test` and `npm run build` passed on merged `main`
-- **Infrastructure recovery:** Reconstructed corrupted `.git/config`, cleaned stale agent worktrees, pruned the PR queue to zero
-- **Roadmap reframe:** Architecture shifted from flat feature backlog to milestone-based execution with explicit ARCH-AEP and code-review loops
+## Completed This Session (Session 3)
+- **S3.1 Post-M2 F1 closure:** PR `#207` wired `redactForAudit()` into the shared runtime audit write path
+- **S3.2 Local baseline stabilization:** PR `#208` restored `test-worktree-cleanup-validation.js` to use `node --check`
+- **Review / merge workflow:** both PRs were reviewed sequentially, locally validated, waited on green CI, and squash-merged
+- **Release-state research:** clean `release:preflight` is healthy except for the existing `v3.1.0` tag and missing `NPM_TOKEN`
+- **Current local baseline:** `npm test` passes with 135 files / 2462 tests / 24 skipped; `npm run build` passes
 
 ## Immediate Next Actions
 
-### Priority 0: Land PR `#191`
-- Merge the docs-only roadmap/session-wrap refresh first so the handoff files match the new plan
+### Priority 0: NPM_TOKEN + Full Release
+- `NPM_TOKEN` is still missing or unconfirmed in GitHub repo settings
+- Rerun `npm run release:preflight` after operator secret verification
+- Choose the publish path for the existing `v3.1.0` tag / GitHub release
+- Verify npm publication externally after operator action
 
-### Priority 1: Milestone M0 — Release Closure
-- `NPM_TOKEN` secret is not set in GitHub repo settings
-- Add or run the release preflight path
-- Set `NPM_TOKEN`, then either retag or use workflow_dispatch with `chain_complete=true`
+### Priority 1: Post-Wrap Transition
+- Refresh the canonical root checkout onto the latest `main`
+- Run `npm run repo:audit` after the wrap lands to confirm there is no new drift
+- Retire the dedicated `chore/session-wrap-*` branch/worktree once its state is preserved
 
-### Priority 2: Milestone M1 — Runtime Continuity Platform
-- Start with the canonical session contract and HTTP session reattachment
-- Wire `SessionIsolation.loadSession()` into `HttpServer` so existing `mcp-session-id` values survive process restart
-- Keep Auto-Memory and dashboard session filtering behind that contract instead of evolving them independently
-- Insert an ARCH-AEP checkpoint before M1.1 implementation begins so names, non-goals, and exit criteria are normalized
+### Priority 2: M4 Continuous Improvement
+- Run a post-M3 ARCH-AEP review to assess cross-milestone coherence
+- Record that post-M2 F1 is now resolved via PR `#207`
+- Turn the recurring M4 loop into the next concrete review artifact instead of leaving it implicit
 
-### Priority 3: Milestone M2 — Secure Operator Platform
-- Dashboard auth/authz validation and hardening
-- Internal telemetry and auditability
-- Supabase live validation
-- Container-based skill sandbox isolation
-
-### Priority 4: Milestone M3 — Scale and Real-Time Runtime
-- Redis SessionStore adapter (multi-node HA)
-- External telemetry reporting / hardening (opt-in, privacy-preserving)
-- Real-time WebSocket streaming for HITL approvals
-- Stale worktree cleanup automation
-
-## Standard Phase Loop
-
-Each milestone/phase should follow:
-
-1. Align / architecture question
-2. Research / dependency check
-3. Architecture / PR slicing
-4. Implementation
-5. Prove / validation
-6. ARCH-AEP review and analysis
-7. Code review / hardening
-8. Sequential merge + stabilization
+### Priority 3: Future Expansion Candidates
+- Prometheus `/metrics` pull endpoint (M3.2 follow-up)
+- Dashboard approve action via WebSocket (currently deny-only)
+- Audit event export (separate from telemetry metrics export)
+- `seccomp` profiles for container sandbox
+- Container image pre-pull and per-language resource limits
 
 ## Guardrails
-- Use `docs/research/revised-roadmap-2026-03-26.md` as the architecture truth source and keep `next-session.md` concise
-- GitHub Actions CI uses 3 test shards (shard 3 runs `test-env-sync-validation.js`)
-- Always add new `EVOKORE_*` env vars to the env example file in the same PR
-- Run `npm run repo:audit` before new multi-slice work
+- Use `docs/research/revised-roadmap-2026-03-26.md` as the architecture truth source, but note that this wrap updates its stale status/baseline sections
+- GitHub Actions CI uses 3 test shards
+- Always add new `EVOKORE_*` env vars to `.env.example` in the same PR
 - Run `npx vitest run` locally before pushing PRs
-- Run full `npm test` and `npm run build` before closing a merge wave on `main`
-- Do NOT use `git add .env.example` directly — damage-control blocks it; use `git add -A`
-- Use `gh pr create --body-file` or `gh pr edit --body-file` when PR body text includes `.env` references
-- If PR metadata CI stays red after fixing the PR body, push a fresh sync commit; reruns can keep using the stale `pull_request` event payload
-- Merge sequential PR waves one by one and wait for fresh CI after each merge, even when the PRs are test-only or docs-only
-- If repo state looks impossible after a crash, inspect `.git/config` for null-byte corruption before doing broader git surgery
-- When adding tests for a renamed function (e.g., `execFileSync` -> `execFileAsync`), merge the rename PR first, then rebase test-update PRs
-- Use `.commit-msg.txt` with `git commit -F` instead of heredocs (damage-control can misfire on complex strings)
-- Do not let Auto-Memory, dashboard filtering, Redis, and telemetry invent separate session identities; they must all inherit the canonical session contract first
-- Run an ARCH-AEP review loop after each implementation phase and before final merge
-- Run a code-analysis/review hardening loop after ARCH-AEP review, not only at end-of-milestone
+- Run full `npm test` and `npm run build` before closing a merge wave
+- Use `.commit-msg.txt` with `git commit -F` instead of heredocs
+- All session-adjacent features must use the canonical session contract
+- Run ARCH-AEP review after each implementation phase

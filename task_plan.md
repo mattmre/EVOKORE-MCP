@@ -1,142 +1,124 @@
----
-name: v32-implementation-sprint-2026-03-25
-description: Sequential task plan for v3.2 implementation sprint — PR review/merge, release, production validation, and new feature development.
----
+# Task Plan — Full Roadmap Execution
 
-# Task Plan: v3.2 Implementation Sprint
-
-## Goal
-Execute all remaining priority items sequentially through full development phases: research → plan → implement → test → PR → review → merge. Maintain this plan for crash recovery.
+## Session 3 Goal
+Execute the remaining post-roadmap work sequentially with fresh branches/agents per slice:
+1. close the post-M2 F1 audit-redaction gap
+2. complete release closure tasks that are still open
+3. stabilize and synchronize planning/docs state
+4. run the missing M4/post-M3 review loop
+5. queue lower-priority expansion follow-ups as separate PR-sized slices
 
 ## Current Phase
-Phase 0: PR #184 review, fix, and merge.
+Phase S3.5 preparation: this control-plane wrap is the final S3.4 preservation step, and the next executable slice after it lands is the post-M3 ARCH-AEP / M4 review.
 
-## Baseline State (2026-03-25)
-- **Current branch:** `chore/tts-session-wrap-20260325`
-- **HEAD:** `daa0b55`
-- **Main HEAD:** `55027a7`
-- **Open PRs:** #184 (session-wrap docs, all CI green)
-- **Worktrees:** root only
-- **Version:** 3.0.0 in package.json (all v3.1 feature work landed via PRs #157-#183)
-- **Tests:** 117 files, ~1721 tests passing
+## Current Repo / PR State
+- Active wrap PR: `#209` while this branch is under review; expected open-PR state after merge: none
+- Local branch: `main`
+- Existing root-checkout drift: planning files plus `test-worktree-cleanup-validation.js`; this wrap branch exists to preserve that control-plane state cleanly
+- Constraint: the original "review open PR comments" request was blocked at Session 3 kickoff because GitHub had no open implementation PRs, so the work pivoted into fresh sequential slices. After this wrap lands, the next active phase is S3.5.
 
-## Sequential Plan
+## Remaining Execution Queue
 
-### Phase 0: Review + Fix + Merge PR #184
-- [x] Full review of PR #184 (3 files, docs-only)
-- [x] Post review comment on GitHub
-- [x] Fix Issue 1: stale "Related PRs: TBD" → "#182, #183"
-- [x] Fix Issue 2: status "Implementation approved" → "Implementation complete"
-- [x] Fix Issue 3: openaiModel precision in voices.json description
-- [ ] Commit and push fixes
-- [ ] Verify CI passes (12 checks)
-- [ ] Merge PR #184 to main
-- [ ] Update local main
+| # | Slice | Type | Status | PR | Notes |
+|---|---|---|---|---|---|
+| S3.1 | F1 redactForAudit wiring / known-safe decision | code + docs | done | #207 | Merged as `03a31b4`; no blocking review findings; PR CI green |
+| S3.2 | Post-merge stabilization: Windows-local worktree cleanup validation failure | test stabilization | done | #208 | Merged as `2a84de2`; local full suite now green again |
+| S3.3 | Release closure follow-up | ops + docs | blocked | TBD | GitHub release/tag exist; npm package absent; `NPM_TOKEN` not visible in repo secrets |
+| S3.4 | Planning/doc sync stabilization | docs/control-plane | in review | #209 | Reconcile `next-session.md`, roadmap truth doc, stale `CLAUDE.md` notes, and publish session-wrap PR |
+| S3.5 | Post-M3 ARCH-AEP + M4 loop evidence | research/review | pending | TBD | No post-M3 review artifact found locally |
+| S3.6 | Expansion candidate: Prometheus `/metrics` pull endpoint | feature | pending | TBD | Follow-on to M3.2 export |
+| S3.7 | Expansion candidate: dashboard approve-over-WebSocket | feature | pending | TBD | Current WS flow is deny/push-oriented |
+| S3.8 | Expansion candidate: audit event export | feature | pending | TBD | Separate from telemetry metrics export |
+| S3.9 | Expansion candidate: container sandbox seccomp/resource hardening | feature | pending | TBD | Could split into more than one PR |
 
-### Phase 1: Release v3.1.0
-- [ ] Create branch `release/v3.1.0` from main
-- [ ] Bump `package.json` version from `3.0.0` to `3.1.0`
-- [ ] Open PR for version bump
-- [ ] Merge version bump PR
-- [ ] Verify `NPM_TOKEN` secret in GitHub repo settings (operator action)
-- [ ] Tag `v3.1.0` on main and push
-- [ ] Verify release workflow triggers and succeeds
+## Goal
+Execute the complete EVOKORE-MCP roadmap from PR #191 through M3.4, following the milestone-based execution plan. Each phase goes through: Align → Research → Architecture → Implement → Prove → ARCH-AEP Review → Code Review → Merge + Stabilize.
 
-### Phase 2: Production Validation Harnesses
-- [ ] Research current validation gaps across all surfaces
-- [ ] Create `tests/integration/production-validation.test.ts` with skip-if-no-credentials guards
-- [ ] Sub-phase 2a: Local TTS validation (Kokoro-FastAPI Docker harness)
-- [ ] Sub-phase 2b: Voice-stop hook playback queue validation (concurrent sessions)
-- [ ] Sub-phase 2c: STT voice input validation (Whisper API)
-- [ ] Sub-phase 2d: FileSessionStore persistence validation (process restart)
-- [ ] Sub-phase 2e: Supabase integration validation
-- [ ] Sub-phase 2f: Dashboard auth flow validation
-- [ ] Document manual validation steps in docs/
-- [ ] Open PR, verify CI, merge
+## Master Sequence
 
-### Phase 3: T19 Auto-Memory (Event-Driven Sync)
-- [ ] Review existing research: `docs/research/auto-memory-architecture-2026-03-11.md`
-- [ ] Review current implementation: `scripts/claude-memory.js`, `scripts/sync-memory.js`
-- [ ] Design event-driven trigger (Stop hook integration)
-- [ ] Save research to `docs/research/auto-memory-event-driven-2026-03-25.md`
-- [ ] Implement: wire `syncMemory()` into tilldone.js Stop hook
-- [ ] Add opt-out via `EVOKORE_AUTO_MEMORY_SYNC=false`
-- [ ] Add tests
-- [ ] Open PR, verify CI, merge
+| # | Task | Milestone | Status | PR | Notes |
+|---|---|---|---|---|---|
+| 1 | Review, fix, and merge PR #191 | Pre-work | done | #191 | Docs-only roadmap refresh |
+| 2 | NPM_TOKEN + release preflight command | M0 | done | #192 | 14 tests, 9 preflight checks |
+| 3 | ARCH-AEP pre-M1 checkpoint | Gate | done | #193 | Architecture doc with 18 acceptance criteria |
+| 4 | Session contract + HTTP reattachment | M1.1 | done | #194 | 21 new tests, session reattachment wired |
+| 5 | Auto-memory event trigger | M1.2 | done | #195 | tilldone.js Stop hook sync |
+| 6 | Dashboard session-filter alignment | M1.3 | done | #196 | Dual-directory scanning, schema normalization |
+| 7 | Post-M1 ARCH-AEP review | Gate | done | #197 | PASS |
+| 8 | Dashboard auth/authz hardening | M2.1 | done | #198 | Bearer token, RBAC, rate limiting, 47 tests |
+| 9 | Internal telemetry + auditability | M2.2 | done | #199 | AuditLog.ts, TelemetryManager v2, 21 tests |
+| 10 | Supabase live validation | M2.3 | done | #200 | 36 tests, credential-gated pattern |
+| 11 | Container sandbox isolation | M2.4 | done | #201 | ContainerSandbox.ts, 64 tests |
+| 12 | Post-M2 ARCH-AEP review | Gate | done | #202 | CONDITIONAL PASS (F1: redactForAudit wiring) |
+| 13 | Redis SessionStore adapter | M3.1 | done | #205 | ioredis optional dep, dynamic import |
+| 14 | External telemetry export | M3.2 | done | #204 | TelemetryExporter.ts, HMAC signing |
+| 15 | WebSocket HITL approvals | M3.3 | done | #206 | WS transport on HttpServer, SecurityManager callbacks |
+| 16 | Worktree cleanup automation | M3.4 | done | #203 | Standalone script, dry-run default |
 
-### Phase 4: HTTP Session Reattachment
-- [ ] Review existing research: `docs/research/session-isolation-httpserver-wiring-2026-03-15.md`
-- [ ] Review gap: `src/HttpServer.ts` line 212 (404 on unknown session ID)
-- [ ] Review `SessionIsolation.loadSession()` at line 262
-- [ ] Design reattachment flow (loadSession → create transport → connect)
-- [ ] Save research to `docs/research/http-session-reattachment-2026-03-25.md`
-- [ ] Implement reattachment in HttpServer.handleMcpRequest()
-- [ ] Add integration tests (store → restart → reattach)
-- [ ] Update docs
-- [ ] Open PR, verify CI, merge
+## Final Validation
+- Test files: 135 passed
+- Tests: 2461 passed, 24 skipped
+- Build: clean
+- PRs merged this session: #191 through #206 (16 PRs)
 
-### Phase 5: Redis SessionStore Adapter
-- [ ] Research Redis client options (ioredis vs redis npm package)
-- [ ] Design RedisSessionStore implementing SessionStore interface
-- [ ] Save research to `docs/research/redis-session-store-2026-03-25.md`
-- [ ] Add `ioredis` as optional peer dependency
-- [ ] Implement `src/stores/RedisSessionStore.ts`
-- [ ] Add factory in SessionIsolation for store selection
-- [ ] Add `EVOKORE_SESSION_STORE=redis` env var
-- [ ] Add integration tests with mock Redis
-- [ ] Add `.env.example` entries
-- [ ] Update docs
-- [ ] Open PR, verify CI, merge
+## Standard Phase Loop (per task)
+1. Align / architecture question
+2. Research / dependency check
+3. Architecture / PR slicing
+4. Implementation
+5. Prove / validation
+6. ARCH-AEP review and analysis
+7. Code review / hardening
+8. Sequential merge + stabilization
 
-### Phase 6: Container-Based Skill Sandbox
-- [ ] Review existing research: `docs/research/skill-sandbox-security-audit-2026-03-14.md`
-- [ ] Research Docker/Podman API for execution wrapping
-- [ ] Design ContainerSandbox with child_process fallback
-- [ ] Save research to `docs/research/container-sandbox-2026-03-25.md`
-- [ ] Implement `src/ContainerSandbox.ts`
-- [ ] Wire into SkillManager execute_skill
-- [ ] Add `EVOKORE_SANDBOX_MODE=container|process` env var
-- [ ] Add integration tests
-- [ ] Add `.env.example` entries
-- [ ] Update docs
-- [ ] Open PR, verify CI, merge
+## Errors Encountered
+| Error | Attempt | Resolution |
+|---|---|---|
+| PR #205 CI: Install dependencies failed | ioredis in optionalDependencies but package-lock.json not committed | Pushed lockfile fix commit |
+| test-worktree-cleanup-validation.js: new Function() syntax check | Node.js require() not valid in Function constructor | Replaced with node --check |
+| `gh pr review --approve` on PR #207 | GitHub blocks self-approval | Recorded the review result as a normal PR comment instead |
+| Clean verify worktree lacked dependencies initially | `npm test` / `npm run build` failed before install | Ran `npm ci` in `D:/GITHUB/EVOKORE-MCP-verify` before final validation |
 
-### Phase 7: WebSocket HITL Streaming
-- [ ] Research WebSocket integration for Node.js HTTP server (ws package)
-- [ ] Design message protocol for approval push
-- [ ] Save research to `docs/research/websocket-hitl-2026-03-25.md`
-- [ ] Add `ws` as optional dependency
-- [ ] Implement WebSocket upgrade in dashboard
-- [ ] Implement real-time approval push (replace 5s polling)
-- [ ] Add integration tests
-- [ ] Update docs
-- [ ] Open PR, verify CI, merge
-
-### Phase 8: External Telemetry Reporting
-- [ ] Research telemetry standards (OTLP, custom HTTP endpoints)
-- [ ] Design privacy-preserving opt-in telemetry export
-- [ ] Save research to `docs/research/external-telemetry-2026-03-25.md`
-- [ ] Implement telemetry exporter
-- [ ] Add `EVOKORE_TELEMETRY_ENABLED=true` and endpoint config
-- [ ] Add privacy controls (data minimization, opt-in)
-- [ ] Add integration tests
-- [ ] Add `.env.example` entries
-- [ ] Update docs
-- [ ] Open PR, verify CI, merge
-
-### Phase 9: Priority Status Matrix Update
-- [ ] Refresh `docs/PRIORITY_STATUS_MATRIX.md` with v3.2 items
-- [ ] Add evidence file references for each completed phase
-- [ ] Open PR, verify CI, merge
-
-## Merge Plan
-- Sequential: each phase merges to main before the next begins
-- Validate on main after each merge
-- Keep shared trackers/session logs out of feature branches (update on main or session-wrap branch)
-
-## Guardrails
-- All items from CLAUDE.md apply (env sync, BOM, damage-control, etc.)
-- `npx vitest run` before every PR push
-- `npm run build` before every PR push
-- Use `.commit-msg.txt` for complex commit messages
-- Add new `EVOKORE_*` env vars to `.env.example` in the same PR
+## Session Log
+- Session started: 2026-03-26
+- PR #191 review + fix: merged
+- M0 Release Closure: PR #192 merged
+- ARCH-AEP pre-M1: PR #193 merged
+- M1.1 Session reattachment: PR #194 merged
+- M1.2 Auto-memory trigger: PR #195 merged
+- M1.3 Dashboard session filter: PR #196 merged
+- ARCH-AEP post-M1: PR #197 merged
+- M2.1 Dashboard auth: PR #198 merged
+- M2.2 Internal telemetry: PR #199 merged
+- M2.3 Supabase validation: PR #200 merged
+- M2.4 Container sandbox: PR #201 merged
+- ARCH-AEP post-M2: PR #202 merged
+- M3.4 Worktree cleanup: PR #203 merged
+- M3.2 Telemetry export: PR #204 merged
+- M3.1 Redis SessionStore: PR #205 merged
+- M3.3 WebSocket HITL: PR #206 merged
+- Final validation: 135 files, 2461 tests, build clean
+- Session 3 planning started: 2026-03-26
+- Confirmed there are no open PRs to review/comment on; work reframed to the next sequential remaining slices
+- Began Slice S3.1 planning for the post-M2 F1 audit-redaction gap
+- Slice S3.1 merged: PR #207 `Fix audit metadata redaction`
+- Post-merge validation:
+  - PR #207 local targeted validation passed
+  - PR #207 GitHub CI/security checks all passed
+  - clean `origin/main` local `npm run build` passed
+  - the initial clean local `npm test` failure on `test-worktree-cleanup-validation.js` was isolated into S3.2
+- Slice S3.2 merged: PR #208 `fix: restore node --check cleanup validation`
+- Post-S3.2 validation:
+  - `npx vitest run test-worktree-cleanup-validation.js` passed locally
+  - `npm run build` passed locally
+  - full local `npm test` passed: 135 files, 2462 tests, 24 skipped
+  - next slice returns to release/doc follow-up work rather than test stabilization
+- Slice S3.3 release-closure research completed:
+  - clean preflight passes except for existing `v3.1.0` tag and missing `NPM_TOKEN`
+  - GitHub release `v3.1.0` exists and is published
+  - npm registry lookup for `evokore-mcp` returns `404 Not Found`
+  - release closure is therefore operator-gated, not blocked on code
+- Built isolated worktree `D:/GITHUB/EVOKORE-MCP-s3-1` on branch `fix/audit-redaction-wiring-20260326`
+- Implemented centralized audit metadata redaction in `AuditLog.write()`
+- Added runtime persistence coverage for audit redaction and a dated research note for F1 closure
+- Full-suite validation exposed unrelated baseline blockers on current `main` lineage (`test-worktree-cleanup-validation.js`, then `test-release-preflight-validation.js` timeout under full-suite contention)

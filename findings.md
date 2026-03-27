@@ -1,239 +1,172 @@
----
-name: pr-merge-platform-wiring-findings
-description: Findings and decisions from the PR merge and platform wiring sprint.
----
+# Findings
 
-# Findings & Decisions
+## Session 3: Post-Roadmap Remaining Work
 
-## Session: 2026-03-15 — PR Merge & Platform Wiring Sprint
+### Current Execution Constraint
+- GitHub currently shows `0` open PRs, so the requested "review all open PR comments" workflow cannot run as written.
+- The next executable path is to create fresh sequential PR slices for the remaining items captured in `next-session.md`.
 
-### PR #134 Code Review Findings
-- **HMAC timing attack**: No `timingSafeEqual` helper provided for webhook signature verification. Fixed with `verifySignature()` static method.
-- **Argument leakage**: Tool arguments (including approval tokens, credentials) were sent unredacted to external webhook endpoints. Fixed with `redactSensitiveArgs()`.
-- **Secret exposure**: `getWebhooks()` returned raw webhook secrets. Fixed to return `hasSecret: boolean`.
-- **URL validation**: No scheme validation — ftp://, file:// URLs accepted. Fixed to HTTP/HTTPS only.
-- **Double-resolve**: Promise in `deliver` method could resolve twice. Fixed with `settled` guard.
-- **Event semantics**: `tool_call` fired after success, not on invocation. Fixed to emit before execution.
+### Highest-Priority Remaining Work
+- `next-session.md` identifies the post-M2 F1 finding as Priority 0: wire `redactForAudit()` into audit log call sites in `src/index.ts` and `src/HttpServer.ts`, or explicitly document the current sites as known-safe.
+- The post-M2 ARCH-AEP review states F1 is the condition for full pass and describes it as a medium-severity gap between documented redaction guarantees and runtime behavior.
 
-### Architecture Decisions
-| Decision | Rationale |
-|----------|-----------|
-| Sequential PR merges | User requested minimal drift between PRs |
-| Fresh agent per phase | Prevents context rot across boundaries |
-| Research before implementation | Each phase gets dedicated research agent |
-| Session-scoped everything | HTTP mode needs isolation: state, auth, RBAC, rate limits |
-| Optional parameters for backward compat | All new params default to undefined, falling back to global behavior |
-| No middleware framework | Raw `handleRequest` dispatch is sufficient for auth + MCP |
-| Emit-only plugin webhooks | Plugins can emit events via `emitWebhook()` but not subscribe (deferred) |
-| LRU eviction for sessions | Max 100 sessions with oldest-access eviction, matching prior limit |
-| Dual-bucket rate limiting | Session counters override when available, global fallback for stdio |
+### Planning / Documentation Drift
+- `next-session.md` says the full M0-M3 roadmap is complete on `main`, with no open PRs and v3.1.0 released on GitHub but npm publish still pending.
+- `docs/research/revised-roadmap-2026-03-26.md` still marks M0-M4 as `pending` and uses the older pre-implementation baseline.
+- `CLAUDE.md` still contains at least one older continuity note saying HTTP session reattachment is not wired into `HttpServer`, which conflicts with the merged M1.1 implementation summary.
+- Result: documentation synchronization is itself a remaining slice after the highest-risk code gap is handled.
 
-### Technical Debt Identified
-1. Three webhook event types never emitted: `session_end`, `approval_requested`, `approval_granted`
-2. OAuthProvider is static-token only — no JWT/JWKS despite CLAUDE.md mention
-3. No end-to-end test across the full wired pipeline (HTTP + auth + session + RBAC + rate limit)
-4. SkillManager internal calls bypass session context (acceptable but worth noting)
-5. No periodic cleanup timer for session counters themselves (only session objects are cleaned)
+### Remaining Queue Shape
+- Immediate code slice: F1 audit redaction wiring / safety documentation.
+- Immediate ops slice: release closure (`NPM_TOKEN`, rerun preflight, decide publish path).
+- Immediate docs/review slice: post-M3 ARCH-AEP artifact + roadmap/handoff/CLAUDE sync.
+- Lower-priority follow-ups: Prometheus pull metrics endpoint, approve-over-WebSocket, audit event export, sandbox seccomp/resource hardening.
 
-## Resources
-- Session log: `docs/session-logs/session-2026-03-15-pr-merge-platform-wiring.md`
-- 5 new research docs in `docs/research/` (dated 2026-03-15)
+### Slice S3.1 Research Decision
+- A documentation-only closure is not defensible. The current source really does export/test `redactForAudit()` without wiring it into the real audit persistence path.
+- The lowest-drift fix is to centralize redaction in `AuditLog.write()` rather than patching each `auditLog.log()` call site separately.
+- This covers both current metadata-bearing writes and any future direct `write()` callers.
 
----
-
-## Session: 2026-03-15 (Part 2) — v3.0.0 Hardening Sprint
-
-### PR #146 Code Review Findings
-- **Test isolation**: E2E tests shared server state between cases, causing flaky failures on repeated runs. Fixed with per-test server lifecycle.
-- **Assertion accuracy**: Some assertions checked for response existence rather than specific expected values. Tightened to exact match.
-- **Cleanup ordering**: Transport teardown occurred before server shutdown, leaving dangling connections. Reordered to server-first.
-- **Timeout handling**: Missing timeout configuration on HTTP requests caused tests to hang on failure. Added explicit timeouts.
-- **Transport teardown**: Incomplete cleanup of SSE connections in error paths. Added finally blocks.
-- **Error message matching**: Assertions used substring matching that could pass on unrelated errors. Switched to exact error code checks.
-
-### SkillManager RBAC Bypass
-- Internal tool calls from `docs_architect` and `skill_creator` native tools delegated to SkillManager without passing session role context.
-- This meant skill execution from these tools bypassed RBAC permission checks entirely.
-- Fix: Session context (including role) now flows through to SkillManager on all internal call paths.
-- Impact: Low (only affects HTTP multi-tenant mode where RBAC is active), but a correctness gap.
-
-### Damage Control Regex Analysis
-- 29 rules validated with both positive match and negative (should-not-match) cases.
-- Fork bomb regex was previously fixed (from `:(\\){0}){2,}` to `:\(\)\s*\{`), now covered by dedicated tests.
-- **DC-21 risk**: Rule matching `chmod.*777` could false-positive on documentation strings mentioning the pattern. Acceptable trade-off for security.
-- **DC-12 risk**: Rule matching `curl.*\|.*sh` could catch legitimate curl-to-file piped through shell inspection. Low practical risk in MCP context.
-
-### Plugin Webhook Subscriptions
-- Previous model was emit-only: plugins could fire events via `emitWebhook()` but could not listen.
-- Extended with `subscribe(eventType, handler)` and `unsubscribe(eventType, handler)` on PluginContext.
-- Handlers receive the same payload shape as external webhook endpoints (minus HMAC signature).
-- Design decision: subscriptions are in-process callbacks, not HTTP. This avoids plugins needing to run their own HTTP servers.
-
-### Repo Audit Hook Default Enablement
-- Previously opt-in via `EVOKORE_REPO_AUDIT_HOOK=true` environment variable.
-- Changed to enabled-by-default: runs unless `EVOKORE_REPO_AUDIT_HOOK=false` is explicitly set.
-- Rationale: The hook catches branch drift and stale worktrees early. The cost of a false negative (missing drift) outweighs the cost of one extra check per session.
-
-### Architecture Decisions (Session 2)
-| Decision | Rationale |
-|----------|-----------|
-| In-process plugin subscriptions | Avoid HTTP overhead; plugins are already loaded in-process |
-| Repo audit hook default-on | Drift detection value exceeds startup cost |
-| Session context passthrough | RBAC must apply uniformly regardless of call origin |
-| Boundary tests for log rotation | Edge cases (exact size, off-by-one) are where rotation bugs hide |
-
-### Technical Debt Remaining
-1. npm publish v3.0.0 not yet executed (tag + push pending)
-2. STT voice input implementation deferred to v3.1.0
-3. Live Supabase integration test not yet written
-4. No performance benchmarks for the full wired HTTP pipeline
-
-## Resources
-- Session log: `docs/session-logs/session-2026-03-15-v3-hardening-sprint-2.md`
-
----
-
-## Session: 2026-03-19 — Release Validation Entry Points
-
-### Queue and Workflow State
-- Live GitHub check on `2026-03-19` still shows `0` open PRs, so the requested PR-review/fix/merge loop is blocked by workflow state rather than access/tooling.
-- The next actionable work is release-readiness hardening, not PR comment triage.
-
-### Concrete Defects Found
-- `npm run release:check` was broken because `package.json` ran `test-npm-release-flow-validation.js` with plain `node` even though that file uses Vitest globals (`test(...)`).
-- `node test-docs-canonical-links.js` and `node test-ops-docs-validation.js` fail for the same reason, so active docs/runbooks were still pointing operators at invalid commands.
-- `.github/workflows/release.yml` still used `actions/setup-node@v3` with `18.x`, while `package.json` requires `node >=20` and CI already runs on Node 20.
-
-### Execution Constraints
-- `OPENAI_API_KEY`, `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `EVOKORE_DASHBOARD_USER`, and `EVOKORE_DASHBOARD_PASS` are all absent in the current shell, so the production validations listed in `next-session.md` remain credential-gated.
-- `v3.0.0` publish is still an operator action, not a PR slice: it depends on verifying `NPM_TOKEN` and then pushing a tag or running the release workflow manually.
-
-### Decisions
-- Normalize release/docs validations behind package-level entrypoints (`npm run release:check`, `npm run docs:check`) rather than relying on raw direct invocation of individual test files.
-- Treat Node-version alignment in the release workflow as part of the same slice because it directly affects publish safety and should be covered by the release validator.
-
-### New Research Artifact
-- `docs/research/release-validation-entrypoints-2026-03-19.md`
-
----
-
-## Session: 2026-03-19 (Part 2) — Sequential Backlog Re-entry
-
-### Queue and Branch State
-- GitHub still reports `0` open PRs, so there are no live PR comments to review or respond to.
-- The working branch `fix/release-validation-entrypoints-20260319` is stale rather than pending: its two commits correspond to already-landed `origin/main` commits `91e1d83` (`#172`) and `e2b8356` (`#173`).
-- Result: do not spend more review/fix/merge effort on the stale branch; start the next sequential slice from fresh `main`.
-
-### Next Executable Slice
-- The next credential-free slice is registry validation, matching the tracked follow-on order in `task_plan.md`.
-- Current coverage is heavily source/schema oriented:
-  - `tests/integration/registry-manager.test.ts`
-  - `tests/integration/skill-registry.test.ts`
-  - legacy `test-remote-skill-registry-validation.js`
-- Missing coverage is behavioral: local registry config + HTTP fetch + parsed results + formatting/caching through a realistic execution path.
-
-### Concrete Registry Gap Identified
-- `SkillManager.handleToolCall('list_registry', ...)` uses `RegistryManager.fetchRegistry()`, which supports flat arrays, `skills`, and canonical `{ entries: [...] }` indexes.
-- `SkillManager.listRegistrySkills()` does **not** share that parsing path. It only handles flat arrays or `{ skills: [...] }`, so canonical `{ entries: [...] }` registries are silently dropped in that public method.
-- A local/mock-registry validation slice should unify that behavior and add end-to-end tests so future registry format drift is caught.
-
----
-
-## Session: 2026-03-19 (Part 3) — Registry Validation Harness
-
-### Runtime Findings
-- `SkillManager` now honors `EVOKORE_MCP_CONFIG_PATH`, matching `ProxyManager`, so temp-config tests and runtime overrides resolve the same config source.
-- `listRegistrySkills()` no longer reimplements registry fetching/parsing; it uses the same `RegistryManager`-backed path as the `list_registry` tool.
-- Relative registry entry URLs are normalized before user-facing output, which prevents relative URLs from leaking into `list_registry` results.
-- Canonical registry indexes using `{ entries: [...] }` are now supported consistently across both listing surfaces.
-
-### Docs Findings
-- Active docs had drifted to showing `skillRegistries` as a string array of URLs.
-- Runtime actually expects registry objects with `name`, `baseUrl`, and `index`.
-- `docs/USAGE.md`, `docs/SETUP.md`, and `docs/MIGRATION_V2_TO_V3.md` were updated to match the real schema.
-
-### Validation Findings
-- Targeted registry suite after implementation: `91` passing tests across 3 files.
-- Full suite after implementation: `115` files, `1629` passing tests, `3` skipped (`1632` total).
-- Post-merge validation on `main` passed for:
+### Slice S3.1 Validation Notes
+- Targeted validation passed for the slice:
+  - `npx vitest run tests/integration/internal-telemetry-validation.test.ts`
   - `npm run build`
-  - targeted registry suite
-  - `npm run docs:check`
+- PR `#207` also passed all GitHub CI/security checks after push.
+- A separate clean-checkout local `npm test` run on merged `origin/main` still fails on `test-worktree-cleanup-validation.js`.
+- Result: S3.1 itself is validated and merged, but a separate local-main stabilization slice is still needed before claiming a fully green local baseline.
 
-### PR / Merge Outcome
-- PR `#174` opened from `fix/registry-validation-harness-20260319`
-- Self-review found one worthwhile residual risk: base URLs with path prefixes were not yet covered in runtime tests
-- Follow-up commit `aea250a` added that coverage before merge
-- PR `#174` merged to `main` as `32bee20`
+### Slice S3.1 Final Outcome
+- PR `#207` merged to `main` as `03a31b4`.
+- There were no actionable PR comments and no blocking code-review findings in the patch.
+- GitHub does not allow self-approval, so the review result was recorded as a standard PR comment instead of an approval review.
 
----
+### New Highest-Priority Stabilization Finding
+- Clean `origin/main` still fails full local `npm test` on `test-worktree-cleanup-validation.js`.
+- The failure is unrelated to the audit-redaction diff and therefore should be handled as a separate stabilization slice.
+- The root dirty checkout already contains an uncommitted edit to that same file, so the next slice must compare current local drift against `main` deliberately rather than overwrite it casually.
 
-## Session: 2026-03-20 — PR Manager Re-entry
+## Session 3: Slice S3.2 Outcome
 
-### Live Queue Findings
-- GitHub still reports `0` open PRs on `2026-03-20`, so there are no live PR comments to review, no open PRs to fully review, and no active PR branches to patch/push.
-- The requested PR-manager workflow is therefore blocked by repo state rather than by repository access or GitHub tooling.
+### PR Outcome
+- Slice S3.2 was handled on PR `#208`.
+- The effective diff against current `main` was the single-file `node --check` fix in `test-worktree-cleanup-validation.js`, even though the PR thread still referenced the earlier F1 context from the recycled branch.
+- PR `#208` merged successfully as `2a84de2`.
 
-### Repo State Findings
-- The root worktree is still on stale branch `fix/registry-validation-harness-20260319...origin/fix/registry-validation-harness-20260319 [gone]`.
-- The current dirty state is concentrated in control-plane tracker docs (`CLAUDE.md`, `next-session.md`, `task_plan.md`, `findings.md`, `progress.md`) plus untracked historical research/session-log artifacts.
-- Because shared trackers should stay out of feature-branch commits, implementation should not start from this stale dirty branch without first isolating the next code slice onto fresh `main`-based history or an equivalent clean worktree.
+### Review Outcome
+- No blocking findings: `node --check` is the correct syntax-validation model for the CommonJS/shebang CLI script under test.
+- Targeted local validation passed:
+  - `npx vitest run test-worktree-cleanup-validation.js`
+  - `npm run build`
+- PR `#208` also had green CI/security checks before merge.
 
-### Execution Decision
-- The first executable remaining item is still the credential-free `FileSessionStore` restart smoke / operator evidence slice from `next-session.md`.
-- Open-PR review/fix/merge work should be resumed only if new PRs are opened after that slice or if the historical PR-review audit leads to a deliberate retroactive comment pass.
+### Baseline Validation Result
+- After S3.2 landed, full local `npm test` passed in the clean slice worktree.
+- Result: the local baseline is green again, so the next sequential work can move back to release closure and docs/review follow-up rather than firefighting test stability.
 
-### FileSessionStore Slice Scoping
-- `FileSessionStore` persistence and `SessionIsolation.loadSession()` already exist, but runtime HTTP request handling does not reattach unknown sessions after restart.
-- `src/HttpServer.ts` currently rejects unknown `mcp-session-id` values with `404`, and the new slice should not silently broaden that runtime contract.
-- The smallest safe PR-sized change is therefore restart smoke and operator evidence at the store/isolation layer only, not live HTTP restart recovery.
+## Session 3: Slice S3.3 Release Status
 
-### PR / Merge Outcome
-- PR `#175` opened from `fix/file-session-store-restart-smoke-20260320`
-- No blocking findings were identified in local review of the narrow-scope test/docs diff
-- All GitHub checks passed on `#175`
-- PR `#175` merged to `main` as `a3d05b0`
+### Release-State Findings
+- `npm run release:preflight` passes on clean `origin/main` except for:
+  - blocking: git tag `v3.1.0` already exists
+  - warning: `NPM_TOKEN` not found in GitHub secrets
+- `gh release view v3.1.0` confirms the GitHub release already exists and was published on `2026-03-26`.
+- `npm view evokore-mcp version` returns `404 Not Found`, so the package is not published on npm.
 
-### Durable Learning
-- `FileSessionStore` restart evidence now exists at the storage/isolation layer, but `loadSession()` is still not wired into `HttpServer`.
-- Future work must not overstate this slice as runtime session recovery; after process restart, unknown HTTP `mcp-session-id` values still return `404`.
+### Decision
+- S3.3 is operator-gated, not code-gated.
+- The next executable engineering slice should therefore move to docs/control-plane synchronization while release publication waits on secret verification/operator action.
 
-### Historical Review Coverage Recommendation
-- Decision: treat the current audit artifact as sufficient historical coverage.
-- Rationale: all `117` PRs in scope already have at least one PR comment, there are `0` open PRs left to act on, and backfilling retroactive comments across `88` already-merged/closed PRs would create high review noise with little corrective value unless a policy or stakeholder explicitly requires formal post-hoc review artifacts.
+## Current Repo State
+- Local checkout is on `main` tracking `origin/main`; only the local planning files (`task_plan.md`, `progress.md`, `findings.md`) are modified and intentionally uncommitted.
+- All previously open implementation PRs `#186` through `#190` are now merged; the only open PR is the control-plane/session-wrap handoff PR `#209`.
+- No previous-session catchup artifact was available from the `planning-with-files` script path referenced by the skill; using local planning files directly.
 
-### Release Readiness Findings
-- `git tag --list v3.0.0` returned no existing release tag.
-- `gh secret list` returned no repository secrets in the current environment, so `NPM_TOKEN` could not be verified and should be treated as missing/unconfirmed for the publish workflow.
-- Result: the next release step is blocked on operator-side secret verification and tag creation rather than on any remaining implementation work.
+## Initial Sequencing Decision
+- Handle feature PRs before the session-wrap PR.
+- Preserve `next-session.md` and session-log updates until feature PR outcomes are known to avoid control-plane drift and tracker conflicts.
 
----
+## Guardrails
+- Use sequential handling to minimize PR drift between related validation PRs.
+- Prefer fresh sub-agents per PR as requested; dispose of each after its scoped task is complete.
+- Re-run validation after rebases/merges where shared surfaces change.
 
-## Session: 2026-03-20 (Part 2) — Repo Hygiene Cleanup
+## Open PR Review Inventory
+- `#186` has 3 actionable review comments in [tests/integration/tts-openai-compat-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/tts-openai-compat-validation.test.ts): hoist repeated `require`, tighten a broad env-var regex, and replace two broad assertions with one precise console-error regex.
+- `#187` has 2 actionable review comments in [tests/integration/voice-sidecar-playback-queue-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/voice-sidecar-playback-queue-validation.test.ts): avoid fixed-length source slicing and relax a brittle `try/catch` regex assertion.
+- `#188` has 4 actionable review comments in [tests/integration/stt-whisper-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/stt-whisper-validation.test.ts): add `vi.resetModules()` in env-sensitive suites, remove/adjust a misleading unreachable-output-file assertion, and strengthen the `execFileSync` vs `execSync` security check.
+- `#189` has 3 actionable review comments in [tests/integration/file-session-store-validation.test.ts](/D:/GITHUB/EVOKORE-MCP/tests/integration/file-session-store-validation.test.ts): add a sanitized-`list()` behavior test, replace fixed `setTimeout` waits with polling, and type `createTestSessionState` with `SessionState`.
+- `#190` has 2 review comments plus a failing CI shard. The file comments are doc clarity fixes in [docs/session-logs/session-2026-03-26-v31-roadmap-implementation.md](/D:/GITHUB/EVOKORE-MCP/docs/session-logs/session-2026-03-26-v31-roadmap-implementation.md) and [next-session.md](/D:/GITHUB/EVOKORE-MCP/next-session.md). The failing CI cause is PR metadata validation: missing `Evidence` section in the PR body, not a code failure.
 
-### Cleanup Findings
-- The dirty root handoff worktree was safely moved off obsolete branch `fix/registry-validation-harness-20260319` onto fresh `origin/main`-based branch `chore/control-plane-wrap-20260320`.
-- The raw root Stitch import (`mcp.config.json` edits plus `SKILLS/Stitch Skills/`) was duplicate state, not the branch of record. The cleaned version already lives on PR `#176`, so the root copy was removed instead of cherry-picked.
-- Confirmed already-landed local branches were deleted safely after branch ancestry / merged-state verification. The local branch set is now down to `main`, the active Stitch PR branch, and the new control-plane branch.
-- Post-cleanup `npm run repo:audit` reports no stale local branch candidates and only intentional control-plane drift.
+## Merge Risk Notes
+- `#190` had to remain last because it documented the feature PR wave and merge order.
+- GitHub Actions reruns on `pull_request` reused the original event payload for `#190`, so a PR-body-only repair did not clear metadata validation until a new commit triggered a fresh event.
+- Squash merging the five PRs was the lowest-risk option because each PR represented a bounded validation/doc slice and did not need its intermediate review-fix commits preserved on `main`.
 
-### Live PR Finding
-- PR `#176` is open and mergeable, but it is not merge-ready yet: GitHub reports failing `Test Suite (shard 2/3)` and `Test Suite (shard 3/3)` checks.
-- That makes PR `#176` the next real execution target before release publish work.
-- The control-plane preservation branch was published separately as PR `#177` so tracker/session-log history can be reviewed and merged without mixing it into the Stitch feature branch.
-- PR `#177` fails the same shard-2 CI job, which shows the blocker is on current `main` lineage rather than in either PR diff.
+## PR #186 Outcome
+- Hoisting `OpenAICompatTTSProvider` to the top of the main `describe` is safe because the provider reads env vars in its constructor, not during module evaluation.
+- The `#186` patch stayed strictly within the test file and did not alter coverage intent.
+- Local validation passed after the patch: targeted Vitest + full TypeScript build.
 
-### CI Root Cause Captured
-- `gh run view 23358331871 --log-failed` for PR `#177` shows the failing test is `tests/integration/session-store.test.ts > restart smoke restores persisted state through a fresh store and isolation instance`.
-- The concrete error is Linux `ENOENT` on rename:
-  - `restart-smoke.json.tmp` -> `restart-smoke.json`
-  - thrown from `FileSessionStore.set` via `SessionIsolation.persistSession`
-- Because the same failure appears on both PR `#176` and PR `#177`, the next fix should be a dedicated `main`-based slice for `FileSessionStore` atomic write behavior or test hardening, not an ad hoc change inside either existing PR.
-- `gh run view 23356824665 --log-failed` for PR `#176` shows an additional Stitch-specific failure on shard 3:
-  - failing test: `test-env-sync-validation.js`
-  - message: `mcp.config.json references ${STITCH_API_KEY} but .env.example has no entry for STITCH_API_KEY`
-- So PR `#176` needs two follow-up fixes: the shared Linux session-store failure on `main` lineage, and a branch-local `.env.example` sync for `STITCH_API_KEY`.
+## PR #187 Outcome
+- The review comments pointed at two lines, but the real maintenance risk was broader: the file used many arbitrary `src.slice(... + N)` windows around function bodies.
+- Replacing those windows with `extractBlockFromMarker()` materially reduces false negatives when `VoiceSidecar.ts` grows or formatting changes.
+- The cleanup assertion is safer as structural ordering (`try` before unlink, `catch` after unlink) than as a whitespace-sensitive regex over the exact `try/catch` text.
 
-### Durable Learning
-- When the root control plane contains only tracker/research/session-log drift, preserve it on a dedicated `chore/control-plane-*` branch or PR before deleting stale branches.
-- If a copied skill pack or sidecar integration has already been normalized into a clean feature PR, remove the duplicate raw root copy during repo cleanup instead of trying to carry both versions forward.
+## PR #188 Outcome
+- The STT branch already had three of the four requested review fixes present locally before this pass; only the earlier `execFileSync` assertion still lagged behind the stronger security expectation.
+- Using `vi.resetModules()` in the env-sensitive suites is the right fix because these tests instantiate runtime modules after changing `process.env`.
+- The `tmpOutputTxt` existence check was removed from the test suite, which avoids turning a likely unreachable fallback path into a documented contract.
+
+## PR #189 Outcome
+- A polling helper is a better fix than simply increasing `setTimeout` values because it keeps the tests deterministic while still surfacing real persistence failures within a bounded timeout.
+- Typing `createTestSessionState()` with `SessionState` gives the large validation file compile-time coverage against future interface drift.
+- The new sanitized-`list()` assertion documents current runtime behavior without changing production code, which is the right scope for this PR.
+
+## PR #190 Outcome
+- The review comments on `#190` were correct, but the actual merge blocker was the GitHub PR body, not the branch files.
+- The accurate wording is "no application source code changes," because the merged wave added several new `.ts` test files.
+- `scripts/validate-pr-metadata.js` reads the pull request body from the event payload. A rerun of an existing failed job kept using the stale payload, so the fix required a fresh `pull_request` event after the PR body was updated.
+
+## Final Outcome
+- Merge order executed as planned: `#186` → `#187` → `#188` → `#189` → `#190`.
+- Final integrated validation on merged `main` passed with `121` test files and `2053` passing tests.
+- No additional code-review findings remain for this PR wave beyond the GitHub Actions Node 20 deprecation warnings emitted by CI.
+
+## Session 2: Full Roadmap Execution Findings
+
+### M3.1 Redis SessionStore
+- `ioredis` as an `optionalDependencies` entry requires `package-lock.json` to be committed — CI uses `npm ci` which enforces lockfile consistency
+- Dynamic `await import('ioredis')` keeps the dependency truly optional at runtime
+
+### M3.2 External Telemetry Export
+- JSON push with HMAC signing reuses the WebhookManager pattern without adding dependencies
+- Double opt-in (EVOKORE_TELEMETRY=true AND EVOKORE_TELEMETRY_EXPORT=true) is the right model for external data emission
+- Metrics-only scope (no audit events) avoids PII export concerns
+
+### M3.3 WebSocket HITL
+- `ws` library with `noServer: true` integrates cleanly on the existing HTTP server via upgrade handling
+- Browser WebSocket clients cannot set custom headers — token in query parameter is the standard workaround
+- SecurityManager callback mechanism is cleaner than EventEmitter for the approval bridge
+- File-based IPC must remain operational for backward compatibility
+
+### M3.4 Worktree Cleanup
+- `new Function(source)` cannot validate Node.js scripts with `require()` — use `node --check` instead
+- Default dry-run for destructive operations is critical for safety
+
+### CI Learnings
+- PR #205: Adding `optionalDependencies` in package.json without committing the updated lockfile breaks `npm ci` on all CI shards
+- PR #206: All 12 checks green on first try when all shared files (index.ts, HttpServer.ts) are on the latest main before branching
+
+## Revised Roadmap Findings
+- The remaining backlog was too flat. The correct execution model after Phase 5 is milestone-based, with runtime continuity as the architectural spine.
+- Hard dependency chain:
+  - HTTP session reattachment before Auto-Memory and dashboard session filtering
+  - dashboard auth before real-time WebSocket HITL approvals
+  - internal telemetry before external telemetry export
+  - canonical session contract before Redis `SessionStore`
+- Scope-label correction:
+  - dashboard work should be framed as validation/hardening of a partially landed surface, not purely new implementation
+  - telemetry export should extend the existing local telemetry and webhook event model, not create a second telemetry concept
+- Review-process correction:
+  - ARCH-AEP should be a live gate before and after milestone waves, not a retroactive audit habit
+  - post-implementation code analysis/review needs to be explicit in the roadmap, not implied
