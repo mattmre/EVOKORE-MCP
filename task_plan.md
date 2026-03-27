@@ -9,13 +9,13 @@ Execute the remaining post-roadmap work sequentially with fresh branches/agents 
 5. queue lower-priority expansion follow-ups as separate PR-sized slices
 
 ## Current Phase
-Phase S3.5 preparation: this control-plane wrap is the final S3.4 preservation step, and the next executable slice after it lands is the post-M3 ARCH-AEP / M4 review.
+Phase S3.6 preparation: the S3.5 review artifact is the current publication slice, and the next executable engineering work after it lands is S3.6.
 
 ## Current Repo / PR State
-- Active wrap PR: `#209` while this branch is under review; expected open-PR state after merge: none
+- Open PRs on merged `main`: none
 - Local branch: `main`
-- Existing root-checkout drift: planning files plus `test-worktree-cleanup-validation.js`; this wrap branch exists to preserve that control-plane state cleanly
-- Constraint: the original "review open PR comments" request was blocked at Session 3 kickoff because GitHub had no open implementation PRs, so the work pivoted into fresh sequential slices. After this wrap lands, the next active phase is S3.5.
+- Existing root-checkout drift: planning files plus `test-worktree-cleanup-validation.js`; new slices continue from fresh disposable worktrees instead of the dirty root checkout
+- Constraint: release closure remains operator-gated on `NPM_TOKEN`, so S3.5 is the current executable engineering slice.
 
 ## Remaining Execution Queue
 
@@ -24,8 +24,8 @@ Phase S3.5 preparation: this control-plane wrap is the final S3.4 preservation s
 | S3.1 | F1 redactForAudit wiring / known-safe decision | code + docs | done | #207 | Merged as `03a31b4`; no blocking review findings; PR CI green |
 | S3.2 | Post-merge stabilization: Windows-local worktree cleanup validation failure | test stabilization | done | #208 | Merged as `2a84de2`; local full suite now green again |
 | S3.3 | Release closure follow-up | ops + docs | blocked | TBD | GitHub release/tag exist; npm package absent; `NPM_TOKEN` not visible in repo secrets |
-| S3.4 | Planning/doc sync stabilization | docs/control-plane | in review | #209 | Reconcile `next-session.md`, roadmap truth doc, stale `CLAUDE.md` notes, and publish session-wrap PR |
-| S3.5 | Post-M3 ARCH-AEP + M4 loop evidence | research/review | pending | TBD | No post-M3 review artifact found locally |
+| S3.4 | Planning/doc sync stabilization | docs/control-plane | done | #209 | Merged as `8dc1ad4`; wrap handoff preserved and validated on merged `main` |
+| S3.5 | Post-M3 ARCH-AEP + M4 loop evidence | research/review | in review | #210 | Review artifact drafted, validated locally, and published for sequential merge |
 | S3.6 | Expansion candidate: Prometheus `/metrics` pull endpoint | feature | pending | TBD | Follow-on to M3.2 export |
 | S3.7 | Expansion candidate: dashboard approve-over-WebSocket | feature | pending | TBD | Current WS flow is deny/push-oriented |
 | S3.8 | Expansion candidate: audit event export | feature | pending | TBD | Separate from telemetry metrics export |
