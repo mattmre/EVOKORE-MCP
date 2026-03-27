@@ -140,23 +140,22 @@ export class AuditLog {
    */
   getEntries(limit: number = 100, offset: number = 0): AuditEntry[] {
     try {
-      if (!fs.existsSync(this.auditFile)) return [];
-
-      const raw = fs.readFileSync(this.auditFile, "utf-8");
-      const lines = raw.trim().split("\n").filter(Boolean);
-
-      // Parse all valid lines
-      const entries: AuditEntry[] = [];
-      for (const line of lines) {
-        try {
-          entries.push(JSON.parse(line));
-        } catch {
-          // Skip malformed lines
-        }
-      }
+      const entries = this.readAllEntries();
 
       // Reverse to newest-first, then apply offset + limit
       entries.reverse();
+      return entries.slice(offset, offset + limit);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Read audit entries in chronological order (oldest first).
+   */
+  getEntriesChronological(limit: number = 100, offset: number = 0): AuditEntry[] {
+    try {
+      const entries = this.readAllEntries();
       return entries.slice(offset, offset + limit);
     } catch {
       return [];
@@ -168,20 +167,11 @@ export class AuditLog {
    */
   getSummary(): Record<string, number> {
     try {
-      if (!fs.existsSync(this.auditFile)) return {};
-
-      const raw = fs.readFileSync(this.auditFile, "utf-8");
-      const lines = raw.trim().split("\n").filter(Boolean);
-
+      const entries = this.readAllEntries();
       const counts: Record<string, number> = {};
-      for (const line of lines) {
-        try {
-          const entry = JSON.parse(line);
-          if (entry.eventType) {
-            counts[entry.eventType] = (counts[entry.eventType] || 0) + 1;
-          }
-        } catch {
-          // Skip malformed lines
+      for (const entry of entries) {
+        if (entry.eventType) {
+          counts[entry.eventType] = (counts[entry.eventType] || 0) + 1;
         }
       }
       return counts;
@@ -195,9 +185,7 @@ export class AuditLog {
    */
   getEntryCount(): number {
     try {
-      if (!fs.existsSync(this.auditFile)) return 0;
-      const raw = fs.readFileSync(this.auditFile, "utf-8");
-      return raw.trim().split("\n").filter(Boolean).length;
+      return this.readAllEntries().length;
     } catch {
       return 0;
     }
@@ -281,6 +269,24 @@ export class AuditLog {
     } catch {
       // Never throw from rotation -- fail-safe
     }
+  }
+
+  private readAllEntries(): AuditEntry[] {
+    if (!fs.existsSync(this.auditFile)) return [];
+
+    const raw = fs.readFileSync(this.auditFile, "utf-8");
+    const lines = raw.trim().split("\n").filter(Boolean);
+    const entries: AuditEntry[] = [];
+
+    for (const line of lines) {
+      try {
+        entries.push(JSON.parse(line));
+      } catch {
+        // Skip malformed lines
+      }
+    }
+
+    return entries;
   }
 }
 
