@@ -88,6 +88,18 @@ Scope:
 - keep approve as an operator acknowledgment / management action unless and
   until the token contract is deliberately redesigned
 
+Implementation decision:
+
+- dashboard `Approve` sends a WebSocket `approve` message with the token prefix
+- `SecurityManager.approveToken()` marks the pending token as acknowledged but
+  does **not** consume it
+- the original `_evokore_approval_token` retry path remains the only way to
+  dispatch the tool call upstream
+- the dashboard receives an `approval_acknowledged` event and updates the card
+  state to `approved`
+- deny remains destructive and admin-only; approve is a live operator-management
+  action on top of the existing token flow
+
 ## Operator-Facing Behavior After S3.7a
 
 - If `EVOKORE_DASHBOARD_APPROVAL_WS_URL` is set, the approvals page uses it.

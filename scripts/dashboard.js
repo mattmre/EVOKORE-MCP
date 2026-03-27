@@ -920,6 +920,9 @@ const approvalsHTML = `<!DOCTYPE html>
     .time-warn { color: #fcd34d; }
     .time-danger { color: #f87171; }
     .approval-card .actions { margin-top: 12px; display: flex; gap: 8px; }
+    .btn-approve { background: #065f46; color: #d1fae5; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+    .btn-approve:hover { background: #047857; }
+    .btn-approve:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-deny { background: #991b1b; color: #fecaca; border: none; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
     .btn-deny:hover { background: #b91c1c; }
     .btn-deny:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -1042,6 +1045,22 @@ const approvalsHTML = `<!DOCTYPE html>
       }
     }
 
+    function approveToken(prefix) {
+      var btn = document.getElementById('approve-' + prefix);
+      if (btn) { btn.disabled = true; btn.textContent = 'Approving...'; }
+      if (!(wsConnected && wsConnection && wsConnection.readyState === 1)) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
+        alert('Approve requires a live WebSocket connection to the EVOKORE HTTP server.');
+        return;
+      }
+      try {
+        wsConnection.send(JSON.stringify({ type: 'approve', prefix: prefix }));
+      } catch (err) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Approve'; }
+        alert('Failed to approve token: ' + err.message);
+      }
+    }
+
     function renderApprovals(approvals) {
       var content = document.getElementById('content');
 
@@ -1050,14 +1069,19 @@ const approvalsHTML = `<!DOCTYPE html>
       if (updated) updated.textContent = 'Last updated: ' + new Date().toLocaleTimeString();
 
       var pendingCount = 0;
+      var approvedCount = 0;
       var deniedCount = 0;
       for (var c = 0; c < approvals.length; c++) {
         if (approvals[c].denied) deniedCount++;
+        else if (approvals[c].approvedAt) approvedCount++;
         else pendingCount++;
       }
 
       var html = '<div class="stats">';
       html += '<div class="stat"><div class="value">' + pendingCount + '</div><div class="label">Pending</div></div>';
+      if (approvedCount > 0) {
+        html += '<div class="stat"><div class="value">' + approvedCount + '</div><div class="label">Approved</div></div>';
+      }
       if (deniedCount > 0) {
         html += '<div class="stat"><div class="value">' + deniedCount + '</div><div class="label">Denied</div></div>';
       }
@@ -1074,10 +1098,12 @@ const approvalsHTML = `<!DOCTYPE html>
         var a = approvals[i];
         var tr = formatTimeRemaining(a.expiresAt);
         var tokenDisplay = esc(a.token);
-        var cardStatus = a.denied ? 'status-denied' : 'status-pending';
+        var cardStatus = a.denied ? 'status-denied' : (a.approvedAt ? 'status-approved' : 'status-pending');
         var statusLabel = a.denied
           ? '<span class="approval-status approval-status-denied">denied</span>'
-          : '<span class="approval-status approval-status-pending">pending</span>';
+          : a.approvedAt
+            ? '<span class="approval-status approval-status-approved">approved</span>'
+            : '<span class="approval-status approval-status-pending">pending</span>';
 
         html += '<div class="approval-card ' + cardStatus + '">';
         html += '<div class="tool-name">' + esc(a.toolName) + statusLabel + '</div>';
@@ -1086,9 +1112,15 @@ const approvalsHTML = `<!DOCTYPE html>
           html += '<div class="session-context">Session: ' + esc(a.sessionId) + '</div>';
         }
         html += '<div class="timing">Created: ' + formatDate(a.createdAt) + ' | Remaining: <span class="time-remaining ' + tr.cls + '">' + tr.text + '</span></div>';
+        if (a.approvedAt && !a.denied) {
+          html += '<div class="timing">Approved: ' + formatDate(a.approvedAt) + '</div>';
+        }
 
         if (!a.denied) {
           html += '<div class="actions">';
+          if (!a.approvedAt) {
+            html += '<button class="btn-approve" id="approve-' + esc(a.token.replace('...', '')) + '" onclick="approveToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Approve</button>';
+          }
           html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
           html += '</div>';
         }
@@ -1170,6 +1202,16 @@ const approvalsHTML = `<!DOCTYPE html>
               cachedApprovals.push(msg.data);
               renderApprovals(cachedApprovals);
             }
+          } else if (msg.type === 'approval_acknowledged') {
+            if (msg.data && msg.data.prefix) {
+              cachedApprovals = cachedApprovals.map(function(a) {
+                if (a.token.startsWith(msg.data.prefix)) {
+                  return Object.assign({}, a, { approvedAt: msg.data.approvedAt || Date.now() });
+                }
+                return a;
+              });
+              renderApprovals(cachedApprovals);
+            }
           } else if (msg.type === 'approval_denied') {
             // Remove denied approval from cached list
             if (msg.data && msg.data.prefix) {
@@ -1185,6 +1227,11 @@ const approvalsHTML = `<!DOCTYPE html>
                 return a.token !== msg.data.token;
               });
               renderApprovals(cachedApprovals);
+            }
+          } else if (msg.type === 'error') {
+            loadApprovals();
+            if (msg.message) {
+              alert(msg.message);
             }
           } else if (msg.type === 'pong') {
             // Heartbeat response, no action needed

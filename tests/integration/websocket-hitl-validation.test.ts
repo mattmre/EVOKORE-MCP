@@ -90,12 +90,18 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(httpServerSource).toContain('JSON.stringify({ type: "pong" })');
     });
 
-    it('server broadcasts approval_requested, approval_denied, approval_granted types', () => {
+    it('server broadcasts approval_requested, approval_acknowledged, approval_denied, approval_granted types', () => {
       // These are broadcast via broadcastApprovalEvent which sends the raw event from SecurityManager
       expect(httpServerSource).toContain('broadcastApprovalEvent');
       expect(securityManagerSource).toContain('"approval_requested"');
+      expect(securityManagerSource).toContain('"approval_acknowledged"');
       expect(securityManagerSource).toContain('"approval_denied"');
       expect(securityManagerSource).toContain('"approval_granted"');
+    });
+
+    it('client can send approve message via WebSocket', () => {
+      expect(httpServerSource).toContain('msg.type === "approve"');
+      expect(httpServerSource).toContain('approveToken(prefix)');
     });
 
     it('client can send deny message via WebSocket', () => {
@@ -149,6 +155,16 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(consumeMatch).toBeTruthy();
       expect(consumeMatch![1]).toContain('emitApprovalEvent');
       expect(consumeMatch![1]).toContain('"approval_granted"');
+    });
+
+    it('callback invoked on approveToken (approval_acknowledged)', () => {
+      const approveMatch = securityManagerSource.match(
+        /approveToken\s*\([^)]*\)[^{]*\{([\s\S]*?)\n  \}/
+      );
+      expect(approveMatch).toBeTruthy();
+      expect(approveMatch![1]).toContain('emitApprovalEvent');
+      expect(approveMatch![1]).toContain('"approval_acknowledged"');
+      expect(approveMatch![1]).toContain('approvedAt');
     });
 
     it('callback invoked on denyToken (approval_denied)', () => {
@@ -237,6 +253,12 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain("JSON.stringify({ type: 'deny', prefix: prefix })");
     });
 
+    it('WS-based approve action requires a live connection', () => {
+      expect(dashboardSource).toContain('function approveToken(prefix)');
+      expect(dashboardSource).toContain("JSON.stringify({ type: 'approve', prefix: prefix })");
+      expect(dashboardSource).toContain('Approve requires a live WebSocket connection');
+    });
+
     it('handles snapshot message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'snapshot'");
       expect(dashboardSource).toContain('msg.approvals');
@@ -246,12 +268,23 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain("msg.type === 'approval_requested'");
     });
 
+    it('handles approval_acknowledged message type from server', () => {
+      expect(dashboardSource).toContain("msg.type === 'approval_acknowledged'");
+      expect(dashboardSource).toContain('approvedAt');
+    });
+
     it('handles approval_denied message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'approval_denied'");
     });
 
     it('handles approval_granted message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'approval_granted'");
+    });
+
+    it('handles WebSocket error messages by reloading approvals', () => {
+      expect(dashboardSource).toContain("msg.type === 'error'");
+      expect(dashboardSource).toContain('loadApprovals();');
+      expect(dashboardSource).toContain('alert(msg.message)');
     });
   });
 
@@ -280,6 +313,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(securityManagerSource).toMatch(/generateToken\s*\(toolName.*\).*:\s*string/);
       // validateToken still works the same
       expect(securityManagerSource).toMatch(/validateToken\s*\(toolName.*\).*:\s*boolean/);
+      expect(securityManagerSource).toContain('approveToken');
       // consumeToken still deletes and persists
       const consumeMatch = securityManagerSource.match(
         /consumeToken\s*\([^)]*\)[^{]*\{([\s\S]*?)\n  \}/
