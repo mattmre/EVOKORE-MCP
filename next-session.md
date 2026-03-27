@@ -6,7 +6,7 @@ Last Updated (UTC): 2026-03-27
 - **Main branch:** `main` contains the full M0-M3 roadmap execution, S3.1/S3.2 stabilization, the control-plane wrap from PR `#209`, and the post-M3 ARCH-AEP review
 - **Open PRs:** none; verify with `gh pr list --state open` before starting the next slice
 - **Worktrees:** use the root checkout as the canonical handoff workspace and create fresh disposable worktrees for new slices
-- **Local branches:** refresh the root checkout onto the latest `main` before starting S3.5
+- **Local branches:** refresh the root checkout onto the latest `main` before starting S3.6
 - **Validation:** 135 test files, 2462 tests passing, 24 skipped
 - **Release:** GitHub release/tag `v3.1.0` exists; npm package is still unpublished and `NPM_TOKEN` is missing or unconfirmed
 - **Session logs:** `docs/session-logs/session-2026-03-26-post-roadmap-stabilization-wrap.md`, `docs/session-logs/session-2026-03-27-post-m3-arch-aep-review.md`
