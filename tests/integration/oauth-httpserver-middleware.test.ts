@@ -328,6 +328,54 @@ describe('OAuthProvider-HttpServer Middleware Wiring', () => {
       const body = JSON.parse(res.body);
       expect(body.status).toBe('ok');
     });
+
+    it('/metrics stays protected when auth is required', async () => {
+      const addr = httpServer.getAddress();
+
+      const res = await httpRequest({
+        hostname: '127.0.0.1',
+        port: addr.port,
+        path: '/metrics',
+        method: 'GET',
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(res.headers['www-authenticate']).toMatch(/Bearer/);
+    });
+
+    it('/metrics auth rejection does not increment telemetry auth failure counters', async () => {
+      const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
+      const { HttpServer } = require(httpServerJsPath);
+      const { TelemetryManager } = require(path.join(ROOT, 'dist', 'TelemetryManager.js'));
+
+      const mcpServer = new Server(
+        { name: 'metrics-auth-failure-test', version: '0.0.1' },
+        { capabilities: { tools: {} } }
+      );
+      const telemetryManager = new TelemetryManager();
+      telemetryManager.setEnabled(true);
+
+      const server = new HttpServer(mcpServer, {
+        port: 0,
+        host: '127.0.0.1',
+        telemetryManager,
+        authConfig: { required: true, staticToken: 'test-secret-token' },
+      });
+      await server.start();
+
+      const addr = server.getAddress();
+      const res = await httpRequest({
+        hostname: '127.0.0.1',
+        port: addr.port,
+        path: '/metrics',
+        method: 'GET',
+      });
+
+      expect(res.statusCode).toBe(401);
+      expect(telemetryManager.getMetrics().auth.failureCount).toBe(0);
+
+      await server.stop();
+    });
   });
 
   describe('Phase 3: Auth enabled - authenticated /mcp requests pass through', () => {
@@ -382,6 +430,47 @@ describe('OAuthProvider-HttpServer Middleware Wiring', () => {
 
       // Should reach MCP handler and get a valid response
       expect(res.statusCode).toBe(200);
+    });
+
+    it('allows /metrics GET with correct Bearer token', async () => {
+      const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
+      const { HttpServer } = require(httpServerJsPath);
+      const { TelemetryManager } = require(path.join(ROOT, 'dist', 'TelemetryManager.js'));
+
+      const mcpServer = new Server(
+        { name: 'auth-metrics-test', version: '0.0.1' },
+        { capabilities: { tools: {} } }
+      );
+      const telemetryManager = new TelemetryManager();
+      telemetryManager.setEnabled(true);
+      telemetryManager.recordToolCall(25);
+
+      const server = new HttpServer(mcpServer, {
+        port: 0,
+        host: '127.0.0.1',
+        telemetryManager,
+        authConfig: { required: true, staticToken: 'correct-test-token' },
+      });
+      await server.start();
+
+      const addr = server.getAddress();
+      const res = await httpRequest({
+        hostname: '127.0.0.1',
+        port: addr.port,
+        path: '/metrics',
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer correct-test-token',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toContain('text/plain');
+      expect(res.body).toContain('evokore_tool_calls_total 1');
+      expect(res.body).toContain('evokore_auth_success_total 0');
+      expect(telemetryManager.getMetrics().auth.successCount).toBe(0);
+
+      await server.stop();
     });
   });
 

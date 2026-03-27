@@ -412,6 +412,7 @@ export class HttpServer {
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = req.url ?? "/";
+    const isMetricsPath = url === "/metrics" || url === "/metrics/";
 
     // Health check endpoint -- always public, bypasses auth
     if (url === "/health" && req.method === "GET") {
@@ -426,20 +427,36 @@ export class HttpServer {
       if (!isPublicPath(url)) {
         const authResult = await authenticateRequest(req, this.authConfig);
         if (!authResult.authorized) {
-          this.auditLog.log("auth_failure", "failure", {
-            metadata: { path: url, error: authResult.error || "Unauthorized" },
-          });
-          this.telemetryManager?.recordAuthFailure();
+          if (!isMetricsPath) {
+            this.auditLog.log("auth_failure", "failure", {
+              metadata: { path: url, error: authResult.error || "Unauthorized" },
+            });
+            this.telemetryManager?.recordAuthFailure();
+          }
           sendUnauthorizedResponse(res, authResult.error || "Unauthorized");
           return;
         }
-        this.auditLog.log("auth_success", "success", {
-          actor: (authResult.claims?.sub as string) ?? "unknown",
-          metadata: { path: url },
-        });
-        this.telemetryManager?.recordAuthSuccess();
+        if (!isMetricsPath) {
+          this.auditLog.log("auth_success", "success", {
+            actor: (authResult.claims?.sub as string) ?? "unknown",
+            metadata: { path: url },
+          });
+          this.telemetryManager?.recordAuthSuccess();
+        }
         authClaims = authResult.claims;
       }
+    }
+
+    if (isMetricsPath && req.method === "GET") {
+      if (!this.telemetryManager?.isEnabled()) {
+        res.writeHead(503, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
+        res.end("# EVOKORE telemetry is disabled. Set EVOKORE_TELEMETRY=true to enable /metrics.\n");
+        return;
+      }
+
+      res.writeHead(200, { "Content-Type": "text/plain; version=0.0.4; charset=utf-8" });
+      res.end(this.telemetryManager.getPrometheusMetrics());
+      return;
     }
 
     // MCP endpoint

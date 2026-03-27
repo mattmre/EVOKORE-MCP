@@ -9,13 +9,13 @@ Execute the remaining post-roadmap work sequentially with fresh branches/agents 
 5. queue lower-priority expansion follow-ups as separate PR-sized slices
 
 ## Current Phase
-Phase S3.6 preparation: the S3.5 review artifact is the current publication slice, and the next executable engineering work after it lands is S3.6.
+Phase S3.6 implementation: the Prometheus `/metrics` slice is under local validation/publication, and the next executable engineering work after it lands is S3.7.
 
 ## Current Repo / PR State
 - Open PRs on merged `main`: none
-- Local branch: `main`
+- Local branch: `feat/prometheus-metrics-endpoint`
 - Existing root-checkout drift: planning files plus `test-worktree-cleanup-validation.js`; new slices continue from fresh disposable worktrees instead of the dirty root checkout
-- Constraint: release closure remains operator-gated on `NPM_TOKEN`, so S3.5 is the current executable engineering slice.
+- Constraint: release closure remains operator-gated on `NPM_TOKEN`, so S3.6 is the current executable engineering slice while S3.3 waits on operator action.
 
 ## Remaining Execution Queue
 
@@ -25,8 +25,8 @@ Phase S3.6 preparation: the S3.5 review artifact is the current publication slic
 | S3.2 | Post-merge stabilization: Windows-local worktree cleanup validation failure | test stabilization | done | #208 | Merged as `2a84de2`; local full suite now green again |
 | S3.3 | Release closure follow-up | ops + docs | blocked | TBD | GitHub release/tag exist; npm package absent; `NPM_TOKEN` not visible in repo secrets |
 | S3.4 | Planning/doc sync stabilization | docs/control-plane | done | #209 | Merged as `8dc1ad4`; wrap handoff preserved and validated on merged `main` |
-| S3.5 | Post-M3 ARCH-AEP + M4 loop evidence | research/review | in review | #210 | Review artifact drafted, validated locally, and published for sequential merge |
-| S3.6 | Expansion candidate: Prometheus `/metrics` pull endpoint | feature | pending | TBD | Follow-on to M3.2 export |
+| S3.5 | Post-M3 ARCH-AEP + M4 loop evidence | research/review | done | #210 | Merged as `ce1a75f`; follow-up queue confirmed |
+| S3.6 | Expansion candidate: Prometheus `/metrics` pull endpoint | feature | in progress | TBD | Implemented locally with targeted validation passing; preparing sequential PR |
 | S3.7 | Expansion candidate: dashboard approve-over-WebSocket | feature | pending | TBD | Current WS flow is deny/push-oriented |
 | S3.8 | Expansion candidate: audit event export | feature | pending | TBD | Separate from telemetry metrics export |
 | S3.9 | Expansion candidate: container sandbox seccomp/resource hardening | feature | pending | TBD | Could split into more than one PR |
@@ -118,6 +118,15 @@ Execute the complete EVOKORE-MCP roadmap from PR #191 through M3.4, following th
   - GitHub release `v3.1.0` exists and is published
   - npm registry lookup for `evokore-mcp` returns `404 Not Found`
   - release closure is therefore operator-gated, not blocked on code
+- Slice S3.5 merged: PR `#210` `docs: add post-M3 ARCH-AEP review`
+- Slice S3.6 implementation started in fresh worktree `D:/GITHUB/EVOKORE-MCP-s3-6` on branch `feat/prometheus-metrics-endpoint`
+- S3.6 implementation decisions:
+  - `/metrics` is layered on top of the existing telemetry model instead of changing the M3.2 export contract
+  - `/metrics` stays behind the normal auth middleware when auth is enabled; only `/health` remains public
+  - `/metrics` returns `503` when `EVOKORE_TELEMETRY` is disabled instead of silently enabling collection
+- S3.6 targeted local validation passed:
+  - `npx vitest run tests/integration/telemetry-manager.test.ts tests/integration/http-server-transport.test.ts tests/integration/oauth-authentication.test.ts tests/integration/oauth-httpserver-middleware.test.ts`
+  - `npm run build`
 - Built isolated worktree `D:/GITHUB/EVOKORE-MCP-s3-1` on branch `fix/audit-redaction-wiring-20260326`
 - Implemented centralized audit metadata redaction in `AuditLog.write()`
 - Added runtime persistence coverage for audit redaction and a dated research note for F1 closure

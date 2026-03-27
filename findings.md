@@ -2,6 +2,26 @@
 
 ## Session 3: Slice S3.4 / S3.5 Review Closure
 
+## Session 3: Slice S3.6 Prometheus Pull Endpoint
+
+### Design Findings
+- The existing telemetry model is already the right source of truth for a Prometheus scrape surface; S3.6 does not need a second metrics store or a schema fork.
+- `/metrics` should remain behind the normal HTTP auth middleware when auth is enabled. Prometheus can scrape with a bearer token, while keeping `/health` as the only public-path exception.
+- Returning `503` when telemetry is disabled is a better fit than silently exposing zeroed metrics because it preserves telemetry's explicit opt-in model.
+- Prometheus scrapes must not mutate the auth counters they expose; otherwise normal polling manufactures auth traffic and corrupts the series.
+
+### Implementation Findings
+- The smallest clean implementation is to add a formatter on `TelemetryManager` and a single `GET /metrics` route in `HttpServer`.
+- No `OAuthProvider` production change is required because `/metrics` is intentionally not a public path.
+- `.env.example` still needs operator-facing notes even when no new env var is introduced, because the scrape surface changes deployment behavior.
+
+### Validation Findings
+- Targeted validation passed for the slice:
+  - `npx vitest run tests/integration/telemetry-manager.test.ts tests/integration/http-server-transport.test.ts tests/integration/oauth-authentication.test.ts tests/integration/oauth-httpserver-middleware.test.ts`
+  - `npm run build`
+- The targeted auth tests now explicitly prove that `/metrics` is protected while `/health` remains public.
+- The auth middleware tests now also prove that authenticated and rejected `/metrics` scrapes leave the auth success/failure counters unchanged.
+
 ### PR #209 Review Outcome
 - The only actionable finding on the open wrap PR was semantic drift in the handoff docs: `next-session.md` and the new wrap log were written from the "PR still open" perspective and would have become stale immediately after merge.
 - That was corrected in commit `4ec7226` before PR `#209` merged as `8dc1ad4`.

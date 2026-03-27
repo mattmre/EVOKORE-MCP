@@ -401,6 +401,12 @@ describe('T27: OAuth Bearer Token Authentication', () => {
       expect(isPublicPath('/mcp')).toBe(false);
     });
 
+    it('returns false for /metrics', () => {
+      const { isPublicPath } = require(authModulePath);
+      expect(isPublicPath('/metrics')).toBe(false);
+      expect(isPublicPath('/metrics/')).toBe(false);
+    });
+
     it('returns false for arbitrary paths', () => {
       const { isPublicPath } = require(authModulePath);
       expect(isPublicPath('/api/tools')).toBe(false);
