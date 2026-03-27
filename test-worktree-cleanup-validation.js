@@ -21,9 +21,9 @@ check('script file exists', () => {
 
 check('script is valid JavaScript (can be parsed)', () => {
   const scriptPath = path.join(__dirname, 'scripts', 'worktree-cleanup.js');
-  const source = fs.readFileSync(scriptPath, 'utf8');
-  // This will throw a SyntaxError if the file is invalid JS
-  new Function(source.replace(/^#!.*\n/, ''));
+  const { spawnSync } = require('child_process');
+  const result = spawnSync(process.execPath, ['--check', scriptPath], { encoding: 'utf8' });
+  assert.strictEqual(result.status, 0, `script has syntax errors: ${result.stderr}`);
 });
 
 check('script documents --dry-run flag', () => {
