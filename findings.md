@@ -22,6 +22,10 @@
 - The targeted auth tests now explicitly prove that `/metrics` is protected while `/health` remains public.
 - The auth middleware tests now also prove that authenticated and rejected `/metrics` scrapes leave the auth success/failure counters unchanged.
 
+### PR Outcome
+- PR `#211` merged to `main` as `276f0ba`.
+- The only CI failure was PR metadata validation because the initial GitHub PR body landed empty. Updating the body alone was not enough; a fresh synchronize event via empty commit `d1f21cb` was required so Actions used the corrected payload.
+
 ### PR #209 Review Outcome
 - The only actionable finding on the open wrap PR was semantic drift in the handoff docs: `next-session.md` and the new wrap log were written from the "PR still open" perspective and would have become stale immediately after merge.
 - That was corrected in commit `4ec7226` before PR `#209` merged as `8dc1ad4`.
