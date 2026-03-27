@@ -56,6 +56,18 @@ describe('ContainerSandbox module structure', () => {
     expect(sourceCode).toMatch(/export function buildSecurityArgs/);
   });
 
+  it('exports resolveSeccompProfilePath function', () => {
+    expect(sourceCode).toMatch(/export function resolveSeccompProfilePath/);
+  });
+
+  it('exports getSandboxImageNames function', () => {
+    expect(sourceCode).toMatch(/export function getSandboxImageNames/);
+  });
+
+  it('exports warmContainerSandboxImages function', () => {
+    expect(sourceCode).toMatch(/export async function warmContainerSandboxImages/);
+  });
+
   it('exports resolveSandboxMode function', () => {
     expect(sourceCode).toMatch(/export function resolveSandboxMode/);
   });
@@ -147,6 +159,16 @@ describe('ContainerSandbox compiled module', () => {
     });
   });
 
+  describe('getSandboxImageNames()', () => {
+    it('returns the unique sandbox image set', () => {
+      expect(mod.getSandboxImageNames()).toEqual([
+        'alpine:latest',
+        'node:20-alpine',
+        'python:3.12-alpine',
+      ]);
+    });
+  });
+
   describe('buildSecurityArgs()', () => {
     it('includes --network=none', () => {
       const args = mod.buildSecurityArgs();
@@ -188,6 +210,11 @@ describe('ContainerSandbox compiled module', () => {
       expect(args).toContain('--security-opt=no-new-privileges');
     });
 
+    it('includes custom seccomp profile when provided', () => {
+      const args = mod.buildSecurityArgs(256, 1, '/tmp/seccomp-profile.json');
+      expect(args).toContain('--security-opt=seccomp=/tmp/seccomp-profile.json');
+    });
+
     it('includes non-root user', () => {
       const args = mod.buildSecurityArgs();
       expect(args).toContain('--user=1000:1000');
@@ -208,6 +235,7 @@ describe('ContainerSandbox compiled module', () => {
       expect(desc.cpuLimit).toBe(1);
       expect(desc.pidsLimit).toBe(100);
       expect(desc.noNewPrivileges).toBe(true);
+      expect(desc.seccompProfile).toBeNull();
       expect(desc.user).toBe('1000:1000');
     });
 
@@ -215,6 +243,51 @@ describe('ContainerSandbox compiled module', () => {
       const desc = mod.getSecurityFlagDescriptor(512, 4);
       expect(desc.memoryMb).toBe(512);
       expect(desc.cpuLimit).toBe(4);
+    });
+
+    it('surfaces seccomp profile path when provided', () => {
+      const desc = mod.getSecurityFlagDescriptor(256, 1, '/tmp/seccomp.json');
+      expect(desc.seccompProfile).toBe('/tmp/seccomp.json');
+    });
+  });
+
+  describe('resolveSeccompProfilePath()', () => {
+    it('returns null when no seccomp profile is configured', () => {
+      delete process.env.EVOKORE_SANDBOX_SECCOMP_PROFILE;
+      expect(mod.resolveSeccompProfilePath()).toBeNull();
+    });
+
+    it('resolves an explicit relative seccomp profile path', () => {
+      const tmpDir = fs.mkdtempSync(path.join(ROOT, 'tmp-seccomp-'));
+      const profilePath = path.join(tmpDir, 'profile.json');
+      fs.writeFileSync(profilePath, '{"defaultAction":"SCMP_ACT_ERRNO","syscalls":[]}', 'utf8');
+
+      const originalCwd = process.cwd();
+      process.chdir(tmpDir);
+      try {
+        expect(mod.resolveSeccompProfilePath('./profile.json')).toBe(profilePath);
+      } finally {
+        process.chdir(originalCwd);
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    });
+
+    it('throws when the configured seccomp profile path does not exist', () => {
+      expect(() => mod.resolveSeccompProfilePath('./does-not-exist.json')).toThrow(/does not exist/i);
+    });
+  });
+
+  describe('warmContainerSandboxImages()', () => {
+    it('skips image warmup in process mode', async () => {
+      const result = await mod.warmContainerSandboxImages('process');
+      expect(result.mode).toBe('process');
+      expect(result.attempted).toBe(false);
+      expect(result.skippedReason).toMatch(/process/);
+      expect(result.candidateImages).toEqual([
+        'alpine:latest',
+        'node:20-alpine',
+        'python:3.12-alpine',
+      ]);
     });
   });
 
@@ -569,5 +642,21 @@ describe('Container sandbox env var documentation', () => {
 
   it('documents EVOKORE_SANDBOX_CPU_LIMIT', () => {
     expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_CPU_LIMIT/);
+  });
+
+  it('documents EVOKORE_SANDBOX_PREPULL', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_PREPULL/);
+  });
+
+  it('documents EVOKORE_SANDBOX_SECCOMP_PROFILE', () => {
+    expect(envExampleContent).toMatch(/EVOKORE_SANDBOX_SECCOMP_PROFILE/);
+  });
+});
+
+describe('Server startup integration', () => {
+  it('warms sandbox images from server startup when enabled', () => {
+    const indexSource = fs.readFileSync(path.join(ROOT, 'src', 'index.ts'), 'utf8');
+    expect(indexSource).toMatch(/warmContainerSandboxImages/);
+    expect(indexSource).toMatch(/EVOKORE_SANDBOX_PREPULL === ['"]true['"]/);
   });
 });

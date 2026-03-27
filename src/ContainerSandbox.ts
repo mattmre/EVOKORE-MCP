@@ -69,6 +69,16 @@ export interface ContainerImageSpec {
   ext: string;
 }
 
+export interface ContainerSandboxWarmupResult {
+  mode: SandboxMode;
+  runtime: ContainerRuntime | null;
+  attempted: boolean;
+  candidateImages: string[];
+  warmedImages: string[];
+  failures: string[];
+  skippedReason?: string;
+}
+
 export function getImageSpec(language: SandboxLanguage): ContainerImageSpec {
   const normalized = language.toLowerCase() as SandboxLanguage;
   switch (normalized) {
@@ -89,6 +99,38 @@ export function getImageSpec(language: SandboxLanguage): ContainerImageSpec {
     default:
       throw new Error("Unsupported container sandbox language: " + language);
   }
+}
+
+export function getSandboxImageNames(): string[] {
+  return Array.from(new Set([
+    getImageSpec("bash").image,
+    getImageSpec("javascript").image,
+    getImageSpec("typescript").image,
+    getImageSpec("python").image,
+  ]));
+}
+
+export function resolveSeccompProfilePath(explicit?: string): string | null {
+  const rawValue = explicit ?? process.env.EVOKORE_SANDBOX_SECCOMP_PROFILE;
+  const trimmedValue = rawValue?.trim();
+
+  if (!trimmedValue) {
+    return null;
+  }
+
+  const resolvedPath = path.isAbsolute(trimmedValue)
+    ? trimmedValue
+    : path.resolve(process.cwd(), trimmedValue);
+
+  if (!fsSync.existsSync(resolvedPath)) {
+    throw new Error(`EVOKORE_SANDBOX_SECCOMP_PROFILE does not exist: ${resolvedPath}`);
+  }
+
+  if (!fsSync.statSync(resolvedPath).isFile()) {
+    throw new Error(`EVOKORE_SANDBOX_SECCOMP_PROFILE must point to a file: ${resolvedPath}`);
+  }
+
+  return resolvedPath;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +194,7 @@ export interface ContainerSecurityFlags {
   cpuLimit: number;
   pidsLimit: number;
   noNewPrivileges: boolean;
+  seccompProfile: string | null;
   user: string;
 }
 
@@ -163,8 +206,9 @@ export interface ContainerSecurityFlags {
 export function buildSecurityArgs(
   memoryMb: number = 256,
   cpuLimit: number = 1,
+  seccompProfilePath: string | null = null,
 ): string[] {
-  return [
+  const args = [
     "--network=none",
     "--read-only",
     "--tmpfs", "/tmp:rw,noexec,size=64m",
@@ -172,8 +216,14 @@ export function buildSecurityArgs(
     `--cpus=${cpuLimit}`,
     "--pids-limit=100",
     "--security-opt=no-new-privileges",
-    "--user=1000:1000",
   ];
+
+  if (seccompProfilePath) {
+    args.push(`--security-opt=seccomp=${seccompProfilePath}`);
+  }
+
+  args.push("--user=1000:1000");
+  return args;
 }
 
 /**
@@ -183,6 +233,7 @@ export function buildSecurityArgs(
 export function getSecurityFlagDescriptor(
   memoryMb: number = 256,
   cpuLimit: number = 1,
+  seccompProfilePath: string | null = null,
 ): ContainerSecurityFlags {
   return {
     network: "none",
@@ -191,6 +242,7 @@ export function getSecurityFlagDescriptor(
     cpuLimit,
     pidsLimit: 100,
     noNewPrivileges: true,
+    seccompProfile: seccompProfilePath,
     user: "1000:1000",
   };
 }
@@ -202,10 +254,12 @@ export function getSecurityFlagDescriptor(
 export class ContainerSandbox {
   private memoryMb: number;
   private cpuLimit: number;
+  private seccompProfilePath: string | null;
 
-  constructor(opts?: { memoryMb?: number; cpuLimit?: number }) {
+  constructor(opts?: { memoryMb?: number; cpuLimit?: number; seccompProfilePath?: string | null }) {
     this.memoryMb = opts?.memoryMb ?? parseInt(process.env.EVOKORE_SANDBOX_MEMORY_MB || "256", 10);
     this.cpuLimit = opts?.cpuLimit ?? parseFloat(process.env.EVOKORE_SANDBOX_CPU_LIMIT || "1");
+    this.seccompProfilePath = opts?.seccompProfilePath ?? resolveSeccompProfilePath();
 
     if (!Number.isFinite(this.memoryMb) || this.memoryMb < 16) this.memoryMb = 256;
     if (!Number.isFinite(this.cpuLimit) || this.cpuLimit <= 0) this.cpuLimit = 1;
@@ -246,7 +300,7 @@ export class ContainerSandbox {
     const runArgs: string[] = [
       "run",
       "--rm",
-      ...buildSecurityArgs(this.memoryMb, this.cpuLimit),
+      ...buildSecurityArgs(this.memoryMb, this.cpuLimit, this.seccompProfilePath),
       // Bind-mount the host script directory as read-only
       "-v", `${hostDir}:${containerWorkdir}:ro`,
       "-w", "/tmp",
@@ -423,7 +477,7 @@ export function resolveSandboxMode(explicit?: SandboxMode): SandboxMode {
  */
 export async function createSandbox(
   mode?: SandboxMode,
-  opts?: { memoryMb?: number; cpuLimit?: number },
+  opts?: { memoryMb?: number; cpuLimit?: number; seccompProfilePath?: string | null },
 ): Promise<{ sandbox: ContainerSandbox | ProcessSandbox; mode: SandboxMode }> {
   const resolved = resolveSandboxMode(mode);
 
@@ -452,6 +506,82 @@ export async function createSandbox(
     "Install Docker or Podman for stronger isolation."
   );
   return { sandbox: new ProcessSandbox(), mode: "process" };
+}
+
+async function isContainerImagePresent(
+  runtime: { runtime: ContainerRuntime; binary: string },
+  image: string,
+): Promise<boolean> {
+  try {
+    await execFileAsync(runtime.binary, ["image", "inspect", image], {
+      timeout: 10000,
+      encoding: "utf8",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function warmContainerSandboxImages(
+  mode?: SandboxMode,
+): Promise<ContainerSandboxWarmupResult> {
+  const resolvedMode = resolveSandboxMode(mode);
+  const candidateImages = getSandboxImageNames();
+
+  if (resolvedMode === "process") {
+    return {
+      mode: resolvedMode,
+      runtime: null,
+      attempted: false,
+      candidateImages,
+      warmedImages: [],
+      failures: [],
+      skippedReason: "sandbox mode is set to process",
+    };
+  }
+
+  const runtime = await detectContainerRuntime();
+  if (!runtime) {
+    return {
+      mode: resolvedMode,
+      runtime: null,
+      attempted: false,
+      candidateImages,
+      warmedImages: [],
+      failures: [],
+      skippedReason: "no container runtime detected",
+    };
+  }
+
+  const warmedImages: string[] = [];
+  const failures: string[] = [];
+
+  for (const image of candidateImages) {
+    if (await isContainerImagePresent(runtime, image)) {
+      warmedImages.push(image);
+      continue;
+    }
+
+    try {
+      await execFileAsync(runtime.binary, ["pull", image], {
+        timeout: 300000,
+        encoding: "utf8",
+      });
+      warmedImages.push(image);
+    } catch (error: any) {
+      failures.push(`${image}: ${error?.stderr || error?.message || "pull failed"}`);
+    }
+  }
+
+  return {
+    mode: resolvedMode,
+    runtime: runtime.runtime,
+    attempted: true,
+    candidateImages,
+    warmedImages,
+    failures,
+  };
 }
 
 // ---------------------------------------------------------------------------
