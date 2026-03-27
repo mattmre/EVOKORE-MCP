@@ -327,7 +327,7 @@ export class HttpServer {
     this.wss.on("connection", (ws: WebSocket, req: http.IncomingMessage) => {
       this.wsClients.add(ws);
 
-      // Determine the client's role for RBAC on deny actions
+      // Determine the client's role for RBAC on approval management actions
       const reqUrl = new URL(req.url ?? "/", `http://${req.headers.host || "localhost"}`);
       const clientRole = (req as any)._evokoreRole || "";
       // Store role metadata on the socket for later use
@@ -355,18 +355,29 @@ export class HttpServer {
             ws.send(JSON.stringify({ type: "pong" }));
             return;
           }
-          if (msg.type === "deny" && typeof msg.prefix === "string") {
-            // Deny requires admin role when auth is enabled
+          if ((msg.type === "approve" || msg.type === "deny") && typeof msg.prefix === "string") {
+            const prefix = msg.prefix.replace(/[^a-f0-9]/gi, "").substring(0, 8);
+            if (prefix.length < 4) {
+              ws.send(JSON.stringify({ type: "error", message: "Invalid token prefix" }));
+              return;
+            }
+
+            // Approve requires developer role; deny remains admin-only.
             if (this.authConfig && this.authConfig.required) {
               const roleLevels: Record<string, number> = { admin: 3, developer: 2, readonly: 1 };
-              if ((roleLevels[(ws as any)._role] || 0) < (roleLevels["admin"] || 0)) {
-                ws.send(JSON.stringify({ type: "error", message: "Forbidden: admin role required for deny" }));
+              const requiredRole = msg.type === "approve" ? "developer" : "admin";
+              if ((roleLevels[(ws as any)._role] || 0) < (roleLevels[requiredRole] || 0)) {
+                ws.send(JSON.stringify({
+                  type: "error",
+                  message: `Forbidden: ${requiredRole} role required for ${msg.type}`,
+                }));
                 return;
               }
             }
             if (this.securityManager) {
-              const prefix = msg.prefix.replace(/[^a-f0-9]/gi, "").substring(0, 8);
-              if (prefix.length >= 4) {
+              if (msg.type === "approve") {
+                this.securityManager.approveToken(prefix);
+              } else {
                 this.securityManager.denyToken(prefix);
               }
             }

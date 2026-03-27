@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fork, ChildProcess } from 'child_process';
+import { SecurityManager } from '../../src/SecurityManager';
 
 const DASHBOARD_PATH = path.resolve(__dirname, '..', '..', 'scripts', 'dashboard.js');
 const EVOKORE_STATE_DIR = path.join(os.homedir(), '.evokore');
@@ -142,6 +143,13 @@ describe('HITL Approval UI (T14)', () => {
     it('has deny button in the HTML', () => {
       expect(source).toContain('btn-deny');
       expect(source).toContain('denyToken');
+    });
+
+    it('has approve button and approved state styling in the HTML', () => {
+      expect(source).toContain('btn-approve');
+      expect(source).toContain('approveToken');
+      expect(source).toContain('status-approved');
+      expect(source).toContain('approval-status-approved');
     });
 
     it('limits POST body size', () => {
@@ -338,6 +346,11 @@ describe('HITL Approval UI (T14)', () => {
       expect(source).toMatch(/denyToken\s*\(/);
     });
 
+    it('has approveToken method', () => {
+      expect(source).toMatch(/approveToken\s*\(/);
+      expect(source).toContain('approvedAt');
+    });
+
     it('has persistPendingApprovals using atomic write', () => {
       expect(source).toContain('persistPendingApprovals');
       expect(source).toContain('.tmp');
@@ -358,6 +371,42 @@ describe('HITL Approval UI (T14)', () => {
       const validateMatch = source.match(/validateToken\s*\([^)]*\)[^{]*\{([\s\S]*?)\n  \}/);
       expect(validateMatch).toBeTruthy();
       expect(validateMatch![1]).toContain('checkDeniedTokens');
+    });
+  });
+
+  describe('SecurityManager approval acknowledgement lifecycle', () => {
+    let pendingBackup: string | null;
+    let deniedBackup: string | null;
+
+    beforeAll(() => {
+      pendingBackup = backupFile(PENDING_APPROVALS_FILE);
+      deniedBackup = backupFile(DENIED_TOKENS_FILE);
+    });
+
+    afterAll(() => {
+      restoreFile(PENDING_APPROVALS_FILE, pendingBackup);
+      restoreFile(DENIED_TOKENS_FILE, deniedBackup);
+    });
+
+    it('approveToken marks a pending approval without invalidating the retry token', () => {
+      const manager = new SecurityManager();
+      const args = { path: 'README.md', content: 'test' };
+      const token = manager.generateToken('fs_write_file', args);
+      const prefix = token.substring(0, 8);
+
+      expect(manager.approveToken(prefix)).toBe(true);
+
+      const approvals = manager.getPendingApprovals();
+      expect(approvals).toHaveLength(1);
+      expect(approvals[0].token).toBe(prefix + '...');
+      expect(typeof approvals[0].approvedAt).toBe('number');
+      expect(manager.validateToken('fs_write_file', token, args)).toBe(true);
+
+      const persisted = JSON.parse(fs.readFileSync(PENDING_APPROVALS_FILE, 'utf8'));
+      expect(persisted[0].approvedAt).toBeTruthy();
+
+      manager.consumeToken(token);
+      expect(manager.getPendingApprovals()).toHaveLength(0);
     });
   });
 });

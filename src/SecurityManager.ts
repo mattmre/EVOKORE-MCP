@@ -20,7 +20,7 @@ export interface RoleDefinition {
 }
 
 export interface ApprovalEvent {
-  type: "approval_requested" | "approval_granted" | "approval_denied";
+  type: "approval_requested" | "approval_acknowledged" | "approval_granted" | "approval_denied";
   data: unknown;
 }
 
@@ -28,7 +28,7 @@ export class SecurityManager {
   private rules: Record<string, string> = {};
   private roles: Map<string, RoleDefinition> = new Map();
   private activeRole: string | null = null;
-  private pendingTokens: Map<string, { toolName: string; argsHash: string; expiresAt: number }> = new Map();
+  private pendingTokens: Map<string, { toolName: string; argsHash: string; expiresAt: number; approvedAt?: number }> = new Map();
   private static readonly TOKEN_TTL_MS = 5 * 60 * 1000;
   private approvalCallback?: (event: ApprovalEvent) => void;
 
@@ -262,6 +262,7 @@ export class SecurityManager {
     toolName: string;
     expiresAt: number;
     createdAt: number;
+    approvedAt?: number;
   }> {
     const now = Date.now();
     return Array.from(this.pendingTokens.entries())
@@ -271,7 +272,40 @@ export class SecurityManager {
         toolName: meta.toolName,
         expiresAt: meta.expiresAt,
         createdAt: meta.expiresAt - SecurityManager.TOKEN_TTL_MS,
+        approvedAt: meta.approvedAt,
       }));
+  }
+
+  /**
+   * Mark a token as operator-approved by its prefix without consuming it.
+   * This keeps the existing client retry contract intact while allowing the
+   * dashboard to acknowledge the approval request in real time.
+   */
+  approveToken(tokenPrefix: string): boolean {
+    for (const [token, meta] of this.pendingTokens.entries()) {
+      if (token.startsWith(tokenPrefix) && meta.expiresAt > Date.now()) {
+        if (meta.approvedAt) {
+          return true;
+        }
+        const approvedAt = Date.now();
+        this.pendingTokens.set(token, {
+          ...meta,
+          approvedAt,
+        });
+        this.persistPendingApprovals();
+        this.emitApprovalEvent({
+          type: "approval_acknowledged",
+          data: {
+            prefix: tokenPrefix,
+            token: token.substring(0, 8) + "...",
+            toolName: meta.toolName,
+            approvedAt,
+          },
+        });
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
