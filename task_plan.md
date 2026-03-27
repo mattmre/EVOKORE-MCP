@@ -9,13 +9,13 @@ Execute the remaining post-roadmap work sequentially with fresh branches/agents 
 5. queue lower-priority expansion follow-ups as separate PR-sized slices
 
 ## Current Phase
-Phase S3.6 implementation: the Prometheus `/metrics` slice is under local validation/publication, and the next executable engineering work after it lands is S3.7.
+Phase S3.7 preparation: the Prometheus `/metrics` slice is merged, and the next executable engineering work is dashboard approve-over-WebSocket.
 
 ## Current Repo / PR State
 - Open PRs on merged `main`: none
-- Local branch: `feat/prometheus-metrics-endpoint`
-- Existing root-checkout drift: planning files plus `test-worktree-cleanup-validation.js`; new slices continue from fresh disposable worktrees instead of the dirty root checkout
-- Constraint: release closure remains operator-gated on `NPM_TOKEN`, so S3.6 is the current executable engineering slice while S3.3 waits on operator action.
+- Local branch: `chore/session-wrap-s3-6`
+- Existing root-checkout drift: planning files, `test-worktree-cleanup-validation.js`, and untracked research docs `docs/research/f1-audit-redaction-wiring-2026-03-26.md` / `docs/research/release-closure-status-2026-03-26.md`; new slices continue from fresh disposable worktrees instead of the dirty root checkout
+- Constraint: release closure remains operator-gated on `NPM_TOKEN`, so S3.7 is the current executable engineering slice while S3.3 waits on operator action.
 
 ## Remaining Execution Queue
 
@@ -26,7 +26,7 @@ Phase S3.6 implementation: the Prometheus `/metrics` slice is under local valida
 | S3.3 | Release closure follow-up | ops + docs | blocked | TBD | GitHub release/tag exist; npm package absent; `NPM_TOKEN` not visible in repo secrets |
 | S3.4 | Planning/doc sync stabilization | docs/control-plane | done | #209 | Merged as `8dc1ad4`; wrap handoff preserved and validated on merged `main` |
 | S3.5 | Post-M3 ARCH-AEP + M4 loop evidence | research/review | done | #210 | Merged as `ce1a75f`; follow-up queue confirmed |
-| S3.6 | Expansion candidate: Prometheus `/metrics` pull endpoint | feature | in progress | TBD | Implemented locally with targeted validation passing; preparing sequential PR |
+| S3.6 | Expansion candidate: Prometheus `/metrics` pull endpoint | feature | done | #211 | Merged as `276f0ba`; local and CI validation green |
 | S3.7 | Expansion candidate: dashboard approve-over-WebSocket | feature | pending | TBD | Current WS flow is deny/push-oriented |
 | S3.8 | Expansion candidate: audit event export | feature | pending | TBD | Separate from telemetry metrics export |
 | S3.9 | Expansion candidate: container sandbox seccomp/resource hardening | feature | pending | TBD | Could split into more than one PR |
@@ -124,9 +124,17 @@ Execute the complete EVOKORE-MCP roadmap from PR #191 through M3.4, following th
   - `/metrics` is layered on top of the existing telemetry model instead of changing the M3.2 export contract
   - `/metrics` stays behind the normal auth middleware when auth is enabled; only `/health` remains public
   - `/metrics` returns `503` when `EVOKORE_TELEMETRY` is disabled instead of silently enabling collection
+  - `/metrics` auth checks are intentionally non-observing so scrape traffic does not mutate auth telemetry
 - S3.6 targeted local validation passed:
   - `npx vitest run tests/integration/telemetry-manager.test.ts tests/integration/http-server-transport.test.ts tests/integration/oauth-authentication.test.ts tests/integration/oauth-httpserver-middleware.test.ts`
   - `npm run build`
+- Slice S3.6 merged: PR `#211` `feat: add Prometheus metrics endpoint`
+- Post-S3.6 validation:
+  - local `npm test` passed: 135 files, 2472 tests, 24 skipped
+  - local `npm run build` passed
+  - local `npm run docs:check` passed
+  - local `npm run repo:audit` passed
+  - GitHub CI/security checks all passed after refreshing the PR metadata event payload
 - Built isolated worktree `D:/GITHUB/EVOKORE-MCP-s3-1` on branch `fix/audit-redaction-wiring-20260326`
 - Implemented centralized audit metadata redaction in `AuditLog.write()`
 - Added runtime persistence coverage for audit redaction and a dated research note for F1 closure

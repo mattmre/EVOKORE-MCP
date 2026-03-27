@@ -3,14 +3,14 @@
 Last Updated (UTC): 2026-03-27
 
 ## Current Handoff State
-- **Main branch:** `main` contains the full M0-M3 roadmap execution, S3.1/S3.2 stabilization, the control-plane wrap from PR `#209`, and the post-M3 ARCH-AEP review
+- **Main branch:** `main` contains the full M0-M3 roadmap execution, S3.1/S3.2 stabilization, the control-plane wrap from PR `#209`, the post-M3 ARCH-AEP review from PR `#210`, and the Prometheus `/metrics` pull endpoint from PR `#211`
 - **Open PRs:** none; verify with `gh pr list --state open` before starting the next slice
 - **Worktrees:** use the root checkout as the canonical handoff workspace and create fresh disposable worktrees for new slices
-- **Local branches:** refresh the root checkout onto the latest `main` before starting S3.6
-- **Validation:** 135 test files, 2462 tests passing, 24 skipped
+- **Local branches:** refresh the root checkout onto the latest `main` before starting S3.7
+- **Validation:** 135 test files, 2472 tests passing, 24 skipped
 - **Release:** GitHub release/tag `v3.1.0` exists; npm package is still unpublished and `NPM_TOKEN` is missing or unconfirmed
-- **Session logs:** `docs/session-logs/session-2026-03-26-post-roadmap-stabilization-wrap.md`, `docs/session-logs/session-2026-03-27-post-m3-arch-aep-review.md`
-- **Research docs:** `docs/research/release-closure-status-2026-03-26.md`, `docs/research/arch-aep-post-m3-review-2026-03-27.md`
+- **Session logs:** `docs/session-logs/session-2026-03-26-post-roadmap-stabilization-wrap.md`, `docs/session-logs/session-2026-03-27-post-m3-arch-aep-review.md`, `docs/session-logs/session-2026-03-26-s3-6-prometheus-wrap.md`
+- **Research docs:** `docs/research/release-closure-status-2026-03-26.md`, `docs/research/arch-aep-post-m3-review-2026-03-27.md`, `docs/research/prometheus-metrics-endpoint-2026-03-26.md`
 - **Roadmap source of truth:** `docs/research/revised-roadmap-2026-03-26.md`
 
 ## Completed This Session (Session 3)
@@ -19,7 +19,8 @@ Last Updated (UTC): 2026-03-27
 - **Review / merge workflow:** both PRs were reviewed sequentially, locally validated, waited on green CI, and squash-merged
 - **Release-state research:** clean `release:preflight` is healthy except for the existing `v3.1.0` tag and missing `NPM_TOKEN`
 - **S3.5 Post-M3 ARCH-AEP review:** review artifact concludes M3 is `PASS with follow-up queue`
-- **Current local baseline:** `npm test` passes with 135 files / 2462 tests / 24 skipped; `npm run build` passes
+- **S3.6 Prometheus `/metrics`:** PR `#211` added the pull endpoint, kept it behind auth when enabled, and prevented scrape traffic from mutating auth counters
+- **Current local baseline:** `npm test` passes with 135 files / 2472 tests / 24 skipped; `npm run build` passes
 
 ## Immediate Next Actions
 
@@ -29,17 +30,15 @@ Last Updated (UTC): 2026-03-27
 - Choose the publish path for the existing `v3.1.0` tag / GitHub release
 - Verify npm publication externally after operator action
 
-### Priority 1: S3.6 Prometheus `/metrics`
-- Add a pull-oriented Prometheus endpoint on top of the shipped telemetry model
-- Keep the export-push telemetry path intact; do not collapse the two surfaces together
-- Add operator docs and validation for the scrape surface
-
-### Priority 2: S3.7 Dashboard Approve Over WebSocket
+### Priority 1: S3.7 Dashboard Approve Over WebSocket
 - Extend the existing WebSocket approval channel carefully instead of changing the approval contract implicitly
 - Preserve dashboard auth/RBAC and the current HTTP/file-based fallback path
 
+### Priority 2: S3.8 Audit Event Export
+- Keep audit-event export separate from telemetry metrics export
+- Reuse the existing audit log contract instead of inventing a second event model
+
 ### Priority 3: Future Expansion Candidates
-- Audit event export (separate from telemetry metrics export)
 - `seccomp` profiles for container sandbox
 - Container image pre-pull and per-language resource limits
 

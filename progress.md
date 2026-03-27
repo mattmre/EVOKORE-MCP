@@ -20,6 +20,17 @@
 - Targeted local validation passed:
   - `npx vitest run tests/integration/telemetry-manager.test.ts tests/integration/http-server-transport.test.ts tests/integration/oauth-authentication.test.ts tests/integration/oauth-httpserver-middleware.test.ts`
   - `npm run build`
+- Full feature-branch validation passed before merge:
+  - `npm test` → 135 files passed, 2472 tests passed, 24 skipped
+  - `npm run docs:check` passed
+  - `npm run repo:audit` passed with only expected control-plane drift while the slice was in flight
+- Opened PR `#211`, posted the full-review / fix context, corrected the PR metadata body, and pushed empty commit `d1f21cb` to refresh the `pull_request` event payload for CI metadata validation
+- Merged PR `#211` to `main` as `276f0ba`
+- Validated clean merged `main` after PR `#211`:
+  - `npm test` → 135 files passed, 2472 tests passed, 24 skipped
+  - `npm run build` passed
+  - `npm run docs:check` passed
+  - `npm run repo:audit` reported 0 open PRs and no control-plane drift
 
 ## 2026-03-27
 - Completed PR-manager self-review and merge of PR `#209`:
