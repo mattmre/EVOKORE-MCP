@@ -75,7 +75,7 @@
 
 ## Claude Code Hooks
 
-Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks/*.js` entrypoints. All active entrypoints share `scripts/hooks/fail-safe-loader.js` so load failures degrade safely instead of crashing Claude Code. State lives in `~/.evokore/sessions/` and logs in `~/.evokore/logs/`.
+Seven hooks are wired in `.claude/settings.json` through canonical `scripts/hooks/*.js` entrypoints. All active entrypoints share `scripts/hooks/fail-safe-loader.js` so load failures degrade safely instead of crashing Claude Code. State lives in `~/.evokore/sessions/` and logs in `~/.evokore/logs/`.
 
 - **Damage Control** (`scripts/hooks/damage-control.js`, PreToolUse): Security auditor that blocks dangerous commands and sensitive path access. Rules defined in `damage-control-rules.yaml`. Fail-open if rules file is missing.
 - **Purpose Gate** (`scripts/hooks/purpose-gate.js`, UserPromptSubmit): Asks for session intent on first prompt, then injects purpose reminders via `additionalContext` to keep sessions focused.
@@ -90,6 +90,7 @@ Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks
   ```
 - **Evidence Capture** (`scripts/hooks/evidence-capture.js`, PostToolUse): Auto-captures test results, file changes, and git operations as JSONL evidence to `~/.evokore/sessions/{session_id}-evidence.jsonl`. Sequential evidence IDs (E-001, E-002, etc.).
 - **Repo Audit** (`scripts/hooks/repo-audit-hook.js`, UserPromptSubmit): Pre-session hook that warns about branch drift, stale worktrees, and control-plane drift. Enabled by default; opt-out via `EVOKORE_REPO_AUDIT_HOOK=false`. Runs once per session (marker file).
+- **Voice Stop** (`scripts/hooks/voice-stop.js`, Stop): Fires voice sidecar finalization on session end.
 
 ## v3.0 Runtime Additions
 
@@ -110,7 +111,7 @@ Five hooks are wired in `.claude/settings.json` through canonical `scripts/hooks
 - **RBAC Permissions:** Role-based permission model with `admin`, `developer`, `readonly` roles. Activated via `EVOKORE_ROLE` env var. Backwards-compatible when unset (flat permissions still work).
 - **Build Hygiene:** Compiled artifacts no longer tracked in `src/`. Only `dist/` has compiled output, and it's gitignored.
 - **Async Proxy Boot:** `ProxyManager.loadServers()` runs asynchronously in the background so the MCP handshake completes immediately. The boot emits `"Proxy bootstrap complete"` or `"Background proxy bootstrap failed"` sentinels to stderr. Use `.catch()` on the background promise, never `void` fire-and-forget, so boot errors are visible. Integration tests that call proxied tools must await `waitForProxyBoot(transport)` from `tests/helpers/wait-for-proxy-boot.js` after `client.connect()` before asserting on tool results. Boot timeout is configurable via `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` (default 30000).
-- **Webhook Events:** `WebhookManager` emits events to configured HTTP endpoints with HMAC signatures. 6 event types, fire-and-forget delivery.
+- **Webhook Events:** `WebhookManager` emits events to configured HTTP endpoints with HMAC signatures. 10 event types (tool_call, tool_error, session_start, session_end, session_resumed, approval_requested, approval_granted, plugin_loaded, plugin_unloaded, plugin_load_error), fire-and-forget delivery.
 - **Plugin System:** `PluginManager` loads external tool providers from `plugins/` directory with hot-reload support.
 - **OAuth Auth:** `OAuthProvider` validates Bearer tokens with JWKS support for HTTP transport.
 - **Multi-Tenant Sessions:** `SessionIsolation` provides per-connection state isolation with configurable TTL.

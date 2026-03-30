@@ -6,7 +6,7 @@
     "hooks":  {
                   "PreToolUse":  [
                                      {
-                                         "matcher":  "Bash|Edit|Write",
+                                         "matcher":  "Bash|Edit|Write|Read",
                                          "hooks":  [
                                                        {
                                                            "type":  "command",
