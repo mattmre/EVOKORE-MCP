@@ -1,0 +1,151 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "cascading-multi-panel-review",
+  "version": "1.0.0",
+  "description": "Sequential multi-panel review where each panel's findings feed into the next. Ends with a unified feasibility assessment across all panel findings.",
+  "triggers": {
+    "manual": true
+  },
+  "inputs": {
+    "artifact": {
+      "type": "string",
+      "description": "File path or description of the artifact to review",
+      "required": true
+    },
+    "panels": {
+      "type": "array",
+      "description": "Ordered list of panel types to run. Each panel receives prior panels' findings as context.",
+      "default": ["architecture-planning", "code-refinement", "security-audit"]
+    },
+    "context": {
+      "type": "string",
+      "description": "Additional context for all panels",
+      "default": ""
+    }
+  },
+  "outputs": {
+    "unified_report": {
+      "type": "object",
+      "description": "Combined findings from all panels with unified feasibility assessment"
+    }
+  },
+  "steps": [
+    {
+      "id": "panel-1",
+      "name": "First Panel Review",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "inputs": {
+        "panel_type": "{{ inputs.panels[0] }}",
+        "artifact": "{{ inputs.artifact }}",
+        "context": "{{ inputs.context }}",
+        "instruction": "Execute the full panel review cycle (CONVENE → SOLO → CHALLENGE → CONVERGE) for this panel type. Skip feasibility — it runs once at the end across all panels. Produce the convergence report."
+      },
+      "outputs": {
+        "panel_1_report": "report"
+      }
+    },
+    {
+      "id": "panel-2",
+      "name": "Second Panel Review",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["panel-1"],
+      "inputs": {
+        "panel_type": "{{ inputs.panels[1] }}",
+        "artifact": "{{ inputs.artifact }}",
+        "prior_findings": "{{ panel-1.report }}",
+        "context": "{{ inputs.context }}",
+        "instruction": "Execute the full panel review cycle for this panel type. You have access to the previous panel's findings — use them as additional context but do not skip your own independent analysis. Produce the convergence report."
+      },
+      "outputs": {
+        "panel_2_report": "report"
+      }
+    },
+    {
+      "id": "panel-3",
+      "name": "Third Panel Review",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["panel-2"],
+      "inputs": {
+        "panel_type": "{{ inputs.panels[2] }}",
+        "artifact": "{{ inputs.artifact }}",
+        "prior_findings_1": "{{ panel-1.report }}",
+        "prior_findings_2": "{{ panel-2.report }}",
+        "context": "{{ inputs.context }}",
+        "instruction": "Execute the full panel review cycle for this panel type. You have access to the previous panels' findings. Produce the convergence report."
+      },
+      "outputs": {
+        "panel_3_report": "report"
+      }
+    },
+    {
+      "id": "cross-panel-synthesis",
+      "name": "Cross-Panel Synthesis",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["panel-3"],
+      "inputs": {
+        "all_reports": [
+          "{{ panel-1.report }}",
+          "{{ panel-2.report }}",
+          "{{ panel-3.report }}"
+        ],
+        "instruction": "Synthesize findings from all panels. Identify: (1) findings that multiple panels flagged (highest confidence), (2) conflicts between panels (needs resolution), (3) gaps that no panel covered. Produce a unified priority stack-rank."
+      },
+      "outputs": {
+        "unified_findings": "synthesis"
+      }
+    },
+    {
+      "id": "unified-feasibility",
+      "name": "Unified Feasibility Assessment",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["cross-panel-synthesis"],
+      "inputs": {
+        "unified_findings": "{{ cross-panel-synthesis.synthesis }}",
+        "instruction": "Convene the full Feasibility Research Panel. Evaluate all top recommendations from the unified synthesis. Produce a single Feasibility Panel Report covering all recommendations across all domain panels."
+      },
+      "outputs": {
+        "feasibility_report": "report"
+      }
+    },
+    {
+      "id": "deliver",
+      "name": "Deliver Unified Report",
+      "action": "transform",
+      "depends_on": ["unified-feasibility"],
+      "inputs": {
+        "template": {
+          "panels_executed": "{{ inputs.panels }}",
+          "artifact": "{{ inputs.artifact }}",
+          "individual_reports": [
+            "{{ panel-1.report }}",
+            "{{ panel-2.report }}",
+            "{{ panel-3.report }}"
+          ],
+          "unified_synthesis": "{{ cross-panel-synthesis.synthesis }}",
+          "feasibility": "{{ unified-feasibility.report }}"
+        }
+      },
+      "outputs": {
+        "unified_report": "result"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 6,
+    "continue_on_error": false,
+    "fail_fast": false,
+    "timeout_seconds": 900,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-03-30",
+    "tags": ["panel-of-experts", "multi-panel", "cascading", "comprehensive"]
+  }
+}

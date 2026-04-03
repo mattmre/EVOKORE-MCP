@@ -1,0 +1,214 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "panel-review-generic",
+  "version": "1.0.0",
+  "description": "Generic panel review workflow: CONVENE → BRIEF → SOLO → CHALLENGE → CONVERGE → FEASIBILITY → DELIVER. Parameterized by panel type.",
+  "triggers": {
+    "manual": true,
+    "on_event": ["panel-review-requested"]
+  },
+  "inputs": {
+    "panel_type": {
+      "type": "string",
+      "description": "Panel to convene: code-refinement, repo-ingestion, architecture-planning, security-audit, performance-optimization, developer-experience, testing-quality, documentation-quality",
+      "required": true
+    },
+    "artifact": {
+      "type": "string",
+      "description": "File path, code reference, or description of the artifact to review",
+      "required": true
+    },
+    "context": {
+      "type": "string",
+      "description": "Additional context for the panel (constraints, concerns, background)",
+      "default": ""
+    },
+    "skip_challenge": {
+      "type": "boolean",
+      "description": "Skip the challenge phase for quick reviews",
+      "default": false
+    },
+    "skip_feasibility": {
+      "type": "boolean",
+      "description": "Skip the feasibility gate (not recommended for critical reviews)",
+      "default": false
+    }
+  },
+  "outputs": {
+    "panel_report": {
+      "type": "object",
+      "description": "Complete panel review report with findings, convergence, and feasibility assessment"
+    }
+  },
+  "steps": [
+    {
+      "id": "convene",
+      "name": "Convene Panel",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "inputs": {
+        "panel_type": "{{ inputs.panel_type }}",
+        "artifact": "{{ inputs.artifact }}",
+        "instruction": "Select the appropriate experts from the panel roster based on the artifact type. Load the panel skill file and expert-roster.md. Determine which experts are active for this review."
+      },
+      "outputs": {
+        "active_experts": "expert_list",
+        "panel_config": "config"
+      }
+    },
+    {
+      "id": "brief",
+      "name": "Brief the Panel",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["convene"],
+      "inputs": {
+        "artifact": "{{ inputs.artifact }}",
+        "context": "{{ inputs.context }}",
+        "instruction": "Read and analyze the artifact under review. Prepare a structured briefing document following the panel's briefing template. Include: what is being reviewed, purpose, known concerns, constraints, and relevant context."
+      },
+      "outputs": {
+        "briefing": "document"
+      }
+    },
+    {
+      "id": "solo-reviews",
+      "name": "Solo Expert Reviews",
+      "action": "parallel-group",
+      "depends_on": ["brief"],
+      "steps": [
+        {
+          "id": "expert-1-review",
+          "name": "Expert 1 Solo Review",
+          "action": "invoke-agent",
+          "agent": "reviewer",
+          "inputs": {
+            "expert_persona": "{{ convene.active_experts[0] }}",
+            "briefing": "{{ brief.document }}",
+            "artifact": "{{ inputs.artifact }}",
+            "instruction": "Adopt the persona of this expert completely. Review the artifact exclusively through their defined lens. Use their challenge prompt as your internal standard. Produce findings in the standard review output format: Critical Findings, Improvement Opportunities, Acknowledged Strengths, Challenge to Other Panelists."
+          },
+          "outputs": { "review": "findings" }
+        },
+        {
+          "id": "expert-2-review",
+          "name": "Expert 2 Solo Review",
+          "action": "invoke-agent",
+          "agent": "reviewer",
+          "inputs": {
+            "expert_persona": "{{ convene.active_experts[1] }}",
+            "briefing": "{{ brief.document }}",
+            "artifact": "{{ inputs.artifact }}",
+            "instruction": "Adopt the persona of this expert completely. Review the artifact exclusively through their defined lens. Use their challenge prompt as your internal standard. Produce findings in the standard review output format."
+          },
+          "outputs": { "review": "findings" }
+        },
+        {
+          "id": "expert-3-review",
+          "name": "Expert 3 Solo Review",
+          "action": "invoke-agent",
+          "agent": "reviewer",
+          "inputs": {
+            "expert_persona": "{{ convene.active_experts[2] }}",
+            "briefing": "{{ brief.document }}",
+            "artifact": "{{ inputs.artifact }}",
+            "instruction": "Adopt the persona of this expert completely. Review the artifact exclusively through their defined lens. Use their challenge prompt as your internal standard. Produce findings in the standard review output format."
+          },
+          "outputs": { "review": "findings" }
+        },
+        {
+          "id": "expert-4-review",
+          "name": "Expert 4 Solo Review",
+          "action": "invoke-agent",
+          "agent": "reviewer",
+          "inputs": {
+            "expert_persona": "{{ convene.active_experts[3] }}",
+            "briefing": "{{ brief.document }}",
+            "artifact": "{{ inputs.artifact }}",
+            "instruction": "Adopt the persona of this expert completely. Review the artifact exclusively through their defined lens. Use their challenge prompt as your internal standard. Produce findings in the standard review output format."
+          },
+          "outputs": { "review": "findings" }
+        }
+      ]
+    },
+    {
+      "id": "challenge",
+      "name": "Cross-Expert Challenge Phase",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["solo-reviews"],
+      "condition": "{{ not inputs.skip_challenge }}",
+      "inputs": {
+        "all_reviews": "{{ solo-reviews.*.review }}",
+        "panel_config": "{{ convene.panel_config }}",
+        "instruction": "Stage cross-expert challenges. For each pair of experts with conflicting or complementary findings, generate a specific challenge. Each challenge must name both experts, cite their specific findings, and demand reconciliation. The Devil's Advocate must argue against the emerging consensus."
+      },
+      "outputs": {
+        "challenges": "debate_results"
+      }
+    },
+    {
+      "id": "converge",
+      "name": "Convergence — Synthesize Findings",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["challenge"],
+      "inputs": {
+        "all_reviews": "{{ solo-reviews.*.review }}",
+        "challenges": "{{ challenge.debate_results }}",
+        "instruction": "Act as Synthesis Lead. De-duplicate findings. Priority stack-rank by impact × likelihood × effort × consensus. Capture dissenting opinions. Produce the convergence report: Critical, High, Medium findings with consensus levels, plus Dissenting Opinions and Acknowledged Strengths."
+      },
+      "outputs": {
+        "convergence_report": "report"
+      }
+    },
+    {
+      "id": "feasibility",
+      "name": "Feasibility Panel Gate",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["converge"],
+      "condition": "{{ not inputs.skip_feasibility }}",
+      "inputs": {
+        "convergence_report": "{{ converge.report }}",
+        "instruction": "Convene the Feasibility Research Panel (Torres, Wright, Okonkwo, Svensson). Evaluate the top recommendations from the convergence report. For each: assess feasibility, estimate effort, identify alternatives, evaluate ROI, recommend spikes. Produce the Feasibility Panel Report with verdicts: FEASIBLE / FEASIBLE WITH MODIFICATIONS / NEEDS SPIKE / INFEASIBLE."
+      },
+      "outputs": {
+        "feasibility_report": "report"
+      }
+    },
+    {
+      "id": "deliver",
+      "name": "Deliver Final Panel Report",
+      "action": "transform",
+      "depends_on": ["feasibility"],
+      "inputs": {
+        "template": {
+          "panel_type": "{{ inputs.panel_type }}",
+          "artifact": "{{ inputs.artifact }}",
+          "active_experts": "{{ convene.active_experts }}",
+          "solo_reviews": "{{ solo-reviews.*.review }}",
+          "challenges": "{{ challenge.debate_results }}",
+          "convergence": "{{ converge.report }}",
+          "feasibility": "{{ feasibility.report }}"
+        }
+      },
+      "outputs": {
+        "panel_report": "result"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 6,
+    "continue_on_error": false,
+    "fail_fast": false,
+    "timeout_seconds": 600,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-03-30",
+    "tags": ["panel-of-experts", "review", "multi-perspective", "quality"]
+  }
+}
