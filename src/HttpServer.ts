@@ -284,17 +284,29 @@ export class HttpServer {
         return;
       }
 
-      // Authenticate via query parameter token
+      // Authenticate: prefer Authorization header; query-string fallback is deprecated
       if (this.authConfig && this.authConfig.required) {
-        const queryToken = reqUrl.searchParams.get("token");
-        if (!queryToken) {
-          socket.write("HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\n\r\nMissing token query parameter\r\n");
+        const allowQueryToken = process.env.EVOKORE_WS_ALLOW_QUERY_TOKEN === "true";
+        let bearerToken: string | null = null;
+
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+          bearerToken = authHeader.slice(7).trim() || null;
+        } else if (allowQueryToken) {
+          bearerToken = reqUrl.searchParams.get("token");
+        }
+
+        if (!bearerToken) {
+          const hint = allowQueryToken
+            ? "Missing Authorization header or token query parameter"
+            : "Missing Authorization header (set EVOKORE_WS_ALLOW_QUERY_TOKEN=true to allow query-string fallback)";
+          socket.write(`HTTP/1.1 401 Unauthorized\r\nContent-Type: text/plain\r\n\r\n${hint}\r\n`);
           socket.destroy();
           return;
         }
 
-        // Inject the token as a Bearer header for the standard auth check
-        req.headers.authorization = `Bearer ${queryToken}`;
+        // Inject the resolved token as a Bearer header for the standard auth check
+        req.headers.authorization = `Bearer ${bearerToken}`;
         const authResult = await authenticateRequest(req, this.authConfig);
         if (!authResult.authorized) {
           this.auditLog.log("auth_failure", "failure", {
@@ -355,30 +367,44 @@ export class HttpServer {
             ws.send(JSON.stringify({ type: "pong" }));
             return;
           }
-          if ((msg.type === "approve" || msg.type === "deny") && typeof msg.prefix === "string") {
+          // Approve still uses prefix matching for backwards compatibility
+          if (msg.type === "approve" && typeof msg.prefix === "string") {
             const prefix = msg.prefix.replace(/[^a-f0-9]/gi, "").substring(0, 8);
             if (prefix.length < 4) {
               ws.send(JSON.stringify({ type: "error", message: "Invalid token prefix" }));
               return;
             }
 
-            // Approve requires developer role; deny remains admin-only.
             if (this.authConfig && this.authConfig.required) {
               const roleLevels: Record<string, number> = { admin: 3, developer: 2, readonly: 1 };
-              const requiredRole = msg.type === "approve" ? "developer" : "admin";
-              if ((roleLevels[(ws as any)._role] || 0) < (roleLevels[requiredRole] || 0)) {
+              if ((roleLevels[(ws as any)._role] || 0) < (roleLevels["developer"] || 0)) {
                 ws.send(JSON.stringify({
                   type: "error",
-                  message: `Forbidden: ${requiredRole} role required for ${msg.type}`,
+                  message: "Forbidden: developer role required for approve",
                 }));
                 return;
               }
             }
             if (this.securityManager) {
-              if (msg.type === "approve") {
-                this.securityManager.approveToken(prefix);
-              } else {
-                this.securityManager.denyToken(prefix);
+              this.securityManager.approveToken(prefix);
+            }
+          }
+          // Deny requires full token for timing-safe comparison
+          if (msg.type === "deny" && typeof msg.token === "string") {
+            if (this.authConfig && this.authConfig.required) {
+              const roleLevels: Record<string, number> = { admin: 3, developer: 2, readonly: 1 };
+              if ((roleLevels[(ws as any)._role] || 0) < (roleLevels["admin"] || 0)) {
+                ws.send(JSON.stringify({
+                  type: "error",
+                  message: "Forbidden: admin role required for deny",
+                }));
+                return;
+              }
+            }
+            if (this.securityManager) {
+              const token = msg.token.replace(/[^a-f0-9]/gi, "").substring(0, 64);
+              if (token.length === 32) {
+                this.securityManager.denyToken(token);
               }
             }
           }

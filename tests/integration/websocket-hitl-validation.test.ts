@@ -61,15 +61,18 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(httpServerSource).toContain('/ws/approvals');
     });
 
-    it('auth required on upgrade via query param token', () => {
-      // Check for query parameter extraction
+    it('auth required on upgrade via Authorization header (BUG-04)', () => {
+      // Primary auth: Authorization header
+      expect(httpServerSource).toContain('req.headers.authorization');
+      expect(httpServerSource).toContain('EVOKORE_WS_ALLOW_QUERY_TOKEN');
+      // Query-string fallback still present as deprecated opt-in
       expect(httpServerSource).toContain('searchParams.get("token")');
-      // Check for Bearer token injection
-      expect(httpServerSource).toContain('Bearer ${queryToken}');
+      // Bearer token is injected for the standard auth check
+      expect(httpServerSource).toContain('Bearer ${bearerToken}');
     });
 
     it('missing token rejected with 401 during upgrade', () => {
-      expect(httpServerSource).toContain('Missing token query parameter');
+      expect(httpServerSource).toContain('Missing Authorization header');
       expect(httpServerSource).toContain('401 Unauthorized');
     });
 
@@ -247,10 +250,11 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain('updateWsStatus');
     });
 
-    it('WS-based deny action when connected', () => {
+    it('WS-based deny action when connected uses full token (BUG-01)', () => {
       // The deny function checks wsConnected before deciding transport
       expect(dashboardSource).toContain('wsConnected && wsConnection');
-      expect(dashboardSource).toContain("JSON.stringify({ type: 'deny', prefix: prefix })");
+      // Deny sends full token, not an 8-char prefix
+      expect(dashboardSource).toContain("JSON.stringify({ type: 'deny', token: token })");
     });
 
     it('WS-based approve action requires a live connection', () => {
