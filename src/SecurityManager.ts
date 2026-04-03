@@ -144,6 +144,9 @@ export class SecurityManager {
       });
       return true;
     }
+    AuditLog.getInstance().log("config_change", "failure", {
+      metadata: { action: "set_active_role", previousRole, attemptedRole: role, reason: "unknown_role" },
+    });
     return false;
   }
 
@@ -223,6 +226,7 @@ export class SecurityManager {
       type: "approval_requested",
       data: {
         token: token.substring(0, 8) + "...",
+        tokenFull: token,
         toolName,
         expiresAt,
         createdAt: expiresAt - SecurityManager.TOKEN_TTL_MS,
