@@ -109,22 +109,21 @@ export function extractBearerToken(authHeader: string | undefined): string | nul
 
 /**
  * Validate a bearer token against the configured static token.
- * Uses timing-safe comparison to prevent timing attacks.
+ * Uses HMAC digests for constant-time, constant-length comparison to prevent
+ * both timing attacks and length-oracle attacks.
  */
 export function validateToken(token: string, config: AuthConfig): boolean {
   if (!config.staticToken) {
     return false;
   }
 
-  // Timing-safe comparison to prevent timing attacks
-  const tokenBuffer = Buffer.from(token, "utf8");
-  const expectedBuffer = Buffer.from(config.staticToken, "utf8");
-
-  if (tokenBuffer.length !== expectedBuffer.length) {
-    return false;
-  }
-
-  return crypto.timingSafeEqual(tokenBuffer, expectedBuffer);
+  // Use HMAC digests of fixed length to eliminate the length oracle.
+  // A fixed dummy key is acceptable here -- the goal is constant-length
+  // comparison, not secrecy of the key.
+  const hmacKey = Buffer.alloc(32);
+  const tokenDigest = crypto.createHmac("sha256", hmacKey).update(token).digest();
+  const expectedDigest = crypto.createHmac("sha256", hmacKey).update(config.staticToken).digest();
+  return crypto.timingSafeEqual(tokenDigest, expectedDigest);
 }
 
 /**

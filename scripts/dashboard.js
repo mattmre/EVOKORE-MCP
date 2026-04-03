@@ -207,6 +207,12 @@ function sanitizeTokenPrefix(prefix) {
   return prefix.replace(/[^a-f0-9]/gi, '').substring(0, 8);
 }
 
+// Sanitize a full token (hex characters only, max 64 chars, must be exactly 32)
+function sanitizeFullToken(token) {
+  if (!token || typeof token !== 'string') return '';
+  return token.replace(/[^a-f0-9]/gi, '').substring(0, 64);
+}
+
 // Read a JSONL file and parse each line
 function readJsonl(filePath) {
   if (!fs.existsSync(filePath)) return [];
@@ -469,8 +475,8 @@ function readPendingApprovals() {
   }
 }
 
-// Add a token prefix to the denied-tokens file (atomic write)
-function denyTokenPrefix(prefix) {
+// Add a full token to the denied-tokens file (atomic write, timing-safe dedup)
+function denyTokenFull(token) {
   try {
     if (!fs.existsSync(EVOKORE_STATE_DIR)) {
       fs.mkdirSync(EVOKORE_STATE_DIR, { recursive: true });
@@ -484,9 +490,16 @@ function denyTokenPrefix(prefix) {
         denied = [];
       }
     }
-    // Only add if not already present
-    if (!denied.some(d => d.prefix === prefix)) {
-      denied.push({ prefix, deniedAt: Date.now() });
+    // Only add if not already present (timing-safe comparison)
+    var tokenBuf = Buffer.from(token, 'utf8');
+    var alreadyDenied = denied.some(function(d) {
+      if (typeof d.token !== 'string') return false;
+      var dBuf = Buffer.from(d.token, 'utf8');
+      if (tokenBuf.length !== dBuf.length) return false;
+      return crypto.timingSafeEqual(tokenBuf, dBuf);
+    });
+    if (!alreadyDenied) {
+      denied.push({ token: token, deniedAt: Date.now() });
     }
     const tmpPath = DENIED_TOKENS_FILE + '.tmp';
     fs.writeFileSync(tmpPath, JSON.stringify(denied, null, 2));
@@ -1018,23 +1031,23 @@ const approvalsHTML = `<!DOCTYPE html>
       }
     }
 
-    async function denyToken(prefix) {
-      var btn = document.getElementById('deny-' + prefix);
+    async function denyToken(token) {
+      var btn = document.getElementById('deny-' + token);
       if (btn) { btn.disabled = true; btn.textContent = 'Denying...'; }
       try {
         // Use WebSocket for deny when connected, HTTP fallback otherwise
         if (wsConnected && wsConnection && wsConnection.readyState === 1) {
-          wsConnection.send(JSON.stringify({ type: 'deny', prefix: prefix }));
+          wsConnection.send(JSON.stringify({ type: 'deny', token: token }));
           // Optimistic UI: remove from cached approvals
           cachedApprovals = cachedApprovals.filter(function(a) {
-            return a.token.replace('...', '') !== prefix;
+            return a.tokenFull !== token;
           });
           renderApprovals(cachedApprovals);
         } else {
           var res = await authFetch(API + '/api/approvals/deny', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prefix: prefix })
+            body: JSON.stringify({ token: token })
           });
           if (!res.ok) throw new Error('HTTP ' + res.status);
           loadApprovals();
@@ -1121,7 +1134,7 @@ const approvalsHTML = `<!DOCTYPE html>
           if (!a.approvedAt) {
             html += '<button class="btn-approve" id="approve-' + esc(a.token.replace('...', '')) + '" onclick="approveToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Approve</button>';
           }
-          html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
+          html += '<button class="btn-deny" id="deny-' + esc(a.tokenFull || a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.tokenFull || a.token.replace('...', '')) + '\\')">Deny</button>';
           html += '</div>';
         }
         html += '</div>';
@@ -1214,9 +1227,9 @@ const approvalsHTML = `<!DOCTYPE html>
             }
           } else if (msg.type === 'approval_denied') {
             // Remove denied approval from cached list
-            if (msg.data && msg.data.prefix) {
+            if (msg.data && msg.data.token) {
               cachedApprovals = cachedApprovals.filter(function(a) {
-                return !a.token.startsWith(msg.data.prefix);
+                return a.token !== msg.data.token;
               });
               renderApprovals(cachedApprovals);
             }
@@ -1367,7 +1380,7 @@ function handleRequest(req, res) {
     return;
   }
 
-  // API: deny a token (requires admin)
+  // API: deny a token (requires admin, full token for timing-safe comparison)
   if (url.pathname === '/api/approvals/deny' && req.method === 'POST') {
     if (!requireRole(res, 'admin')) return;
     readBody(req).then(body => {
@@ -1380,17 +1393,17 @@ function handleRequest(req, res) {
         return;
       }
 
-      const prefix = sanitizeTokenPrefix(parsed.prefix);
-      if (!prefix || prefix.length < 4) {
+      const token = sanitizeFullToken(parsed.token);
+      if (!token || token.length !== 32) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid token prefix (must be at least 4 hex characters)' }));
+        res.end(JSON.stringify({ error: 'Invalid token (must be exactly 32 hex characters)' }));
         return;
       }
 
-      const success = denyTokenPrefix(prefix);
+      const success = denyTokenFull(token);
       if (success) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, denied: prefix }));
+        res.end(JSON.stringify({ ok: true }));
       } else {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Failed to write denial' }));

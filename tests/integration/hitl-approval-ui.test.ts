@@ -126,13 +126,13 @@ describe('HITL Approval UI (T14)', () => {
       expect(source).toContain('denied-tokens.json');
     });
 
-    it('sanitizes token prefix (hex only, max 8 chars)', () => {
-      expect(source).toContain('sanitizeTokenPrefix');
-      expect(source).toContain('substring(0, 8)');
+    it('sanitizes full token (hex only, max 64 chars) (BUG-01)', () => {
+      expect(source).toContain('sanitizeFullToken');
+      expect(source).toContain('substring(0, 64)');
     });
 
-    it('enforces minimum prefix length of 4', () => {
-      expect(source).toContain('prefix.length < 4');
+    it('enforces exact 32-char token length for deny (BUG-01)', () => {
+      expect(source).toContain('token.length !== 32');
     });
 
     it('has auto-refresh on the approvals page', () => {
@@ -193,13 +193,13 @@ describe('HITL Approval UI (T14)', () => {
       expect(readBack[0].token).toBe('aabbccdd...');
     });
 
-    it('denied-tokens.json can be written and read back', () => {
-      const testData = [{ prefix: 'aabbccdd', deniedAt: Date.now() }];
+    it('denied-tokens.json can be written and read back (BUG-01: full token format)', () => {
+      const testData = [{ token: 'aabbccddaabbccddaabbccddaabbccdd', deniedAt: Date.now() }];
 
       fs.writeFileSync(DENIED_TOKENS_FILE, JSON.stringify(testData, null, 2));
       const readBack = JSON.parse(fs.readFileSync(DENIED_TOKENS_FILE, 'utf8'));
       expect(readBack).toHaveLength(1);
-      expect(readBack[0].prefix).toBe('aabbccdd');
+      expect(readBack[0].token).toBe('aabbccddaabbccddaabbccddaabbccdd');
     });
 
     it('expired approvals are filtered out when reading', () => {
@@ -286,34 +286,34 @@ describe('HITL Approval UI (T14)', () => {
       expect(approvals[0].toolName).toBe('github_push_files');
     });
 
-    it('POST /api/approvals/deny removes tokens', async () => {
-      // Deny with a valid 4+ character hex prefix
+    it('POST /api/approvals/deny removes tokens (BUG-01: full token required)', async () => {
+      // Deny with a valid 32-character hex token
+      const fullToken = 'abcd1234abcd1234abcd1234abcd1234';
       const res = await request(
         HITL_PORT,
         '/api/approvals/deny',
         'POST',
-        JSON.stringify({ prefix: 'abcd1234' })
+        JSON.stringify({ token: fullToken })
       );
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.ok).toBe(true);
-      expect(body.denied).toBe('abcd1234');
 
-      // Verify the denied-tokens.json now contains the prefix
+      // Verify the denied-tokens.json now contains the full token
       const denied = JSON.parse(fs.readFileSync(DENIED_TOKENS_FILE, 'utf8'));
-      expect(denied.some((d: any) => d.prefix === 'abcd1234')).toBe(true);
+      expect(denied.some((d: any) => d.token === fullToken)).toBe(true);
     });
 
-    it('POST /api/approvals/deny rejects short prefixes', async () => {
+    it('POST /api/approvals/deny rejects short or non-32-char tokens (BUG-01)', async () => {
       const res = await request(
         HITL_PORT,
         '/api/approvals/deny',
         'POST',
-        JSON.stringify({ prefix: 'ab' })
+        JSON.stringify({ token: 'ab' })
       );
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
-      expect(body.error).toContain('Invalid token prefix');
+      expect(body.error).toContain('Invalid token');
     });
 
     it('POST /api/approvals/deny rejects invalid JSON', async () => {
