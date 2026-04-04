@@ -156,8 +156,9 @@ export class WebhookManager {
 
         // Fire-and-forget: launch delivery in the background
         this.deliverWithRetry(webhook, payload).catch((err) => {
+          const safeUrl = (() => { try { const u = new URL(webhook.url); return `${u.origin}${u.pathname}`; } catch { return '[invalid-url]'; } })();
           console.error(
-            `[EVOKORE] Webhook delivery to ${webhook.url} failed after retries: ${err?.message || err}`
+            `[EVOKORE] Webhook delivery to ${safeUrl} failed after retries: ${err?.message || err}`
           );
         });
       }
@@ -286,6 +287,19 @@ export class WebhookManager {
     try {
       const u = new URL(entry.url);
       if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+      // Block SSRF via private/loopback addresses
+      const hostname = u.hostname.toLowerCase();
+      const isPrivate = hostname === 'localhost' ||
+        /^127\./.test(hostname) ||
+        /^10\./.test(hostname) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+        /^192\.168\./.test(hostname) ||
+        /^169\.254\./.test(hostname) ||
+        hostname === '0.0.0.0' ||
+        hostname === '::1' ||
+        /^fc00:/i.test(hostname) ||
+        /^fe80:/i.test(hostname);
+      if (isPrivate && process.env.EVOKORE_WEBHOOKS_ALLOW_PRIVATE !== 'true') return false;
     } catch {
       return false;
     }
@@ -310,8 +324,9 @@ export class WebhookManager {
       }
 
       lastError = result.error || `HTTP ${result.statusCode}`;
+      const safeUrl = (() => { try { const u = new URL(webhook.url); return `${u.origin}${u.pathname}`; } catch { return '[invalid-url]'; } })();
       console.error(
-        `[EVOKORE] Webhook delivery attempt ${attempt + 1}/${MAX_RETRIES} to ${webhook.url} failed: ${lastError}`
+        `[EVOKORE] Webhook delivery attempt ${attempt + 1}/${MAX_RETRIES} to ${safeUrl} failed: ${lastError}`
       );
     }
 

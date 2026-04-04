@@ -1085,7 +1085,81 @@ describe('Damage Control Regex Coverage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 31. Path-based rules
+  // 31. DC-26: eval() call detection
+  // ---------------------------------------------------------------------------
+  describe('DC-26: eval() call detection', () => {
+    const pattern = rules.dangerous_commands.find(r => r.id === 'DC-26')!.pattern;
+
+    it('blocks eval("code")', () => {
+      expect(testPattern(pattern, 'eval("malicious()")')).toBe(true);
+    });
+
+    it('blocks eval (code)', () => {
+      expect(testPattern(pattern, 'eval (document.cookie)')).toBe(true);
+    });
+
+    it('does NOT block "evaluate" (word boundary prevents match)', () => {
+      expect(testPattern(pattern, 'evaluate results')).toBe(false);
+    });
+
+    it('does NOT block eval without parenthesis', () => {
+      expect(testPattern(pattern, 'eval')).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 32. DC-31: exec() call detection
+  // ---------------------------------------------------------------------------
+  describe('DC-31: exec() call detection', () => {
+    const pattern = rules.dangerous_commands.find(r => r.id === 'DC-31')!.pattern;
+
+    it('blocks exec("cmd")', () => {
+      expect(testPattern(pattern, 'exec("rm -rf /")')).toBe(true);
+    });
+
+    it('blocks exec (cmd)', () => {
+      expect(testPattern(pattern, 'exec (command)')).toBe(true);
+    });
+
+    it('does NOT block "execute" (word boundary prevents match)', () => {
+      expect(testPattern(pattern, 'execute task')).toBe(false);
+    });
+
+    it('does NOT block exec without parenthesis', () => {
+      expect(testPattern(pattern, 'exec')).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 33. DC-32: git remote set-url
+  // ---------------------------------------------------------------------------
+  describe('DC-32: git remote set-url', () => {
+    const pattern = rules.dangerous_commands.find(r => r.id === 'DC-32')!.pattern;
+
+    it('blocks git remote set-url origin https://evil.com', () => {
+      expect(testPattern(pattern, 'git remote set-url origin https://evil.com/repo.git')).toBe(true);
+    });
+
+    it('blocks git remote set-url with SSH', () => {
+      expect(testPattern(pattern, 'git remote set-url origin git@evil.com:repo.git')).toBe(true);
+    });
+
+    it('does NOT block git remote -v', () => {
+      expect(testPattern(pattern, 'git remote -v')).toBe(false);
+    });
+
+    it('does NOT block git remote add', () => {
+      expect(testPattern(pattern, 'git remote add upstream https://github.com/org/repo.git')).toBe(false);
+    });
+
+    it('rule has ask=false (hard block)', () => {
+      const rule = rules.dangerous_commands.find(r => r.id === 'DC-32')!;
+      expect(rule.ask).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 34. Path-based rules
   // ---------------------------------------------------------------------------
   describe('zero_access_paths', () => {
     it('has expected sensitive paths', () => {
@@ -1191,11 +1265,10 @@ describe('Damage Control Regex Coverage', () => {
       expect(rule.ask).toBe(true);
     });
 
-    it('rules cover all IDs from DC-01 through DC-30 (with known gap at DC-26)', () => {
+    it('rules cover all IDs from DC-01 through DC-32', () => {
       const ids = rules.dangerous_commands.map(r => r.id);
-      for (let i = 1; i <= 30; i++) {
+      for (let i = 1; i <= 32; i++) {
         const id = `DC-${String(i).padStart(2, '0')}`;
-        if (id === 'DC-26') continue; // known gap in the YAML
         expect(ids).toContain(id);
       }
     });

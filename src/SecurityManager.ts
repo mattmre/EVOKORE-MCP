@@ -107,7 +107,7 @@ export class SecurityManager {
 
     // No role active -- use flat permissions (existing behavior)
     const rule = this.rules[toolName];
-    if (!rule) return "allow"; // Default permissive if not explicitly ruled
+    if (!rule) return "deny"; // Default deny for unknown tools
 
     if (rule === "require_approval" || rule === "deny") {
       return rule;

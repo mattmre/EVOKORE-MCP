@@ -49,7 +49,7 @@ const DEFAULT_MAX_ROTATIONS = 3;
  * AuditLog writes structured JSONL entries for operator observability.
  *
  * Design principles:
- * - Opt-in only: disabled unless `EVOKORE_AUDIT_LOG=true`.
+ * - Opt-out: enabled by default, disable with `EVOKORE_AUDIT_LOG=false`.
  * - Append-only JSONL format for easy grep / streaming consumption.
  * - Automatic size-based rotation (reuses the log-rotation pattern).
  * - No PII or secrets are ever written.
@@ -70,7 +70,8 @@ export class AuditLog {
     auditDir?: string;
     auditFile?: string;
   }) {
-    this.enabled = options?.enabled ?? process.env.EVOKORE_AUDIT_LOG === "true";
+    // Opt-out: enabled by default, disable with EVOKORE_AUDIT_LOG=false
+    this.enabled = options?.enabled ?? process.env.EVOKORE_AUDIT_LOG !== "false";
     this.maxBytes = options?.maxBytes ?? DEFAULT_MAX_BYTES;
     this.maxRotations = options?.maxRotations ?? DEFAULT_MAX_ROTATIONS;
     this.auditDir = options?.auditDir ?? AUDIT_DIR;
@@ -310,17 +311,26 @@ const SENSITIVE_KEYS = new Set([
 
 /**
  * Redact sensitive keys from a metadata object before audit logging.
- * Returns a shallow copy with sensitive values replaced by "[REDACTED]".
+ * Recursively traverses nested objects and arrays up to a depth limit of 5.
+ * Returns a copy with sensitive values replaced by "[REDACTED]".
  */
 export function redactForAudit(
-  obj: Record<string, unknown> | undefined
+  obj: Record<string, unknown> | undefined,
+  depth = 0
 ): Record<string, unknown> | undefined {
-  if (!obj) return obj;
-
+  if (!obj || depth > 5) return obj;
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     if (SENSITIVE_KEYS.has(key.toLowerCase())) {
       result[key] = "[REDACTED]";
+    } else if (Array.isArray(value)) {
+      result[key] = value.map(item =>
+        item !== null && typeof item === 'object' && !Array.isArray(item)
+          ? redactForAudit(item as Record<string, unknown>, depth + 1)
+          : item
+      );
+    } else if (value !== null && typeof value === 'object') {
+      result[key] = redactForAudit(value as Record<string, unknown>, depth + 1);
     } else {
       result[key] = value;
     }
