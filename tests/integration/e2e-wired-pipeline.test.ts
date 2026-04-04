@@ -205,7 +205,7 @@ describe('E2E Wired Pipeline', () => {
       });
 
       it('constructs SessionIsolation and passes to HttpServer', () => {
-        expect(indexSrc).toMatch(/this\.sessionIsolation\s*=\s*new\s+SessionIsolation\s*\(\)/);
+        expect(indexSrc).toMatch(/this\.sessionIsolation\s*=\s*new\s+SessionIsolation\s*\(/);
         expect(indexSrc).toMatch(/sessionIsolation\s*:\s*this\.sessionIsolation/);
       });
 
