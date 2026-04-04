@@ -171,3 +171,5 @@ no_delete_paths:
   - '.gitmodules'
   - 'README.md'
   - 'LICENSE'
+  - 'SOUL.md'
+  - 'RULES.md'
