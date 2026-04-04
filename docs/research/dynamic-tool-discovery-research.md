@@ -20,8 +20,10 @@
 
 The system has two tool populations:
 
-**A. Native Tools (6 tools, SkillManager)**
-- `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`
+**A. Native Tools (14 tools across 3 managers)**
+- SkillManager (11): `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`, `refresh_skills`, `fetch_skill`, `list_registry`, `execute_skill`
+- TelemetryManager (2): `get_telemetry`, `reset_telemetry`
+- PluginManager (1): `reload_plugins` (plus dynamic plugin tools at runtime)
 - Always present in every `ListToolsRequest`
 
 **B. Proxied Tools (~62 tools, ProxyManager)**
@@ -64,7 +66,7 @@ The system has two tool populations:
 
 ### Retrieval Strategy: Two-Phase Listing (Recommended)
 
-**Phase 1 — Slim listing:** Return 5 native tools + `discover_tools` meta-tool
+**Phase 1 — Slim listing:** Return 14 native tools + `discover_tools` meta-tool (already included in the 14)
 **Phase 2 — Dynamic injection:** `discover_tools` searches metadata index, activates tools, fires `sendToolListChanged()`
 
 ### Benchmark Harness Metrics

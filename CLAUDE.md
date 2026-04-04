@@ -95,7 +95,8 @@ Seven hooks are wired in `.claude/settings.json` through canonical `scripts/hook
 ## v3.0 Runtime Additions
 
 - **Test Suite:** Tests now use vitest (121 files, ~2053 tests as of v3.1 sprint). Run with `npx vitest run`. Old `node test-*.js` chaining is removed.
-- **Tool Annotations:** All native tools have MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
+- **Tool Annotations:** All 14 native tools have MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
+- **Native Tool Count:** 14 built-in tools: 11 in SkillManager (docs_architect, skill_creator, resolve_workflow, search_skills, get_skill_help, discover_tools, proxy_server_status, refresh_skills, fetch_skill, list_registry, execute_skill), 2 in TelemetryManager (get_telemetry, reset_telemetry), 1 in PluginManager (reload_plugins). Canonical source: `getTools()` methods in each manager class. Plugin tools are dynamic and not counted here.
 - **Server Instructions:** The MCP Server constructor includes an `instructions` string for client-side display.
 - **HTTP Client Transport:** ProxyManager supports `StreamableHTTPClientTransport` for HTTP-based child servers. Configure with `"transport": "http"` and `"url"` in mcp.config.json.
 - **MCP Resources:** `resources/list` returns skills as `skill://` URIs plus server-level resources (`evokore://server/status`, `evokore://server/config`, `evokore://skills/categories`).
