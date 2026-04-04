@@ -1,5 +1,7 @@
 # EVOKORE-MCP
 
+[![SafeSkill 20/100](https://img.shields.io/badge/SafeSkill-20%2F100_Blocked-red)](https://safeskill.dev/scan/mattmre-evokore-mcp)
+
 EVOKORE-MCP is a TypeScript-based stdio MCP router and multi-server aggregator. It gives AI clients a single MCP endpoint that combines EVOKORE’s native workflow tools with proxied child servers defined in `mcp.config.json`, while adding namespace isolation, dynamic tool discovery, and human-in-the-loop approval controls.
 
 Current package/runtime version: `3.0.0`.
