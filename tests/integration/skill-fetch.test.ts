@@ -15,6 +15,7 @@ describe('T10: Remote Skill Fetch', () => {
 
   describe('source contains fetch_skill tool definition', () => {
     const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+    const httpUtilsSrc = fs.readFileSync(path.join(ROOT, 'src', 'httpUtils.ts'), 'utf8');
 
     it('defines fetch_skill tool name', () => {
       expect(src).toMatch(/name:\s*["']fetch_skill["']/);
@@ -29,15 +30,15 @@ describe('T10: Remote Skill Fetch', () => {
     });
 
     it('enforces MAX_FETCH_SIZE limit', () => {
-      expect(src).toMatch(/MAX_FETCH_SIZE/);
+      expect(httpUtilsSrc).toMatch(/MAX_FETCH_SIZE/);
     });
 
     it('enforces MAX_REDIRECT_DEPTH', () => {
-      expect(src).toMatch(/MAX_REDIRECT_DEPTH/);
+      expect(httpUtilsSrc).toMatch(/MAX_REDIRECT_DEPTH/);
     });
 
     it('validates URL protocol (HTTP/HTTPS only)', () => {
-      expect(src).toMatch(/Only HTTP\/HTTPS/);
+      expect(httpUtilsSrc).toMatch(/Only HTTP\/HTTPS/);
     });
 
     it('protects against path traversal', () => {

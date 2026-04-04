@@ -1,11 +1,7 @@
 import crypto from "crypto";
-import http from "http";
-import https from "https";
+import { httpGet } from "./httpUtils";
 
-const MAX_FETCH_SIZE = 1 * 1024 * 1024; // 1MB limit
-const MAX_REDIRECT_DEPTH = 5;
 const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
-const FETCH_TIMEOUT_MS = 30000;
 
 /**
  * A single entry in a remote skill registry.
@@ -68,7 +64,7 @@ export class RegistryManager {
       return cached.index;
     }
 
-    const raw = await this.httpGet(url);
+    const raw = await httpGet(url, { userAgent: "EVOKORE-MCP-Registry" });
     const parsed = JSON.parse(raw);
 
     const index = this.parseRegistryIndex(parsed);
@@ -238,62 +234,4 @@ export class RegistryManager {
     };
   }
 
-  private httpGet(url: string, redirectDepth = 0): Promise<string> {
-    if (redirectDepth > MAX_REDIRECT_DEPTH) {
-      return Promise.reject(new Error("Too many redirects (max " + MAX_REDIRECT_DEPTH + ")"));
-    }
-
-    return new Promise<string>((resolve, reject) => {
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(url);
-      } catch {
-        reject(new Error("Invalid URL: " + url));
-        return;
-      }
-
-      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-        reject(new Error("Only HTTP/HTTPS URLs are supported, got: " + parsedUrl.protocol));
-        return;
-      }
-
-      const mod = url.startsWith("https") ? https : http;
-      const req = mod.get(url, { headers: { "User-Agent": "EVOKORE-MCP-Registry" } }, (res) => {
-        // Follow redirects
-        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          res.resume();
-          this.httpGet(res.headers.location, redirectDepth + 1).then(resolve).catch(reject);
-          return;
-        }
-
-        if (res.statusCode !== 200) {
-          res.resume();
-          reject(new Error("HTTP " + res.statusCode + " from " + url));
-          return;
-        }
-
-        let data = "";
-        let byteCount = 0;
-
-        res.on("data", (chunk: Buffer) => {
-          byteCount += chunk.length;
-          if (byteCount > MAX_FETCH_SIZE) {
-            res.destroy();
-            reject(new Error("Response too large (exceeds " + (MAX_FETCH_SIZE / 1024 / 1024) + "MB limit)"));
-            return;
-          }
-          data += chunk.toString("utf-8");
-        });
-
-        res.on("end", () => resolve(data));
-        res.on("error", reject);
-      });
-
-      req.on("error", reject);
-      req.setTimeout(FETCH_TIMEOUT_MS, () => {
-        req.destroy();
-        reject(new Error("Request timed out after " + (FETCH_TIMEOUT_MS / 1000) + "s"));
-      });
-    });
-  }
 }

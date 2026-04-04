@@ -136,15 +136,13 @@ export function isPublicPath(pathname: string): boolean {
 
 // ---- JWKS Cache for JWT mode ----
 
-let cachedJWKS: ReturnType<typeof createRemoteJWKSet> | null = null;
-let cachedJWKSUri: string | null = null;
+const jwksCache = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 
 /**
  * Clear the cached JWKS client. Useful for tests or when the JWKS URI changes.
  */
 export function clearJwksCache(): void {
-  cachedJWKS = null;
-  cachedJWKSUri = null;
+  jwksCache.clear();
 }
 
 /**
@@ -160,13 +158,12 @@ export async function validateJwt(
   }
 
   try {
-    // Recreate JWKS client if URI changed
-    if (!cachedJWKS || cachedJWKSUri !== config.jwksUri) {
-      cachedJWKS = createRemoteJWKSet(new URL(config.jwksUri));
-      cachedJWKSUri = config.jwksUri;
+    if (!jwksCache.has(config.jwksUri)) {
+      jwksCache.set(config.jwksUri, createRemoteJWKSet(new URL(config.jwksUri)));
     }
+    const jwks = jwksCache.get(config.jwksUri)!;
 
-    const { payload } = await jwtVerify(token, cachedJWKS, {
+    const { payload } = await jwtVerify(token, jwks, {
       issuer: config.issuer,
       audience: config.audience,
     });

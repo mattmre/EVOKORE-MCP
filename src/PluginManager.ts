@@ -58,6 +58,7 @@ export class PluginManager {
   private plugins: Map<string, LoadedPlugin> = new Map();
   private pluginsDir: string;
   private webhookManager: WebhookManager | null;
+  private isReloading: boolean = false;
 
   constructor(webhookManager?: WebhookManager) {
     this.pluginsDir = process.env.EVOKORE_PLUGINS_DIR
@@ -71,6 +72,19 @@ export class PluginManager {
   }
 
   async loadPlugins(): Promise<PluginLoadResult> {
+    if (this.isReloading) {
+      return { loaded: 0, failed: 0, totalTools: 0, totalResources: 0, loadTimeMs: 0, errors: [] };
+    }
+
+    this.isReloading = true;
+    try {
+      return await this.loadPluginsInternal();
+    } finally {
+      this.isReloading = false;
+    }
+  }
+
+  private async loadPluginsInternal(): Promise<PluginLoadResult> {
     const startTime = Date.now();
     const result: PluginLoadResult = {
       loaded: 0,
@@ -164,9 +178,30 @@ export class PluginManager {
   }
 
   private async loadSinglePlugin(filePath: string): Promise<void> {
-    // Clear the require cache so hot-reload works
+    // Transitively invalidate require cache for hot-reload
     const resolvedPath = require.resolve(filePath);
+    // Always invalidate the entry file itself (path format may differ from pluginsDir)
     delete require.cache[resolvedPath];
+    // Also invalidate transitive deps within the plugins directory
+    const toInvalidate = new Set<string>();
+    const collect = (modId: string) => {
+      if (toInvalidate.has(modId)) return;
+      if (!modId.startsWith(this.pluginsDir)) return;
+      toInvalidate.add(modId);
+      const mod = require.cache[modId];
+      if (mod) {
+        for (const child of mod.children) {
+          collect(child.id);
+        }
+      }
+    };
+    const cachedEntry = require.cache[resolvedPath];
+    if (cachedEntry) {
+      for (const child of cachedEntry.children) collect(child.id);
+    }
+    for (const p of toInvalidate) {
+      delete require.cache[p];
+    }
 
     const pluginModule = require(filePath);
 

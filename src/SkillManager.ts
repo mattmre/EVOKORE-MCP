@@ -2,9 +2,8 @@ import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
 import os from "os";
-import http from "http";
-import https from "https";
 import yaml from "yaml";
+import { httpGet } from "./httpUtils";
 import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { ProxyManager } from "./ProxyManager";
@@ -24,9 +23,6 @@ const execFileAsync = promisify(execFile);
 
 const SKILLS_DIR = path.resolve(__dirname, "../SKILLS");
 const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
-const MAX_FETCH_SIZE = 1 * 1024 * 1024; // 1MB limit for fetched skills
-const MAX_REDIRECT_DEPTH = 5;
-
 const SKIP_DIRS = new Set([
   "node_modules", ".git", "__pycache__", "__tests__",
   ".claude", "themes", "assets", "scripts"
@@ -123,6 +119,7 @@ export class SkillManager {
   private registryManager: RegistryManager;
   private _loadTimeMs: number = 0;
   private _lastSearchMs: number = 0;
+  private _fuseIndexSizeKb: number = 0;
   private watcher: fsSync.FSWatcher | null = null;
   private onRefreshCallback: (() => void) | null = null;
 
@@ -151,44 +148,44 @@ export class SkillManager {
       categories.add(skill.category);
     }
 
-    let fuseIndexSizeKb = 0;
-    try {
-      if (this.fuseIndex) {
-        const serialized = JSON.stringify(this.fuseIndex);
-        fuseIndexSizeKb = Math.round((Buffer.byteLength(serialized, "utf-8") / 1024) * 100) / 100;
-      }
-    } catch {
-      // If serialization fails, leave as 0
-    }
-
     return {
       totalSkills: this.skillsCache.size,
       categories: Array.from(categories).sort(),
       loadTimeMs: this._loadTimeMs,
-      fuseIndexSizeKb,
+      fuseIndexSizeKb: this._fuseIndexSizeKb,
       lastSearchMs: this._lastSearchMs
     };
   }
 
   async loadSkills() {
-    this.skillsCache.clear();
     const loadStart = Date.now();
     try {
+      const newCache = new Map<string, SkillMetadata>();
+
       const scanStart = Date.now();
       const categories = await fs.readdir(SKILLS_DIR).catch(() => []);
 
-      for (const category of categories) {
-        const categoryPath = path.join(SKILLS_DIR, category);
-        const stat = await fs.lstat(categoryPath).catch(() => null);
+      // Parallelize lstat calls for top-level categories
+      const categoryStats = await Promise.all(
+        categories.map(async (category) => {
+          const categoryPath = path.join(SKILLS_DIR, category);
+          const stat = await fs.lstat(categoryPath).catch(() => null);
+          return { category, categoryPath, stat };
+        })
+      );
 
-        if (!stat || stat.isSymbolicLink() || !stat.isDirectory()) continue;
-
-        await this.walkDirectory(categoryPath, category, "", 0);
-      }
+      // Parallelize walkDirectory calls for all valid categories
+      await Promise.all(
+        categoryStats
+          .filter(({ stat }) => stat && !stat.isSymbolicLink() && stat.isDirectory())
+          .map(({ categoryPath, category }) =>
+            this.walkDirectory(categoryPath, category, "", 0, newCache)
+          )
+      );
       const dirScanMs = Date.now() - scanStart;
 
       const fuseStart = Date.now();
-      this.fuseIndex = new Fuse(Array.from(this.skillsCache.values()), {
+      const newFuseIndex = new Fuse(Array.from(newCache.values()), {
         keys: [
           { name: "name", weight: 0.22 },
           { name: "description", weight: 0.18 },
@@ -207,6 +204,11 @@ export class SkillManager {
         includeScore: true
       });
       const fuseMs = Date.now() - fuseStart;
+
+      // Atomic swap: only update instance state after everything succeeds
+      this.skillsCache = newCache;
+      this.fuseIndex = newFuseIndex;
+      this._fuseIndexSizeKb = Math.round((newCache.size * 2) * 100) / 100;
 
       this._loadTimeMs = Date.now() - loadStart;
       console.error(`[EVOKORE] Skill indexing: ${dirScanMs}ms scan, ${fuseMs}ms index, ${this.skillsCache.size} skills`);
@@ -273,31 +275,33 @@ export class SkillManager {
     }
   }
 
-  private async walkDirectory(dirPath: string, category: string, subcategoryPath: string, depth: number) {
+  private async walkDirectory(dirPath: string, category: string, subcategoryPath: string, depth: number, targetCache: Map<string, SkillMetadata>) {
     if (depth > MAX_DEPTH) return;
 
     const entries = await fs.readdir(dirPath).catch(() => []);
 
-    for (const entry of entries) {
-      const entryPath = path.join(dirPath, entry);
-      const entryStat = await fs.lstat(entryPath).catch(() => null);
+    // Parallelize lstat calls for all entries
+    const stats = await Promise.all(
+      entries.map((entry) => fs.lstat(path.join(dirPath, entry)).catch(() => null))
+    );
+
+    // Classify entries into loose .md files, SKILL.md directories, and subdirectories to recurse
+    const looseMdFiles: { entryPath: string; fallbackName: string }[] = [];
+    const skillMdDirs: { entryPath: string; skillMdPath: string; dirName: string }[] = [];
+    const subdirs: { entryPath: string; dirName: string }[] = [];
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const entryStat = stats[i];
       if (!entryStat) continue;
       if (entryStat.isSymbolicLink()) continue;
+
+      const entryPath = path.join(dirPath, entry);
 
       if (!entryStat.isDirectory()) {
         // Handle loose .md files at this level
         if (entry.endsWith(".md") && entry !== "SKILL.md") {
-          try {
-            const content = await fs.readFile(entryPath, "utf-8");
-            const fallbackName = entry.replace(".md", "");
-            const metadata = this.parseSkillMarkdown(content, category, entryPath, fallbackName, subcategoryPath);
-            if (metadata) {
-              const cacheKey = (category + "/" + metadata.name).toLowerCase();
-              this.skillsCache.set(cacheKey, metadata);
-            }
-          } catch {
-            // skip unreadable files
-          }
+          looseMdFiles.push({ entryPath, fallbackName: entry.replace(".md", "") });
         }
         continue;
       }
@@ -305,23 +309,49 @@ export class SkillManager {
       // Skip excluded directories
       if (SKIP_DIRS.has(entry)) continue;
 
-      // Check for SKILL.md in this directory
-      const skillMdPath = path.join(entryPath, "SKILL.md");
-      try {
-        const content = await fs.readFile(skillMdPath, "utf-8");
-        const metadata = this.parseSkillMarkdown(content, category, skillMdPath, entry, subcategoryPath);
-        if (metadata) {
-          const cacheKey = (category + "/" + metadata.name).toLowerCase();
-          this.skillsCache.set(cacheKey, metadata);
-        }
-      } catch {
-        // No SKILL.md here - still recurse
-      }
-
-      // Build subcategory path for deeper levels
-      const nextSubcategory = subcategoryPath ? subcategoryPath + "/" + entry : entry;
-      await this.walkDirectory(entryPath, category, nextSubcategory, depth + 1);
+      skillMdDirs.push({ entryPath, skillMdPath: path.join(entryPath, "SKILL.md"), dirName: entry });
+      subdirs.push({ entryPath, dirName: entry });
     }
+
+    // Parallelize readFile calls for loose .md files
+    await Promise.all(
+      looseMdFiles.map(async ({ entryPath, fallbackName }) => {
+        try {
+          const content = await fs.readFile(entryPath, "utf-8");
+          const metadata = this.parseSkillMarkdown(content, category, entryPath, fallbackName, subcategoryPath);
+          if (metadata) {
+            const cacheKey = (category + "/" + metadata.name).toLowerCase();
+            targetCache.set(cacheKey, metadata);
+          }
+        } catch {
+          // skip unreadable files
+        }
+      })
+    );
+
+    // Parallelize SKILL.md reads for directories
+    await Promise.all(
+      skillMdDirs.map(async ({ skillMdPath, dirName }) => {
+        try {
+          const content = await fs.readFile(skillMdPath, "utf-8");
+          const metadata = this.parseSkillMarkdown(content, category, skillMdPath, dirName, subcategoryPath);
+          if (metadata) {
+            const cacheKey = (category + "/" + metadata.name).toLowerCase();
+            targetCache.set(cacheKey, metadata);
+          }
+        } catch {
+          // No SKILL.md here - still recurse via subdirs
+        }
+      })
+    );
+
+    // Parallelize recursive walkDirectory calls for subdirectories
+    await Promise.all(
+      subdirs.map(({ entryPath, dirName }) => {
+        const nextSubcategory = subcategoryPath ? subcategoryPath + "/" + dirName : dirName;
+        return this.walkDirectory(entryPath, category, nextSubcategory, depth + 1, targetCache);
+      })
+    );
   }
 
   private parseSkillMarkdown(content: string, category: string, filePath: string, fallbackName: string, subcategory: string = ""): SkillMetadata | null {
@@ -1373,7 +1403,7 @@ export class SkillManager {
     }
 
     // Fetch content
-    const content = await this.httpGet(url);
+    const content = await httpGet(url, { userAgent: "EVOKORE-MCP" });
 
     // Verify checksum if provided
     let checksumVerified = false;
@@ -1557,52 +1587,6 @@ export class SkillManager {
     } catch {
       return baseUrl.replace(/\/$/, "") + "/" + entryUrl.replace(/^\//, "");
     }
-  }
-
-  private httpGet(url: string, redirectDepth = 0): Promise<string> {
-    if (redirectDepth > MAX_REDIRECT_DEPTH) {
-      return Promise.reject(new Error("Too many redirects (max " + MAX_REDIRECT_DEPTH + ")"));
-    }
-
-    return new Promise<string>((resolve, reject) => {
-      const mod = url.startsWith("https") ? https : http;
-      const req = mod.get(url, { headers: { "User-Agent": "EVOKORE-MCP" } }, (res) => {
-        // Follow redirects
-        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          res.resume();
-          this.httpGet(res.headers.location, redirectDepth + 1).then(resolve).catch(reject);
-          return;
-        }
-
-        if (res.statusCode !== 200) {
-          res.resume();
-          reject(new Error("HTTP " + res.statusCode + " from " + url));
-          return;
-        }
-
-        let data = "";
-        let byteCount = 0;
-
-        res.on("data", (chunk: Buffer) => {
-          byteCount += chunk.length;
-          if (byteCount > MAX_FETCH_SIZE) {
-            res.destroy();
-            reject(new Error("Response too large (exceeds " + (MAX_FETCH_SIZE / 1024 / 1024) + "MB limit)"));
-            return;
-          }
-          data += chunk.toString("utf-8");
-        });
-
-        res.on("end", () => resolve(data));
-        res.on("error", reject);
-      });
-
-      req.on("error", reject);
-      req.setTimeout(30000, () => {
-        req.destroy();
-        reject(new Error("Request timed out after 30s"));
-      });
-    });
   }
 
   getSkillCount(): number {

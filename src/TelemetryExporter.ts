@@ -66,6 +66,8 @@ export class TelemetryExporter {
   private timer: ReturnType<typeof setInterval> | null = null;
   private inFlight: boolean = false;
   private instanceId: string;
+  private readonly httpAgent = new http.Agent({ keepAlive: true });
+  private readonly httpsAgent = new https.Agent({ keepAlive: true });
 
   constructor(telemetryManager: TelemetryManager, options?: TelemetryExporterOptions) {
     this.telemetryManager = telemetryManager;
@@ -142,6 +144,8 @@ export class TelemetryExporter {
     }
 
     this.enabled = false;
+    this.httpAgent.destroy();
+    this.httpsAgent.destroy();
   }
 
   /**
@@ -298,6 +302,7 @@ export class TelemetryExporter {
           method: "POST",
           headers,
           timeout: DELIVERY_TIMEOUT_MS,
+          agent: url.protocol === "https:" ? this.httpsAgent : this.httpAgent,
         };
 
         const transport = url.protocol === "https:" ? https : http;

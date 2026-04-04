@@ -34,20 +34,22 @@ test('remote skill registry - source contains fetch_skill tool definition', () =
 
 test('remote skill registry - source contains security measures', () => {
   const src = fs.readFileSync(path.resolve(__dirname, 'src/SkillManager.ts'), 'utf8');
+  // HTTP utility constants moved to shared src/httpUtils.ts (BUG-10)
+  const httpUtilsSrc = fs.readFileSync(path.resolve(__dirname, 'src/httpUtils.ts'), 'utf8');
 
-  // URL protocol validation
-  assert.match(src, /Only HTTP\/HTTPS/,
+  // URL protocol validation (in httpUtils.ts)
+  assert.match(httpUtilsSrc, /Only HTTP\/HTTPS/,
     'Expected protocol validation error message');
-  // Size limit
-  assert.match(src, /MAX_FETCH_SIZE/,
+  // Size limit (in httpUtils.ts)
+  assert.match(httpUtilsSrc, /MAX_FETCH_SIZE/,
     'Expected MAX_FETCH_SIZE constant');
-  // Redirect limit
-  assert.match(src, /MAX_REDIRECT_DEPTH/,
+  // Redirect limit (in httpUtils.ts)
+  assert.match(httpUtilsSrc, /MAX_REDIRECT_DEPTH/,
     'Expected MAX_REDIRECT_DEPTH constant');
-  // Path traversal check
+  // Path traversal check (in SkillManager.ts)
   assert.match(src, /Path traversal/i,
     'Expected path traversal protection');
-  // Frontmatter validation
+  // Frontmatter validation (in SkillManager.ts)
   assert.match(src, /frontmatter/i,
     'Expected frontmatter validation');
 });

@@ -1,4 +1,4 @@
-import fs from "fs";
+import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
@@ -90,10 +90,10 @@ export class TelemetryManager {
    * Initialize telemetry: load persisted metrics and start periodic flush.
    * Safe to call even when disabled (no-ops).
    */
-  initialize(): void {
+  async initialize(): Promise<void> {
     if (!this.enabled) return;
 
-    this.loadFromDisk();
+    await this.loadFromDiskAsync();
     this.startPeriodicFlush();
 
     console.error("[EVOKORE] Telemetry enabled. Metrics stored locally at " + METRICS_FILE);
@@ -102,11 +102,11 @@ export class TelemetryManager {
   /**
    * Shut down: flush final metrics and stop the periodic timer.
    */
-  shutdown(): void {
+  async shutdown(): Promise<void> {
     if (!this.enabled) return;
 
     this.stopPeriodicFlush();
-    this.flushToDisk();
+    await this.flushToDiskAsync();
   }
 
   /**
@@ -277,7 +277,7 @@ export class TelemetryManager {
   /**
    * Reset all metrics to zero.
    */
-  resetMetrics(): void {
+  async resetMetrics(): Promise<void> {
     this.toolCallCount = 0;
     this.toolErrorCount = 0;
     this.sessionCount = 0;
@@ -294,7 +294,7 @@ export class TelemetryManager {
     this.authRateLimited = 0;
 
     if (this.enabled) {
-      this.flushToDisk();
+      await this.flushToDiskAsync();
     }
   }
 
@@ -313,30 +313,36 @@ export class TelemetryManager {
   }
 
   /**
-   * Force a flush of current metrics to disk.
+   * Force a flush of current metrics to disk (async).
    */
-  flushToDisk(): void {
+  async flushToDiskAsync(): Promise<void> {
     try {
-      if (!fs.existsSync(TELEMETRY_DIR)) {
-        fs.mkdirSync(TELEMETRY_DIR, { recursive: true });
+      const dirExists = await fs.access(TELEMETRY_DIR).then(() => true).catch(() => false);
+      if (!dirExists) {
+        await fs.mkdir(TELEMETRY_DIR, { recursive: true });
       }
 
       const metrics = this.getMetrics();
-      const data = JSON.stringify(metrics, null, 2);
-      fs.writeFileSync(METRICS_FILE, data, "utf-8");
+      const data = JSON.stringify({
+        ...metrics,
+        latencyTotalMs: this.latency.totalMs,
+        latencyCount: this.latency.count,
+      }, null, 2);
+      await fs.writeFile(METRICS_FILE, data, "utf-8");
     } catch (err: any) {
       console.error("[EVOKORE] Failed to flush telemetry metrics: " + (err?.message || err));
     }
   }
 
   /**
-   * Load persisted metrics from disk (if any exist).
+   * Load persisted metrics from disk (async).
    */
-  loadFromDisk(): void {
+  async loadFromDiskAsync(): Promise<void> {
     try {
-      if (!fs.existsSync(METRICS_FILE)) return;
+      const fileExists = await fs.access(METRICS_FILE).then(() => true).catch(() => false);
+      if (!fileExists) return;
 
-      const raw = fs.readFileSync(METRICS_FILE, "utf-8");
+      const raw = await fs.readFile(METRICS_FILE, "utf-8");
       const data = JSON.parse(raw);
 
       if (typeof data.toolCallCount === "number") this.toolCallCount = data.toolCallCount;
@@ -344,8 +350,12 @@ export class TelemetryManager {
       if (typeof data.sessionCount === "number") this.sessionCount = data.sessionCount;
       if (typeof data.startTime === "string") this.startTime = data.startTime;
 
-      // Reconstruct latency accumulator from avgLatencyMs and toolCallCount
-      if (typeof data.avgLatencyMs === "number" && data.avgLatencyMs > 0) {
+      // Restore precise latency accumulator if available
+      if (typeof data.latencyTotalMs === "number" && typeof data.latencyCount === "number") {
+        this.latency.totalMs = data.latencyTotalMs;
+        this.latency.count = data.latencyCount;
+      } else if (typeof data.avgLatencyMs === "number" && data.avgLatencyMs > 0) {
+        // backward compat: reconstruct from average (imprecise but OK for old data)
         this.latency.totalMs = data.avgLatencyMs * this.toolCallCount;
         this.latency.count = this.toolCallCount;
       }
@@ -441,7 +451,7 @@ export class TelemetryManager {
         };
       }
 
-      this.resetMetrics();
+      this.resetMetrics().catch((err: any) => console.error('[TelemetryManager] reset failed:', err));
       return {
         content: [{
           type: "text",
@@ -480,7 +490,9 @@ export class TelemetryManager {
     if (this.flushInterval) return;
 
     this.flushInterval = setInterval(() => {
-      this.flushToDisk();
+      this.flushToDiskAsync().catch((err: any) => {
+        console.error("[EVOKORE] Periodic telemetry flush failed: " + (err?.message || err));
+      });
     }, this.flushIntervalMs);
 
     // Unref so the timer doesn't prevent process exit

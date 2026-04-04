@@ -105,9 +105,11 @@ export class FileSessionStore implements SessionStore {
     } catch (err: any) {
       if (err.code === "ENOENT") {
         // Already gone, that is fine
-        return;
+      } else {
+        throw err;
       }
-      throw err;
+    } finally {
+      this.writeChains.delete(filePath);
     }
   }
 
