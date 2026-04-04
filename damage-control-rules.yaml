@@ -8,7 +8,7 @@
 
 dangerous_commands:
   - id: DC-01
-    pattern: 'rm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|--force\s+).*(/|\\)'
+    pattern: 'rm\s+(-[a-zA-Z]*f[a-zA-Z]*\s+|--force\s+)\S+'
     reason: 'Recursive forced deletion detected'
     ask: false
   - id: DC-02

@@ -64,8 +64,8 @@ check('runtime exits 0 on all code paths (fail-safe)', () => {
   for (const call of exitCalls) {
     assert.strictEqual(call, 'process.exit(0)', `All exit calls should be exit(0), found: ${call}`);
   }
-  // Catch block should not re-throw
-  assert.match(runtime, /catch\s*\{/, 'runtime should have a catch block that swallows errors');
+  // Catch block should not re-throw (may have error parameter)
+  assert.match(runtime, /catch\s*(\(err\))?\s*\{/, 'runtime should have a catch block that swallows errors');
 });
 
 check('settings.json includes repo-audit-hook in UserPromptSubmit', () => {

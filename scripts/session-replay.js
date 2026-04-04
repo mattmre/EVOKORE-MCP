@@ -45,7 +45,10 @@ process.stdin.on('end', () => {
     const entry = {
       ts: new Date().toISOString(),
       tool: toolName,
-      summary: summarize(toolName, toolInput)
+      summary: summarize(toolName, toolInput),
+      outcome: payload.tool_response?.is_error ? 'error' : 'ok',
+      output: (payload.tool_response?.content?.[0]?.text || '').slice(0, 300),
+      invocation_ts: new Date().toISOString()
     };
 
     if (!fs.existsSync(SESSIONS_DIR)) {

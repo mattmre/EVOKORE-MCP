@@ -9,6 +9,16 @@ export default defineConfig({
     maxForks: 4,
     fileParallelism: false,
     globals: true,
-    globalSetup: './tests/global-setup.ts',
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      thresholds: {
+        branches: 65,
+        functions: 70,
+        lines: 70,
+        statements: 70,
+      },
+      exclude: ['dist/**', 'tests/**', 'scripts/**', '*.config.*'],
+    },
   },
 });

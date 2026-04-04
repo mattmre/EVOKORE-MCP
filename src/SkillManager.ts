@@ -687,15 +687,30 @@ export class SkillManager {
     if (!skill) throw new Error("Skill not found: " + skillName);
 
     const blocks: Array<{language: string; code: string; index: number}> = [];
-    const regex = /```(\w*)\n([\s\S]*?)```/g;
-    let match;
+    const lines = skill.content.split(/\r?\n/);
+    let inFence = false;
+    let language = '';
+    let codeLines: string[] = [];
     let index = 0;
-    while ((match = regex.exec(skill.content)) !== null) {
-      blocks.push({
-        language: match[1] || "text",
-        code: match[2].trim(),
-        index: index++
-      });
+
+    for (const line of lines) {
+      if (!inFence) {
+        const fenceMatch = line.match(/^```(\w*)$/);
+        if (fenceMatch) {
+          inFence = true;
+          language = fenceMatch[1] || 'text';
+          codeLines = [];
+        }
+      } else {
+        if (line === '```') {
+          blocks.push({ language, code: codeLines.join('\n').trim(), index: index++ });
+          inFence = false;
+          language = '';
+          codeLines = [];
+        } else {
+          codeLines.push(line);
+        }
+      }
     }
     return blocks;
   }
