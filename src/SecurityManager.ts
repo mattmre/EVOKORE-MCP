@@ -107,7 +107,9 @@ export class SecurityManager {
 
     // No role active -- use flat permissions (existing behavior)
     const rule = this.rules[toolName];
-    if (!rule) return "deny"; // Default deny for unknown tools
+    if (!rule) {
+      return process.env.EVOKORE_SECURITY_DEFAULT_DENY === "true" ? "deny" : "allow";
+    }
 
     if (rule === "require_approval" || rule === "deny") {
       return rule;

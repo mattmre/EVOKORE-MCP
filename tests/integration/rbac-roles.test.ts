@@ -83,11 +83,11 @@ describe('T11: RBAC Role Switching', () => {
       expect(sm.checkPermission('supabase_create_project')).toBe('deny');
     });
 
-    it('defaults unknown tools to "deny" with no role', () => {
+    it('defaults unknown tools to "allow" with no role', () => {
       const { SecurityManager } = require(securityJsPath);
       const sm = new SecurityManager();
       sm.rules = {};
-      expect(sm.checkPermission('totally_unknown_tool')).toBe('deny');
+      expect(sm.checkPermission('totally_unknown_tool')).toBe('allow');
     });
   });
 
