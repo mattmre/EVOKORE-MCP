@@ -156,12 +156,68 @@ export class ProxyManager {
     return `${toolName}:${JSON.stringify(normalizedArgs)}`;
   }
 
+  private reconnecting = new Set<string>();
+
   private recordServerError(serverState?: ServerState) {
     if (!serverState) return;
 
     serverState.errorCount++;
     if (serverState.errorCount >= 5) {
       serverState.status = 'error';
+      // Trigger background reconnect for persistently failing servers
+      this.reconnectServer(serverState.id).catch(() => {});
+    }
+  }
+
+  /**
+   * Re-boot a single crashed child server without affecting other servers.
+   * Guarded by a reconnecting Set to prevent concurrent reconnect attempts
+   * for the same server.
+   */
+  private async reconnectServer(serverId: string): Promise<void> {
+    if (this.reconnecting.has(serverId)) return;
+    this.reconnecting.add(serverId);
+
+    try {
+      // Close existing client/transport if any
+      const oldClient = this.clients.get(serverId);
+      if (oldClient) {
+        await oldClient.close().catch(() => {});
+        this.clients.delete(serverId);
+      }
+      const oldTransport = this.transports.get(serverId);
+      if (oldTransport) {
+        await oldTransport.close().catch(() => {});
+        this.transports.delete(serverId);
+      }
+
+      // Remove stale tool entries for this server
+      for (const [prefixedName, entry] of this.toolRegistry) {
+        if (entry.serverId === serverId) {
+          this.toolRegistry.delete(prefixedName);
+        }
+      }
+      this.cachedTools = this.cachedTools.filter(
+        t => !t.name.startsWith(`${serverId}_`)
+      );
+
+      // Re-read config to get the server's current definition
+      const configFile = this.getConfigFilePath();
+      const content = await fs.readFile(configFile, "utf-8");
+      const config = JSON.parse(content);
+      const serverConfig = config?.servers?.[serverId] as ServerConfig | undefined;
+      if (!serverConfig) {
+        throw new Error(`Server '${serverId}' not found in config`);
+      }
+
+      await this.bootSingleServer(serverId, serverConfig);
+      console.error(`[EVOKORE] Server '${serverId}' reconnected successfully`);
+    } catch (err: any) {
+      console.error(`[EVOKORE] Server '${serverId}' reconnect failed: ${err.message}`);
+      const state = this.serverRegistry.get(serverId);
+      if (state) state.status = 'error';
+    } finally {
+      this.reconnecting.delete(serverId);
     }
   }
 
@@ -452,19 +508,29 @@ export class ProxyManager {
   }
 
   async loadServers() {
-    this.clients.clear();
-    this.transports.clear();
-    this.toolRegistry.clear();
+    // Atomic swap: save old state, build into fresh containers via bootSingleServer(),
+    // then swap. This eliminates the empty-registry window during reload.
+    const oldClients = this.clients;
+    const oldTransports = this.transports;
+
+    // Prepare fresh containers that bootSingleServer() will populate
+    this.clients = new Map();
+    this.transports = new Map();
+    this.toolRegistry = new Map();
     this.cachedTools = [];
-    this.serverRegistry.clear();
-    this.rateLimitBuckets.clear();
+    this.serverRegistry = new Map();
+    this.rateLimitBuckets = new Map();
 
     try {
       const configFile = this.getConfigFilePath();
       const content = await fs.readFile(configFile, "utf-8");
       const config = JSON.parse(content);
 
-      if (!config.servers) return;
+      if (!config.servers) {
+        // No servers configured — clean up old clients and return with empty state
+        this.cleanupOldClients(oldClients, oldTransports);
+        return;
+      }
 
       const serverEntries = Object.entries(config.servers as Record<string, ServerConfig>);
       const bootResults = await Promise.allSettled(
@@ -482,6 +548,27 @@ export class ProxyManager {
       } else {
         console.error(`[EVOKORE] Failed to load mcp.config.json: ${e.message}`);
       }
+    }
+
+    // Clean up old clients after the new state is fully populated
+    this.cleanupOldClients(oldClients, oldTransports);
+  }
+
+  /**
+   * Best-effort cleanup of old client and transport references after a reload swap.
+   */
+  private cleanupOldClients(
+    oldClients: Map<string, Client>,
+    oldTransports: Map<string, StdioClientTransport | StreamableHTTPClientTransport>
+  ): void {
+    for (const [id, client] of oldClients) {
+      // Skip clients that were re-registered in the new set (same object reference)
+      if (this.clients.get(id) === client) continue;
+      client.close().catch(() => {});
+    }
+    for (const [id, transport] of oldTransports) {
+      if (this.transports.get(id) === transport) continue;
+      transport.close().catch(() => {});
     }
   }
 
@@ -594,12 +681,19 @@ export class ProxyManager {
       };
     }
 
-    const client = this.clients.get(serverId);
+    let client = this.clients.get(serverId);
+
+    // If the server is in error state, attempt a reconnect before giving up
+    const serverState = this.serverRegistry.get(serverId);
+    if (serverState?.status === 'error' && !this.reconnecting.has(serverId)) {
+      await this.reconnectServer(serverId);
+      client = this.clients.get(serverId);
+    }
+
     if (!client) {
       throw new McpError(ErrorCode.InternalError, `Client for server '${serverId}' is not connected.`);
     }
 
-    const serverState = this.serverRegistry.get(serverId);
     if (serverState) {
       serverState.lastPing = Date.now();
     }

@@ -78,4 +78,11 @@ export interface SessionStore {
    * Returns the number of sessions removed.
    */
   cleanup(maxAgeMs: number): Promise<number>;
+
+  /**
+   * Gracefully release any underlying connections or resources.
+   * Called during server shutdown. Optional — stores that hold no
+   * external connections (e.g. MemorySessionStore) may omit this.
+   */
+  disconnect?(): Promise<void>;
 }
