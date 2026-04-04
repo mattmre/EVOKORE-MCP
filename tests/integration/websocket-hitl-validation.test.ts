@@ -705,102 +705,185 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
   });
 
   // ========================================================================
-  // Section 4: Dashboard Integration (source-scraping)
+  // Section 4: Dashboard Integration (HTTP behavioral)
   // ========================================================================
-  // NOTE: Section 4 tests remain as source-scraping because scripts/dashboard.js is
-  // browser-side JavaScript. Converting to behavioral tests would require jsdom or a
-  // headless browser environment. Tracked for future work in BUG-28.
-  describe('Section 4: Dashboard Integration (source-scraping)', () => {
-    let dashboardSource: string;
+  // BUG-28: Converted from source-scraping to HTTP behavioral tests.
+  // Spawns scripts/dashboard.js as a child process, GETs /approvals, and
+  // asserts on the served HTML containing the expected client-side JS.
+  describe('Section 4: Dashboard Integration (HTTP behavioral)', () => {
+    const { spawn, ChildProcess } = require('child_process') as typeof import('child_process');
+    const http = require('http') as typeof import('http');
+    const DASH_PORT = 18899;
 
-    beforeAll(() => {
-      dashboardSource = fs.readFileSync(DASHBOARD_PATH, 'utf8');
+    /** GET a page from the dashboard server. */
+    function httpGet(port: number, urlPath: string): Promise<{ statusCode: number; body: string }> {
+      return new Promise((resolve, reject) => {
+        const req = http.request(
+          { hostname: '127.0.0.1', port, path: urlPath, method: 'GET' },
+          (res: any) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (c: Buffer) => chunks.push(c));
+            res.on('end', () =>
+              resolve({ statusCode: res.statusCode ?? 0, body: Buffer.concat(chunks).toString() })
+            );
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+    }
+
+    /** Poll until the dashboard responds on the given port. */
+    function waitForDashboard(port: number, maxWaitMs = 8000): Promise<void> {
+      return new Promise((resolve, reject) => {
+        const start = Date.now();
+        const poll = () => {
+          http
+            .get(`http://127.0.0.1:${port}/`, (res: any) => {
+              res.resume();
+              resolve();
+            })
+            .on('error', () => {
+              if (Date.now() - start > maxWaitMs) reject(new Error('Dashboard did not start'));
+              else setTimeout(poll, 150);
+            });
+        };
+        poll();
+      });
+    }
+
+    /** Spawn dashboard, wait for ready, fetch /approvals, kill, return HTML. */
+    async function fetchApprovalsHtml(
+      envOverrides: Record<string, string> = {}
+    ): Promise<string> {
+      const proc = spawn(process.execPath, [DASHBOARD_PATH], {
+        cwd: ROOT,
+        env: {
+          ...process.env,
+          EVOKORE_DASHBOARD_PORT: String(DASH_PORT),
+          EVOKORE_HTTP_PORT: '3100',
+          EVOKORE_HTTP_HOST: '127.0.0.1',
+          ...envOverrides,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      try {
+        await waitForDashboard(DASH_PORT);
+        const res = await httpGet(DASH_PORT, '/approvals');
+        expect(res.statusCode).toBe(200);
+        return res.body;
+      } finally {
+        proc.kill();
+        // Brief settle so the port is freed before the next spawn
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+
+    // Fetched once for the default env, once with custom WS overrides
+    let approvalHtml: string;
+    let approvalHtmlWithWsUrl: string;
+
+    beforeAll(async () => {
+      // Default dashboard (no WS URL override, no token auth)
+      approvalHtml = await fetchApprovalsHtml();
+
+      // Dashboard with explicit WS URL and token overrides
+      approvalHtmlWithWsUrl = await fetchApprovalsHtml({
+        EVOKORE_DASHBOARD_APPROVAL_WS_URL: 'ws://custom-host:9999/ws/approvals',
+        EVOKORE_DASHBOARD_APPROVAL_WS_TOKEN: 'custom-ws-token',
+      });
+    }, 25000);
+
+    it('approvals page includes WebSocket connection code', () => {
+      expect(approvalHtml).toContain('new WebSocket(');
+      expect(approvalHtml).toContain('connectWebSocket');
     });
 
-    it('dashboard approvals page includes WebSocket connection code', () => {
-      expect(dashboardSource).toContain('new WebSocket(');
-      expect(dashboardSource).toContain('connectWebSocket');
+    it('approvals page declares WS endpoint variables for client-side routing', () => {
+      expect(approvalHtml).toContain('var approvalWsUrl =');
+      expect(approvalHtml).toContain('var approvalWsHost =');
+      expect(approvalHtml).toContain('var approvalWsPort =');
     });
 
-    it('dashboard can target an explicit approvals WebSocket endpoint', () => {
-      expect(dashboardSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_URL');
-      expect(dashboardSource).toContain('approvalWsUrl');
-      expect(dashboardSource).toContain('approvalWsHost');
-      expect(dashboardSource).toContain('approvalWsPort');
+    it('env-var interpolation: custom WS URL appears in served HTML', () => {
+      expect(approvalHtmlWithWsUrl).toContain('ws://custom-host:9999/ws/approvals');
     });
 
-    it('dashboard supports a dedicated approvals WebSocket token override', () => {
-      expect(dashboardSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_TOKEN');
-      expect(dashboardSource).toContain('approvalWsToken');
+    it('approvals page declares WS token variable for client-side auth', () => {
+      expect(approvalHtml).toContain('var approvalWsToken =');
     });
 
-    it('dashboard preserves same-origin fallback for non-loopback deployments', () => {
-      expect(dashboardSource).toContain("window.location.host + '/ws/approvals'");
-      expect(dashboardSource).toContain('loopbackHosts');
-      expect(dashboardSource).toContain("approvalWsHost === '0.0.0.0' ? pageHost : approvalWsHost");
+    it('env-var interpolation: custom WS token appears in served HTML', () => {
+      expect(approvalHtmlWithWsUrl).toContain('custom-ws-token');
     });
 
-    it('dashboard appends token with query-safe delimiter handling', () => {
-      expect(dashboardSource).toContain("wsUrl.indexOf('?') === -1 ? '?' : '&'");
+    it('preserves same-origin fallback for non-loopback deployments', () => {
+      expect(approvalHtml).toContain("window.location.host + '/ws/approvals'");
+      expect(approvalHtml).toContain('loopbackHosts');
+      expect(approvalHtml).toContain("approvalWsHost === '0.0.0.0' ? pageHost : approvalWsHost");
+    });
+
+    it('appends token with query-safe delimiter handling', () => {
+      expect(approvalHtml).toContain("wsUrl.indexOf('?') === -1 ? '?' : '&'");
     });
 
     it('fallback to polling when WebSocket unavailable', () => {
-      expect(dashboardSource).toContain('startPolling()');
-      expect(dashboardSource).toContain('scheduleReconnect');
+      expect(approvalHtml).toContain('startPolling()');
+      expect(approvalHtml).toContain('scheduleReconnect');
     });
 
     it('reconnection logic with exponential backoff', () => {
-      expect(dashboardSource).toContain('wsReconnectDelay');
-      expect(dashboardSource).toContain('wsMaxReconnectDelay');
-      expect(dashboardSource).toContain('wsReconnectDelay * 2');
-      expect(dashboardSource).toContain('Math.min(');
+      expect(approvalHtml).toContain('wsReconnectDelay');
+      expect(approvalHtml).toContain('wsMaxReconnectDelay');
+      expect(approvalHtml).toContain('wsReconnectDelay * 2');
+      expect(approvalHtml).toContain('Math.min(');
     });
 
     it('connection status indicator in UI', () => {
-      expect(dashboardSource).toContain('ws-status');
-      expect(dashboardSource).toContain('ws-dot-live');
-      expect(dashboardSource).toContain('ws-dot-reconnecting');
-      expect(dashboardSource).toContain('ws-dot-polling');
-      expect(dashboardSource).toContain('updateWsStatus');
+      expect(approvalHtml).toContain('ws-status');
+      expect(approvalHtml).toContain('ws-dot-live');
+      expect(approvalHtml).toContain('ws-dot-reconnecting');
+      expect(approvalHtml).toContain('ws-dot-polling');
+      expect(approvalHtml).toContain('updateWsStatus');
     });
 
     it('WS-based deny action when connected uses full token (BUG-01)', () => {
-      expect(dashboardSource).toContain('wsConnected && wsConnection');
-      expect(dashboardSource).toContain("JSON.stringify({ type: 'deny', token: token })");
+      expect(approvalHtml).toContain('wsConnected && wsConnection');
+      expect(approvalHtml).toContain("JSON.stringify({ type: 'deny', token: token })");
     });
 
     it('WS-based approve action requires a live connection', () => {
-      expect(dashboardSource).toContain('function approveToken(prefix)');
-      expect(dashboardSource).toContain("JSON.stringify({ type: 'approve', prefix: prefix })");
-      expect(dashboardSource).toContain('Approve requires a live WebSocket connection');
+      expect(approvalHtml).toContain('function approveToken(prefix)');
+      expect(approvalHtml).toContain("JSON.stringify({ type: 'approve', prefix: prefix })");
+      expect(approvalHtml).toContain('Approve requires a live WebSocket connection');
     });
 
     it('handles snapshot message type from server', () => {
-      expect(dashboardSource).toContain("msg.type === 'snapshot'");
-      expect(dashboardSource).toContain('msg.approvals');
+      expect(approvalHtml).toContain("msg.type === 'snapshot'");
+      expect(approvalHtml).toContain('msg.approvals');
     });
 
     it('handles approval_requested message type from server', () => {
-      expect(dashboardSource).toContain("msg.type === 'approval_requested'");
+      expect(approvalHtml).toContain("msg.type === 'approval_requested'");
     });
 
     it('handles approval_acknowledged message type from server', () => {
-      expect(dashboardSource).toContain("msg.type === 'approval_acknowledged'");
-      expect(dashboardSource).toContain('approvedAt');
+      expect(approvalHtml).toContain("msg.type === 'approval_acknowledged'");
+      expect(approvalHtml).toContain('approvedAt');
     });
 
     it('handles approval_denied message type from server', () => {
-      expect(dashboardSource).toContain("msg.type === 'approval_denied'");
+      expect(approvalHtml).toContain("msg.type === 'approval_denied'");
     });
 
     it('handles approval_granted message type from server', () => {
-      expect(dashboardSource).toContain("msg.type === 'approval_granted'");
+      expect(approvalHtml).toContain("msg.type === 'approval_granted'");
     });
 
     it('handles WebSocket error messages by reloading approvals', () => {
-      expect(dashboardSource).toContain("msg.type === 'error'");
-      expect(dashboardSource).toContain('loadApprovals();');
-      expect(dashboardSource).toContain('alert(msg.message)');
+      expect(approvalHtml).toContain("msg.type === 'error'");
+      expect(approvalHtml).toContain('loadApprovals();');
+      expect(approvalHtml).toContain('alert(msg.message)');
     });
   });
 
