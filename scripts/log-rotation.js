@@ -59,8 +59,10 @@ function rotateIfNeeded(filePath, opts) {
 
     // Rotate current file to .1
     fs.renameSync(filePath, `${filePath}.1`);
-  } catch {
-    // Never throw from rotation path — fail-safe
+  } catch (err) {
+    try {
+      process.stderr.write('[EVOKORE] Log rotation error for ' + filePath + ': ' + (err && err.message || String(err)) + '\n');
+    } catch { /* final safety net — never throw from rotation path */ }
   }
 }
 
@@ -91,7 +93,10 @@ function pruneOldSessions(sessionsDir, opts) {
         try {
           const stat = fs.statSync(fullPath);
           return { name, fullPath, mtimeMs: stat.mtimeMs };
-        } catch {
+        } catch (err) {
+          try {
+            process.stderr.write('[EVOKORE] Log rotation error for ' + fullPath + ': ' + (err && err.message || String(err)) + '\n');
+          } catch { /* final safety net — never throw from rotation path */ }
           return null;
         }
       })
@@ -104,7 +109,11 @@ function pruneOldSessions(sessionsDir, opts) {
     const remaining = [];
     for (const entry of entries) {
       if (entry.mtimeMs < cutoff) {
-        try { fs.unlinkSync(entry.fullPath); } catch { /* best effort */ }
+        try { fs.unlinkSync(entry.fullPath); } catch (err) {
+          try {
+            process.stderr.write('[EVOKORE] Log rotation error for ' + entry.fullPath + ': ' + (err && err.message || String(err)) + '\n');
+          } catch { /* final safety net — never throw from rotation path */ }
+        }
       } else {
         remaining.push(entry);
       }
@@ -113,10 +122,16 @@ function pruneOldSessions(sessionsDir, opts) {
     // Pass 2: if still over maxFiles, delete oldest until within limit
     while (remaining.length > maxFiles) {
       const victim = remaining.shift();
-      try { fs.unlinkSync(victim.fullPath); } catch { /* best effort */ }
+      try { fs.unlinkSync(victim.fullPath); } catch (err) {
+        try {
+          process.stderr.write('[EVOKORE] Log rotation error for ' + victim.fullPath + ': ' + (err && err.message || String(err)) + '\n');
+        } catch { /* final safety net — never throw from rotation path */ }
+      }
     }
-  } catch {
-    // Never throw from pruning path — fail-safe
+  } catch (err) {
+    try {
+      process.stderr.write('[EVOKORE] Log rotation error for ' + sessionsDir + ': ' + (err && err.message || String(err)) + '\n');
+    } catch { /* final safety net — never throw from rotation path */ }
   }
 }
 
