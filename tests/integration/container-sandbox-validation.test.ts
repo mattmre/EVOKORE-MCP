@@ -222,6 +222,11 @@ describe('ContainerSandbox compiled module', () => {
       expect(args).toContain('--pids-limit=100');
     });
 
+    it('includes --cap-drop=ALL', () => {
+      const args = mod.buildSecurityArgs();
+      expect(args).toContain('--cap-drop=ALL');
+    });
+
     it('includes --security-opt=no-new-privileges', () => {
       const args = mod.buildSecurityArgs();
       expect(args).toContain('--security-opt=no-new-privileges');

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
@@ -13,6 +13,20 @@ const proxyManagerTsPath = path.join(ROOT, 'src', 'ProxyManager.ts');
 // ---- Source-level structural validation ----
 
 describe('T29: Webhook Event System', () => {
+  // BUG-35: SSRF protection blocks private/loopback addresses by default.
+  // Tests use 127.0.0.1 so we must opt in for local dev/test usage.
+  const savedAllowPrivate = process.env.EVOKORE_WEBHOOKS_ALLOW_PRIVATE;
+  beforeAll(() => {
+    process.env.EVOKORE_WEBHOOKS_ALLOW_PRIVATE = 'true';
+  });
+  afterAll(() => {
+    if (savedAllowPrivate !== undefined) {
+      process.env.EVOKORE_WEBHOOKS_ALLOW_PRIVATE = savedAllowPrivate;
+    } else {
+      delete process.env.EVOKORE_WEBHOOKS_ALLOW_PRIVATE;
+    }
+  });
+
   describe('WebhookManager module exists', () => {
     it('WebhookManager.ts source file exists', () => {
       expect(fs.existsSync(webhookManagerTsPath)).toBe(true);

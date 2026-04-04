@@ -179,9 +179,9 @@ export class SkillManager {
 
       for (const category of categories) {
         const categoryPath = path.join(SKILLS_DIR, category);
-        const stat = await fs.stat(categoryPath).catch(() => null);
+        const stat = await fs.lstat(categoryPath).catch(() => null);
 
-        if (!stat || !stat.isDirectory()) continue;
+        if (!stat || stat.isSymbolicLink() || !stat.isDirectory()) continue;
 
         await this.walkDirectory(categoryPath, category, "", 0);
       }
@@ -280,8 +280,9 @@ export class SkillManager {
 
     for (const entry of entries) {
       const entryPath = path.join(dirPath, entry);
-      const entryStat = await fs.stat(entryPath).catch(() => null);
+      const entryStat = await fs.lstat(entryPath).catch(() => null);
       if (!entryStat) continue;
+      if (entryStat.isSymbolicLink()) continue;
 
       if (!entryStat.isDirectory()) {
         // Handle loose .md files at this level

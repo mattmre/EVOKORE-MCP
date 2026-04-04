@@ -68,10 +68,10 @@ describe('AuditLog', () => {
     expect(fs.existsSync(auditFile)).toBe(false);
   });
 
-  it('respects EVOKORE_AUDIT_LOG env var opt-in', () => {
-    // Without the env var, AuditLog defaults to disabled
+  it('respects EVOKORE_AUDIT_LOG env var opt-out', () => {
+    // Without the env var, AuditLog defaults to enabled (opt-out model)
     const log = new AuditLog({ auditDir: tmpDir, auditFile });
-    expect(log.isEnabled()).toBe(false);
+    expect(log.isEnabled()).toBe(true);
   });
 
   it('entries have required fields', () => {
@@ -185,6 +185,14 @@ describe('AuditLog', () => {
 
   it('redactForAudit handles undefined input', () => {
     expect(redactForAudit(undefined)).toBeUndefined();
+  });
+
+  it('redacts nested sensitive keys', () => {
+    const input = { outer: { token: 'secret123', safe: 'visible' }, normal: 'ok' };
+    const redacted = redactForAudit(input as unknown as Record<string, unknown>);
+    expect((redacted?.outer as any)?.token).toBe('[REDACTED]');
+    expect((redacted?.outer as any)?.safe).toBe('visible');
+    expect(redacted?.normal).toBe('ok');
   });
 
   it('getEntryCount returns correct count', () => {

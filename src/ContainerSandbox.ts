@@ -283,6 +283,7 @@ export function buildSecurityArgs(
     `--memory=${memoryMb}m`,
     `--cpus=${cpuLimit}`,
     "--pids-limit=100",
+    "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
   ];
 
@@ -390,7 +391,11 @@ export class ContainerSandbox {
       for (const [key, value] of Object.entries(options.env)) {
         // Skip host PATH — container has its own PATH set above
         if (key === "PATH") continue;
-        runArgs.push("-e", `${key}=${value}`);
+        // Reject keys with unsafe characters (prevents argument injection)
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) continue;
+        // Strip null bytes from value to prevent silent data loss
+        const safeValue = String(value).replace(/\0/g, '');
+        runArgs.push("-e", `${key}=${safeValue}`);
       }
     }
     runArgs.push("-e", "EVOKORE_SANDBOX=true");

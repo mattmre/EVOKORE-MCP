@@ -107,6 +107,10 @@ dangerous_commands:
     pattern: '(\bnc\b.*\s-[a-zA-Z]*l|python[23]?\s.*http\.server)'
     reason: 'Network listener (nc -l or python http.server)'
     ask: true
+  - id: DC-26
+    pattern: '\beval\s*\('
+    reason: 'eval() call detected — potential code injection'
+    ask: true
   - id: DC-27
     pattern: '\bsource\s+<\(|(?:^|\s)\.\s+<\('
     reason: 'Source from process substitution'
@@ -123,6 +127,14 @@ dangerous_commands:
     pattern: 'git\s+config\s+.*credential'
     reason: 'Git credential configuration manipulation'
     ask: true
+  - id: DC-31
+    pattern: '\bexec\s*\('
+    reason: 'exec() call detected — potential command execution'
+    ask: true
+  - id: DC-32
+    pattern: 'git\s+remote\s+set-url'
+    reason: 'Git remote URL modification — potential supply chain attack'
+    ask: false
 
 zero_access_paths:
   - '.env'
