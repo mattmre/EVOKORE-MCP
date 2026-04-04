@@ -297,6 +297,7 @@ export class WebhookManager {
         /^169\.254\./.test(hostname) ||
         hostname === '0.0.0.0' ||
         hostname === '::1' ||
+        /^::ffff:/i.test(hostname) ||
         /^fc00:/i.test(hostname) ||
         /^fe80:/i.test(hostname);
       if (isPrivate && process.env.EVOKORE_WEBHOOKS_ALLOW_PRIVATE !== 'true') return false;
