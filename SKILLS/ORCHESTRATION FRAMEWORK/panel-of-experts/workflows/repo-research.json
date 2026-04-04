@@ -1,0 +1,214 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "repo-research-with-panel-review",
+  "version": "1.0.0",
+  "description": "User supplies a topic narrative. System researches top repos in that domain, evaluates candidates through expert panels, and produces a curated shortlist with integration recommendations.",
+  "triggers": {
+    "manual": true
+  },
+  "inputs": {
+    "narrative": {
+      "type": "string",
+      "description": "User-supplied topic narrative describing what they're looking for. Can be broad ('best MCP server implementations') or specific ('real-time collaboration frameworks with CRDT support for TypeScript').",
+      "required": true
+    },
+    "max_candidates": {
+      "type": "number",
+      "description": "Maximum repos to deeply evaluate",
+      "default": 10
+    },
+    "evaluation_depth": {
+      "type": "string",
+      "description": "How deeply to evaluate: 'quick' (metadata only), 'standard' (code scan), 'deep' (full file-tree + sample code review)",
+      "default": "standard"
+    },
+    "integration_context": {
+      "type": "string",
+      "description": "Optional: describe the target system these repos would integrate with (e.g., 'EVOKORE-MCP v3.1 TypeScript MCP server')",
+      "default": ""
+    },
+    "include_meta_improvement": {
+      "type": "boolean",
+      "description": "Run optional meta-improvement cycle on expert personas and workflow after completion",
+      "default": false
+    }
+  },
+  "outputs": {
+    "research_report": {
+      "type": "object",
+      "description": "Curated repo shortlist with expert panel evaluations and integration recommendations"
+    }
+  },
+  "steps": [
+    {
+      "id": "narrative-analysis",
+      "name": "Analyze User Narrative",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "inputs": {
+        "narrative": "{{ inputs.narrative }}",
+        "instruction": "Parse the user's narrative into structured research criteria: (1) primary domain/technology, (2) specific requirements mentioned, (3) implied requirements from context, (4) quality signals to look for, (5) disqualifying criteria. Generate a set of GitHub search queries (API search, topic tags, trending in category)."
+      },
+      "outputs": {
+        "search_criteria": "criteria",
+        "search_queries": "queries"
+      }
+    },
+    {
+      "id": "repo-discovery",
+      "name": "Discover Candidate Repos",
+      "action": "parallel-group",
+      "depends_on": ["narrative-analysis"],
+      "steps": [
+        {
+          "id": "github-search",
+          "name": "GitHub API Search",
+          "action": "invoke-agent",
+          "agent": "researcher",
+          "inputs": {
+            "queries": "{{ narrative-analysis.queries }}",
+            "instruction": "Execute GitHub search queries. For each result, capture: repo URL, stars, forks, last commit date, primary language, license, description, topics. Collect up to 3x max_candidates to allow filtering."
+          },
+          "outputs": { "candidates": "repo_list" }
+        },
+        {
+          "id": "community-scan",
+          "name": "Community & Ecosystem Scan",
+          "action": "invoke-agent",
+          "agent": "researcher",
+          "inputs": {
+            "criteria": "{{ narrative-analysis.criteria }}",
+            "instruction": "Search beyond GitHub: awesome-lists, blog posts, conference talks, npm/pypi trending, HN/Reddit discussions, official documentation recommendations. Identify repos that may not rank high in GitHub search but are community-recommended."
+          },
+          "outputs": { "community_picks": "repo_list" }
+        }
+      ]
+    },
+    {
+      "id": "initial-filter",
+      "name": "Initial Candidate Filtering",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["repo-discovery"],
+      "inputs": {
+        "all_candidates": ["{{ github-search.repo_list }}", "{{ community-scan.repo_list }}"],
+        "criteria": "{{ narrative-analysis.criteria }}",
+        "max_candidates": "{{ inputs.max_candidates }}",
+        "instruction": "Deduplicate and rank all discovered repos against the search criteria. Apply initial filters: (1) minimum activity threshold (commit in last 6 months), (2) license compatibility, (3) language match, (4) minimum community signal (stars or meaningful forks). Return the top N candidates for deep evaluation."
+      },
+      "outputs": {
+        "shortlist": "filtered_repos"
+      }
+    },
+    {
+      "id": "deep-evaluation",
+      "name": "Deep Repo Evaluation",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["initial-filter"],
+      "inputs": {
+        "repos": "{{ initial-filter.shortlist }}",
+        "depth": "{{ inputs.evaluation_depth }}",
+        "instruction": "For each repo in the shortlist: (1) Read README and key docs, (2) Analyze file tree structure, (3) Identify architecture pattern, (4) Check test coverage signals, (5) Evaluate dependency health, (6) Assess documentation quality, (7) Note unique capabilities not found in other candidates."
+      },
+      "outputs": { "evaluations": "eval_results" }
+    },
+    {
+      "id": "expert-panel-review",
+      "name": "Repo Ingestion Panel Review",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["deep-evaluation"],
+      "inputs": {
+        "all_evaluations": "{{ deep-evaluation.eval_results }}",
+        "integration_context": "{{ inputs.integration_context }}",
+        "instruction": "Convene the Repo Ingestion Panel (Kim, Petrov, Obi, Larsson, Tanaka). Run full panel cycle on the evaluation findings. Each expert reviews all candidate repos through their lens. Produce: (1) per-repo verdicts (ADOPT/CONSIDER/SKIP), (2) comparative ranking, (3) integration risk assessment, (4) supply chain security notes."
+      },
+      "outputs": {
+        "panel_report": "report"
+      }
+    },
+    {
+      "id": "presentation-extraction",
+      "name": "Presentation Panel — Package Findings",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["expert-panel-review"],
+      "inputs": {
+        "panel_report": "{{ expert-panel-review.report }}",
+        "narrative": "{{ inputs.narrative }}",
+        "instruction": "Convene the Presentation Panel (Reeves, Webb, Reyes, Sato). Extract presentation-worthy content from the research findings. Structure as: (1) Executive summary — top 3 repos and why, (2) Comparative matrix, (3) Integration recommendation, (4) Risk summary, (5) Recommended next steps."
+      },
+      "outputs": {
+        "presentation": "packaged_findings"
+      }
+    },
+    {
+      "id": "feasibility-gate",
+      "name": "Feasibility Assessment on Top Picks",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["expert-panel-review"],
+      "inputs": {
+        "panel_report": "{{ expert-panel-review.report }}",
+        "integration_context": "{{ inputs.integration_context }}",
+        "instruction": "Convene the Feasibility Panel (Torres, Wright, Okonkwo, Svensson). For each repo with ADOPT/CONSIDER verdict: (1) Estimate integration effort, (2) Identify technical spikes needed, (3) Assess ROI, (4) Recommend adoption approach (fork, submodule, skill import, reference only). Produce feasibility verdicts."
+      },
+      "outputs": {
+        "feasibility_report": "report"
+      }
+    },
+    {
+      "id": "meta-improvement",
+      "name": "Optional Meta-Improvement Cycle",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["feasibility-gate", "presentation-extraction"],
+      "condition": "{{ inputs.include_meta_improvement }}",
+      "inputs": {
+        "full_workflow_output": {
+          "narrative": "{{ inputs.narrative }}",
+          "panel_report": "{{ expert-panel-review.report }}",
+          "feasibility": "{{ feasibility-gate.report }}",
+          "presentation": "{{ presentation-extraction.packaged_findings }}"
+        },
+        "instruction": "Run the Meta-Improvement Cycle. Review: (1) Did the expert personas catch things that generic analysis would have missed? Which personas were most/least valuable? (2) Were there gaps in the panel coverage? (3) Did the workflow steps flow logically or were there bottlenecks? (4) What would improve this workflow for next time? Produce improvement recommendations for both personas and workflow."
+      },
+      "outputs": {
+        "improvements": "meta_report"
+      }
+    },
+    {
+      "id": "deliver",
+      "name": "Deliver Research Report",
+      "action": "transform",
+      "depends_on": ["feasibility-gate", "presentation-extraction"],
+      "inputs": {
+        "template": {
+          "narrative": "{{ inputs.narrative }}",
+          "candidates_evaluated": "{{ initial-filter.shortlist }}",
+          "expert_panel_findings": "{{ expert-panel-review.report }}",
+          "feasibility": "{{ feasibility-gate.report }}",
+          "presentation": "{{ presentation-extraction.packaged_findings }}",
+          "meta_improvements": "{{ meta-improvement.improvements }}"
+        }
+      },
+      "outputs": {
+        "research_report": "result"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 6,
+    "continue_on_error": false,
+    "fail_fast": false,
+    "timeout_seconds": 1200,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-03-30",
+    "tags": ["panel-of-experts", "repo-research", "discovery", "evaluation", "integration"]
+  }
+}

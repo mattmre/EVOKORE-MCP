@@ -1,0 +1,130 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "panel-meta-improvement-cycle",
+  "version": "1.0.0",
+  "description": "Optional post-cycle workflow that evaluates expert personas, panel composition, and workflow effectiveness. Produces actionable improvement recommendations.",
+  "triggers": {
+    "manual": true
+  },
+  "inputs": {
+    "panel_type": {
+      "type": "string",
+      "description": "Which panel was used in the cycle being evaluated",
+      "required": true
+    },
+    "panel_report": {
+      "type": "object",
+      "description": "The convergence report from the completed panel cycle",
+      "required": true
+    },
+    "feasibility_report": {
+      "type": "object",
+      "description": "The feasibility report, if one was produced",
+      "required": false
+    },
+    "user_feedback": {
+      "type": "string",
+      "description": "Any user feedback on the panel output quality",
+      "default": ""
+    },
+    "apply_changes": {
+      "type": "boolean",
+      "description": "Whether to auto-apply recommended persona/workflow changes (requires user approval)",
+      "default": false
+    }
+  },
+  "outputs": {
+    "improvement_report": {
+      "type": "object",
+      "description": "Meta-improvement recommendations for personas, composition, and workflow"
+    }
+  },
+  "steps": [
+    {
+      "id": "persona-review",
+      "name": "Evaluate Expert Persona Effectiveness",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "inputs": {
+        "panel_type": "{{ inputs.panel_type }}",
+        "panel_report": "{{ inputs.panel_report }}",
+        "instruction": "As Serena Okafor (Domain Expertise Curator): Review each expert persona's contribution to the panel report. For each expert: (1) Did they find unique insights? (2) Was their lens differentiated? (3) Did their known biases manifest helpfully or harmfully? (4) Are their backgrounds current? (5) Were challenge prompts effective? Score each persona high/medium/low and suggest specific updates."
+      },
+      "outputs": {
+        "persona_evaluations": "evaluations"
+      }
+    },
+    {
+      "id": "dynamics-review",
+      "name": "Evaluate Panel Dynamics",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "inputs": {
+        "panel_report": "{{ inputs.panel_report }}",
+        "instruction": "As Dr. Helena Marsh (Organizational Psychologist): Evaluate group dynamics. (1) Was there genuine disagreement or false consensus? (2) Did the challenge phase produce new insights? (3) Were any perspectives missing? (4) Did dissent get properly captured? (5) Were any experts underutilized? Score diversity, challenge quality, and recommend panel composition changes."
+      },
+      "outputs": {
+        "dynamics_evaluation": "evaluation"
+      }
+    },
+    {
+      "id": "workflow-review",
+      "name": "Evaluate Workflow Effectiveness",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "inputs": {
+        "panel_report": "{{ inputs.panel_report }}",
+        "feasibility_report": "{{ inputs.feasibility_report }}",
+        "instruction": "As Kai Nishida (Process Optimization Engineer): Evaluate the workflow. (1) Which steps produced highest-value output? (2) Which steps had least impact? (3) Were there parallelization opportunities missed? (4) Was the feasibility gate informative or rubber-stamp? (5) What was the signal-to-noise ratio of the final report? Suggest specific workflow changes."
+      },
+      "outputs": {
+        "workflow_evaluation": "evaluation"
+      }
+    },
+    {
+      "id": "synthesize",
+      "name": "Synthesize Improvement Recommendations",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["persona-review", "dynamics-review", "workflow-review"],
+      "inputs": {
+        "persona_evaluations": "{{ persona-review.evaluations }}",
+        "dynamics_evaluation": "{{ dynamics-review.evaluation }}",
+        "workflow_evaluation": "{{ workflow-review.evaluation }}",
+        "user_feedback": "{{ inputs.user_feedback }}",
+        "instruction": "Synthesize all three evaluations into a single Meta-Improvement Report. Prioritize recommendations by impact. Separate into: (1) Persona updates, (2) New personas suggested, (3) Personas to retire/merge, (4) Workflow improvements, (5) Coverage gaps. Include quality metrics."
+      },
+      "outputs": {
+        "improvement_report": "report"
+      }
+    },
+    {
+      "id": "persist-narratives",
+      "name": "Update Persistent Expert Narratives",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["synthesize"],
+      "condition": "{{ inputs.apply_changes }}",
+      "inputs": {
+        "improvement_report": "{{ synthesize.report }}",
+        "instruction": "Apply approved changes to expert-roster.md and the relevant panel skill file. Update version numbers. Write evolution record to ~/.evokore/panel-narratives/ for cross-session persistence."
+      },
+      "outputs": {
+        "changes_applied": "summary"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 3,
+    "continue_on_error": true,
+    "fail_fast": false,
+    "timeout_seconds": 300,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-03-30",
+    "tags": ["panel-of-experts", "meta-improvement", "self-reflection", "optimization"]
+  }
+}

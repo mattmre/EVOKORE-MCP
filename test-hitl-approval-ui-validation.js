@@ -55,7 +55,7 @@ describe('SecurityManager HITL approval UI integration', () => {
   });
 
   test('has denyToken method', () => {
-    expect(source).toMatch(/denyToken\s*\(\s*tokenPrefix\s*:\s*string\s*\)/);
+    expect(source).toMatch(/denyToken\s*\(\s*token\s*:\s*string\s*\)/);
   });
 
   test('has persistPendingApprovals method', () => {
@@ -119,7 +119,7 @@ describe('Dashboard HITL approvals integration', () => {
 
   test('has POST /api/approvals/deny endpoint', () => {
     expect(source).toContain("url.pathname === '/api/approvals/deny'");
-    expect(source).toContain('denyTokenPrefix');
+    expect(source).toContain('denyTokenFull');
   });
 
   test('reads pending-approvals.json', () => {
@@ -160,8 +160,8 @@ describe('Dashboard HITL approvals integration', () => {
     expect(source).toContain('Body too large');
   });
 
-  test('minimum prefix length is enforced', () => {
-    expect(source).toContain('prefix.length < 4');
+  test('full token length is validated', () => {
+    expect(source).toContain('token.length !== 32');
   });
 });
 

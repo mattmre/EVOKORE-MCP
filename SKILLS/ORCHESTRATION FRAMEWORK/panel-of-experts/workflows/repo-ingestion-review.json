@@ -1,0 +1,146 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "repo-ingestion-panel-review",
+  "version": "1.0.0",
+  "description": "Specialized workflow for reviewing external repo ingestion: pre-assessment, content review, and integration plan validation through expert panels.",
+  "triggers": {
+    "manual": true,
+    "on_event": ["repo-ingestion-complete"]
+  },
+  "inputs": {
+    "repo_url": {
+      "type": "string",
+      "description": "URL of the repo that was ingested/analyzed",
+      "required": true
+    },
+    "research_output": {
+      "type": "string",
+      "description": "Path to the research output / integration plan document",
+      "required": true
+    },
+    "mode": {
+      "type": "string",
+      "description": "Review mode: pre-ingestion, post-ingestion, plan-validation",
+      "default": "post-ingestion"
+    }
+  },
+  "outputs": {
+    "ingestion_verdict": {
+      "type": "object",
+      "description": "Complete ingestion review with accuracy audit, integration assessment, and feasibility"
+    }
+  },
+  "steps": [
+    {
+      "id": "content-accuracy-review",
+      "name": "Content Accuracy Review (Repo Ingestion Panel)",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "inputs": {
+        "panel_type": "repo-ingestion",
+        "mode": "{{ inputs.mode }}",
+        "research_output": "{{ inputs.research_output }}",
+        "repo_url": "{{ inputs.repo_url }}",
+        "instruction": "Convene the Repo Ingestion Panel. Run SOLO reviews from all 5 experts (Kim, Petrov, Obi, Larsson, Tanaka). Focus on: accuracy of claims vs actual repo state, integration compatibility, documentation quality, supply chain risks, content consistency. Produce convergence report."
+      },
+      "outputs": {
+        "content_report": "report"
+      }
+    },
+    {
+      "id": "architecture-review",
+      "name": "Architecture & Planning Review",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["content-accuracy-review"],
+      "inputs": {
+        "panel_type": "architecture-planning",
+        "mode": "phase-plan",
+        "research_output": "{{ inputs.research_output }}",
+        "prior_findings": "{{ content-accuracy-review.report }}",
+        "instruction": "Convene the Architecture & Planning Panel. Review the integration plan for: phase sequencing, dependency correctness, effort realism, value alignment, risk assessment. Incorporate content accuracy findings from the prior panel. Produce convergence report."
+      },
+      "outputs": {
+        "architecture_report": "report"
+      }
+    },
+    {
+      "id": "security-review",
+      "name": "Security Assessment of Proposed Integration",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["content-accuracy-review"],
+      "inputs": {
+        "panel_type": "security-audit",
+        "research_output": "{{ inputs.research_output }}",
+        "instruction": "Convene the Security Audit Panel. Review the proposed integration for: supply chain risks from imported code/skills, security model compatibility, new attack surfaces introduced by integration, trust boundary changes. Produce convergence report."
+      },
+      "outputs": {
+        "security_report": "report"
+      }
+    },
+    {
+      "id": "cross-panel-synthesis",
+      "name": "Cross-Panel Synthesis",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["architecture-review", "security-review"],
+      "inputs": {
+        "content_report": "{{ content-accuracy-review.report }}",
+        "architecture_report": "{{ architecture-review.report }}",
+        "security_report": "{{ security-review.report }}",
+        "instruction": "Synthesize findings from all three panels. Identify cross-panel agreements (highest confidence), conflicts (needs resolution), and coverage gaps. Produce unified priority stack-rank."
+      },
+      "outputs": {
+        "unified_findings": "synthesis"
+      }
+    },
+    {
+      "id": "feasibility-gate",
+      "name": "Feasibility Assessment",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["cross-panel-synthesis"],
+      "inputs": {
+        "unified_findings": "{{ cross-panel-synthesis.synthesis }}",
+        "instruction": "Convene the Feasibility Panel. Evaluate all top recommendations. For plan modifications: assess resequencing effort. For rejected items: confirm rejection is justified. For new recommendations: assess effort, ROI, and minimum viable scope. Produce final feasibility verdicts."
+      },
+      "outputs": {
+        "feasibility_report": "report"
+      }
+    },
+    {
+      "id": "deliver",
+      "name": "Deliver Ingestion Review Report",
+      "action": "transform",
+      "depends_on": ["feasibility-gate"],
+      "inputs": {
+        "template": {
+          "repo": "{{ inputs.repo_url }}",
+          "mode": "{{ inputs.mode }}",
+          "content_review": "{{ content-accuracy-review.report }}",
+          "architecture_review": "{{ architecture-review.report }}",
+          "security_review": "{{ security-review.report }}",
+          "unified_synthesis": "{{ cross-panel-synthesis.synthesis }}",
+          "feasibility": "{{ feasibility-gate.report }}"
+        }
+      },
+      "outputs": {
+        "ingestion_verdict": "result"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 4,
+    "continue_on_error": false,
+    "fail_fast": false,
+    "timeout_seconds": 900,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-03-30",
+    "tags": ["panel-of-experts", "repo-ingestion", "content-review", "integration"]
+  }
+}
