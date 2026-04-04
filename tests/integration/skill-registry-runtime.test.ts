@@ -19,7 +19,11 @@ describe("T21: Remote Skill Registry Runtime", () => {
   let tempConfigPath: string;
   let originalConfigPath: string | undefined;
 
+  // SEC-03: SSRF protection blocks private/loopback addresses by default.
+  // Tests use 127.0.0.1 so we must opt in for local test usage.
+  const savedAllowPrivate = process.env.EVOKORE_HTTP_ALLOW_PRIVATE;
   beforeAll(async () => {
+    process.env.EVOKORE_HTTP_ALLOW_PRIVATE = "true";
     server = http.createServer((req, res) => {
       const reqPath = req.url || "/";
       requestCounts[reqPath] = (requestCounts[reqPath] || 0) + 1;
@@ -118,6 +122,11 @@ describe("T21: Remote Skill Registry Runtime", () => {
   });
 
   afterAll(async () => {
+    if (savedAllowPrivate !== undefined) {
+      process.env.EVOKORE_HTTP_ALLOW_PRIVATE = savedAllowPrivate;
+    } else {
+      delete process.env.EVOKORE_HTTP_ALLOW_PRIVATE;
+    }
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {
         if (error) {

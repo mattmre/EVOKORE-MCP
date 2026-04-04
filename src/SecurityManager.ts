@@ -228,7 +228,6 @@ export class SecurityManager {
       type: "approval_requested",
       data: {
         token: token.substring(0, 8) + "...",
-        tokenFull: token,
         toolName,
         expiresAt,
         createdAt: expiresAt - SecurityManager.TOKEN_TTL_MS,
@@ -269,13 +268,12 @@ export class SecurityManager {
 
   /**
    * Returns a list of pending (non-expired) approval tokens for display in the UI.
-   * Token values are truncated for display — only the first 8 characters are shown in `token`.
-   * The full token is available in `tokenFull` for deny/approve operations that require
-   * timing-safe comparison against the complete value.
+   * Token values are truncated for display — only the first 8 characters are shown
+   * in `token`. Full tokens are never exposed through this method. Deny operations
+   * accept a prefix (minimum 8 hex characters) via `denyToken()`.
    */
   getPendingApprovals(): Array<{
     token: string;
-    tokenFull: string;
     toolName: string;
     expiresAt: number;
     createdAt: number;
@@ -286,7 +284,6 @@ export class SecurityManager {
       .filter(([, meta]) => meta.expiresAt > now)
       .map(([token, meta]) => ({
         token: token.substring(0, 8) + "...",
-        tokenFull: token,
         toolName: meta.toolName,
         expiresAt: meta.expiresAt,
         createdAt: meta.expiresAt - SecurityManager.TOKEN_TTL_MS,
@@ -327,10 +324,33 @@ export class SecurityManager {
   }
 
   /**
-   * Deny a token by its full value using timing-safe comparison.
+   * Deny a token by its full value (timing-safe comparison) or by prefix
+   * (minimum 8 hex characters, prefix match — same mechanism as `approveToken`).
    * Marks the token as consumed so it cannot be used for approval.
+   *
+   * When the provided string is shorter than 32 characters, it is treated as a
+   * prefix and the first matching pending token is denied. This allows the
+   * dashboard (which only has the truncated display prefix) to deny tokens
+   * without ever receiving the full token value.
    */
   denyToken(token: string): boolean {
+    // Prefix-based deny: if shorter than a full token (32 hex chars), use prefix match
+    if (token.length < 32 && token.length >= 8) {
+      for (const [pendingToken, meta] of this.pendingTokens.entries()) {
+        if (pendingToken.startsWith(token) && meta.expiresAt > Date.now()) {
+          this.pendingTokens.delete(pendingToken);
+          this.persistPendingApprovals();
+          this.emitApprovalEvent({
+            type: "approval_denied",
+            data: { token: pendingToken.substring(0, 8) + "..." },
+          });
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Full-token deny: timing-safe comparison
     const tokenBuf = Buffer.from(token, "utf8");
     for (const [pendingToken, meta] of this.pendingTokens.entries()) {
       const pendingBuf = Buffer.from(pendingToken, "utf8");

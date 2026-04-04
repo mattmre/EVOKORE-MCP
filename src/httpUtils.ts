@@ -19,11 +19,53 @@ const DEFAULT_MAX_SIZE = MAX_FETCH_SIZE;
 const DEFAULT_MAX_REDIRECTS = MAX_REDIRECT_DEPTH;
 const DEFAULT_TIMEOUT_MS = FETCH_TIMEOUT_MS;
 
+/**
+ * Check whether a hostname resolves to a private, loopback, or link-local
+ * address that should not be reachable from server-side HTTP requests.
+ *
+ * This blocks SSRF attacks that attempt to reach cloud instance metadata
+ * endpoints (e.g. 169.254.169.254), internal services on RFC 1918 ranges,
+ * or localhost/loopback addresses.
+ *
+ * The check mirrors the logic in WebhookManager.isValidWebhookConfig().
+ */
+export function isPrivateAddress(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  return (
+    h === "localhost" ||
+    /^127\./.test(h) ||
+    /^10\./.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
+    /^192\.168\./.test(h) ||
+    /^169\.254\./.test(h) ||
+    h === "0.0.0.0" ||
+    h === "::1" ||
+    h === "[::1]" ||
+    /^::ffff:/i.test(h) ||
+    /^\[::ffff:/i.test(h) ||
+    /^fc00:/i.test(h) ||
+    /^fe80:/i.test(h)
+  );
+}
+
+/**
+ * Perform an HTTP(S) GET request and return the response body as a string.
+ *
+ * Security: Private, loopback, and link-local addresses are rejected (SSRF
+ * protection). This applies to both the initial URL and any redirect targets.
+ * The check can be bypassed for local development by setting the environment
+ * variable `EVOKORE_HTTP_ALLOW_PRIVATE=true`.
+ *
+ * @throws {Error} If the URL points to a private address, is invalid, uses a
+ *   non-HTTP(S) protocol, returns a non-200 status, exceeds the size limit,
+ *   times out, or exceeds the redirect limit.
+ */
 export async function httpGet(url: string, options: HttpGetOptions = {}): Promise<string> {
   const userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
   const maxSize = options.maxSize ?? DEFAULT_MAX_SIZE;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const allowPrivate = process.env.EVOKORE_HTTP_ALLOW_PRIVATE === "true";
 
   function doGet(targetUrl: string, redirectDepth: number): Promise<string> {
     if (redirectDepth > maxRedirects) {
@@ -41,6 +83,12 @@ export async function httpGet(url: string, options: HttpGetOptions = {}): Promis
 
       if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
         reject(new Error("Only HTTP/HTTPS URLs are supported, got: " + parsedUrl.protocol));
+        return;
+      }
+
+      // SSRF protection: block private/loopback/link-local addresses
+      if (!allowPrivate && isPrivateAddress(parsedUrl.hostname)) {
+        reject(new Error("Requests to private/loopback addresses are blocked (SSRF protection): " + parsedUrl.hostname));
         return;
       }
 

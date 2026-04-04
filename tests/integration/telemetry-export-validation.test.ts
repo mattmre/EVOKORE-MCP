@@ -295,11 +295,26 @@ describe('TelemetryExporter configuration validation', () => {
     const { TelemetryManager } = await import('../../src/TelemetryManager');
     const tm = new TelemetryManager();
 
+    // Use a public address (not localhost) since SEC-04 SSRF protection
+    // blocks private/loopback addresses in TelemetryExporter.isValidUrl()
+    const exporter = new TelemetryExporter(tm, {
+      exportUrl: 'http://metrics.example.com/v1/push',
+    });
+    exporter.initialize();
+    expect(exporter.isEnabled()).toBe(true);
+    await exporter.shutdown();
+  });
+
+  it('rejects private/loopback URLs (SSRF protection)', async () => {
+    const { TelemetryExporter } = await import('../../src/TelemetryExporter');
+    const { TelemetryManager } = await import('../../src/TelemetryManager');
+    const tm = new TelemetryManager();
+
     const exporter = new TelemetryExporter(tm, {
       exportUrl: 'http://localhost:9090/metrics',
     });
     exporter.initialize();
-    expect(exporter.isEnabled()).toBe(true);
+    expect(exporter.isEnabled()).toBe(false);
     await exporter.shutdown();
   });
 });

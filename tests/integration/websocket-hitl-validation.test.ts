@@ -609,7 +609,9 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(events.length).toBe(1);
       expect(events[0].type).toBe('approval_requested');
       expect(events[0].data.toolName).toBe('test-tool');
-      expect(events[0].data.tokenFull).toBe(token);
+      // tokenFull was removed from approval_requested events (SEC-01)
+      expect(events[0].data.tokenFull).toBeUndefined();
+      expect(events[0].data.token).toBe(token.substring(0, 8) + '...');
     });
 
     it('consumeToken fires approval_granted event', () => {
@@ -968,7 +970,21 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
 
       // After denial, token should no longer be pending
       const pending = sm.getPendingApprovals();
-      const found = pending.find((p: any) => p.tokenFull === token);
+      const found = pending.find((p: any) => p.token === token.substring(0, 8) + '...');
+      expect(found).toBeUndefined();
+    });
+
+    it('denyToken works with prefix (8+ chars) for dashboard compatibility', () => {
+      const { SecurityManager } = require(securityManagerJsPath);
+      const sm = new SecurityManager();
+
+      const token = sm.generateToken('deny-prefix-tool', {});
+      const prefix = token.substring(0, 8);
+      expect(sm.denyToken(prefix)).toBe(true);
+
+      // After prefix denial, token should no longer be pending
+      const pending = sm.getPendingApprovals();
+      const found = pending.find((p: any) => p.toolName === 'deny-prefix-tool');
       expect(found).toBeUndefined();
     });
 
@@ -1082,10 +1098,10 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(names).toContain('pending-tool-1');
       expect(names).toContain('pending-tool-2');
 
-      // Each entry has expected fields
+      // Each entry has expected fields (tokenFull removed per SEC-01)
       for (const entry of pending) {
         expect(entry.token).toBeDefined();
-        expect(entry.tokenFull).toBeDefined();
+        expect((entry as any).tokenFull).toBeUndefined();
         expect(entry.toolName).toBeDefined();
         expect(entry.expiresAt).toBeGreaterThan(Date.now() - 1000);
         expect(entry.createdAt).toBeGreaterThan(0);

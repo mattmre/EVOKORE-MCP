@@ -3,6 +3,7 @@ import http from "http";
 import https from "https";
 import { TelemetryManager } from "./TelemetryManager";
 import { WebhookManager } from "./WebhookManager";
+import { isPrivateAddress } from "./httpUtils";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 500;
@@ -192,7 +193,11 @@ export class TelemetryExporter {
   private isValidUrl(url: string): boolean {
     try {
       const parsed = new URL(url);
-      return parsed.protocol === "http:" || parsed.protocol === "https:";
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+      // SSRF protection: block private/loopback/link-local addresses to prevent
+      // telemetry data from being exfiltrated to internal endpoints.
+      if (isPrivateAddress(parsed.hostname)) return false;
+      return true;
     } catch {
       return false;
     }

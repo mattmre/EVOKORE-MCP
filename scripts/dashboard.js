@@ -1040,7 +1040,7 @@ const approvalsHTML = `<!DOCTYPE html>
           wsConnection.send(JSON.stringify({ type: 'deny', token: token }));
           // Optimistic UI: remove from cached approvals
           cachedApprovals = cachedApprovals.filter(function(a) {
-            return a.tokenFull !== token;
+            return a.token.replace('...', '') !== token;
           });
           renderApprovals(cachedApprovals);
         } else {
@@ -1134,7 +1134,7 @@ const approvalsHTML = `<!DOCTYPE html>
           if (!a.approvedAt) {
             html += '<button class="btn-approve" id="approve-' + esc(a.token.replace('...', '')) + '" onclick="approveToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Approve</button>';
           }
-          html += '<button class="btn-deny" id="deny-' + esc(a.tokenFull || a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.tokenFull || a.token.replace('...', '')) + '\\')">Deny</button>';
+          html += '<button class="btn-deny" id="deny-' + esc(a.token.replace('...', '')) + '" onclick="denyToken(\\'' + esc(a.token.replace('...', '')) + '\\')">Deny</button>';
           html += '</div>';
         }
         html += '</div>';
