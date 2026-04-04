@@ -877,7 +877,7 @@ export class SkillManager {
         inputSchema: {
           type: "object",
           properties: {
-            query: { type: "string" }
+            query: { type: "string", description: "Keywords or natural-language query to search skill names, descriptions, tags, and categories. Returns up to 15 results by relevance." }
           },
           required: ["query"]
         },
@@ -896,7 +896,7 @@ export class SkillManager {
         inputSchema: {
           type: "object",
           properties: {
-            skill_name: { type: "string" }
+            skill_name: { type: "string", description: "The name of the skill to get help for." }
           },
           required: ["skill_name"]
         },
@@ -911,7 +911,7 @@ export class SkillManager {
       {
         name: "discover_tools",
         title: "Discover Tools",
-        description: "Search the merged EVOKORE tool catalog. In dynamic discovery mode, matching proxied tools are activated for the current session.",
+        description: "Lists available tools. In 'legacy' mode (default), this is read-only — no state is modified. In 'dynamic' mode (EVOKORE_TOOL_DISCOVERY_MODE=dynamic), calling this tool activates listed tools for the current session. Set readOnlyHint: false conservatively to prevent unintended auto-approval in dynamic mode.",
         inputSchema: {
           type: "object",
           properties: {
@@ -1228,8 +1228,19 @@ export class SkillManager {
                 }]
             };
         } catch (error: any) {
+            const msg = error.message || String(error);
+            let hint = "";
+            if (msg.includes("HTTP 404")) {
+                hint = " Hint: for GitHub files, use the raw.githubusercontent.com URL.";
+            } else if (msg.includes("HTTP 403") || msg.includes("HTTP 401")) {
+                hint = " Hint: the resource may be private or require authentication.";
+            } else if (msg.includes("timed out")) {
+                hint = " Hint: the server did not respond — check the URL and your network.";
+            } else if (msg.toLowerCase().includes("invalid") && msg.toLowerCase().includes("format")) {
+                hint = " Hint: the file must be Markdown with YAML frontmatter (---).";
+            }
             return {
-                content: [{ type: "text", text: "Failed to fetch skill: " + error.message }],
+                content: [{ type: "text", text: "Failed to fetch skill: " + msg + hint }],
                 isError: true
             };
         }

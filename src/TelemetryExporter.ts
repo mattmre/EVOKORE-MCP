@@ -160,12 +160,13 @@ export class TelemetryExporter {
    * Exposed for testing.
    */
   buildPayload(): TelemetryExportPayload {
+    const metrics = this.telemetryManager.getMetrics();
     return {
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       event: "telemetry_export",
-      version: this.telemetryManager.getMetrics().telemetryVersion,
-      metrics: this.telemetryManager.getMetrics(),
+      version: metrics.telemetryVersion,
+      metrics,
       instanceId: this.instanceId,
     };
   }
