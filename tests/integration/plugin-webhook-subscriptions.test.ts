@@ -21,7 +21,7 @@ describe('Plugin Webhook Subscriptions', () => {
     });
 
     it('has subscribe method', () => {
-      expect(src).toMatch(/subscribe\(eventType:\s*string,\s*pluginId:\s*string/);
+      expect(src).toMatch(/subscribe\(eventType:\s*WebhookEventType,\s*pluginId:\s*string/);
     });
 
     it('has unsubscribeAll method', () => {
@@ -45,7 +45,7 @@ describe('Plugin Webhook Subscriptions', () => {
     });
 
     it('onWebhookEvent implementation calls subscribe', () => {
-      expect(src).toMatch(/this\.webhookManager\.subscribe\(eventType,\s*pluginName,\s*handler\)/);
+      expect(src).toMatch(/this\.webhookManager\.subscribe\(eventType as WebhookEventType,\s*pluginName,\s*handler\)/);
     });
 
     it('unsubscribeAll is called during plugin reload', () => {

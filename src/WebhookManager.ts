@@ -276,7 +276,10 @@ export class WebhookManager {
    * Subscribe a plugin to a specific webhook event type.
    * The handler is called synchronously (fire-and-forget) whenever the event is emitted.
    */
-  subscribe(eventType: string, pluginId: string, handler: (event: WebhookPayload) => void): void {
+  subscribe(eventType: WebhookEventType, pluginId: string, handler: (event: WebhookPayload) => void): void {
+    if (!(WEBHOOK_EVENT_TYPES as readonly string[]).includes(eventType)) {
+      throw new Error(`Invalid webhook event type: "${eventType}". Valid types: ${WEBHOOK_EVENT_TYPES.join(", ")}`);
+    }
     if (!this.subscribers.has(eventType)) {
       this.subscribers.set(eventType, []);
     }

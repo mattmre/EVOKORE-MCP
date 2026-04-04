@@ -261,7 +261,7 @@ export class PluginManager {
       },
       onWebhookEvent: (eventType: string, handler: (event: any) => void) => {
         if (this.webhookManager) {
-          this.webhookManager.subscribe(eventType, pluginName, handler);
+          this.webhookManager.subscribe(eventType as WebhookEventType, pluginName, handler);
         }
       }
     };
