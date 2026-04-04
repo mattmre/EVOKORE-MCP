@@ -1,6 +1,41 @@
 # Progress
 
-## 2026-03-26
+## 2026-04-04
+- Session 6: Closed open PRs #219 and #220, completed Phase 4A remainder and Phase 4B
+- PR #220 (Panel of Experts v2):
+  - Fixed 6 Gemini review findings (3 HIGH, 3 MEDIUM) in workflow JSON files and panel markdown
+  - Fixed pre-existing shard-3 test failure (denyToken API mismatch from PR #221)
+  - Rebased onto main to align source files; all 27 HITL approval tests pass
+  - Merged as squash `c0af360`
+- PR #219 (ECC cascade feedback):
+  - Fixed 1 Gemini finding: Phase 0 steering modes acceptance criteria >=3 → >=5
+  - Merged as squash `0b0b203`
+- PR #222 (Phase 4A security remainder):
+  - Research doc: `docs/research/phase-4a-security-remainder-2026-04-04.md`
+  - BUG-34: default-deny via EVOKORE_SECURITY_DEFAULT_DENY opt-in env var (hard default broke proxy tests)
+  - BUG-35: SSRF block for RFC-1918 + IPv4-mapped IPv6 (::ffff:) + EVOKORE_WEBHOOKS_ALLOW_PRIVATE
+  - BUG-36: AuditLog enabled-by-default (was opt-in, now opt-out)
+  - BUG-23: ContainerSandbox --cap-drop=ALL
+  - BUG-24: SkillManager walkDirectory uses lstat (no symlink follow)
+  - BUG-25: ContainerSandbox env var key/value sanitization (null bytes, unsafe keys)
+  - BUG-41: damage-control rules for eval(), exec(), git remote set-url (DC-26, DC-31, DC-32)
+  - BUG-42: redactForAudit() recursive with depth limit 5
+  - BUG-29: webhook retry logs sanitize URL (origin+pathname only)
+  - Cascading failure from BUG-34 fixed by scoping to env var opt-in
+  - Reviewer found IPv4-mapped IPv6 SSRF bypass — fixed before merge
+  - Merged as squash `68c6e91`
+- PR #223 (Phase 4B runtime reliability):
+  - Research doc: `docs/research/phase-4b-runtime-reliability-2026-04-04.md`
+  - BUG-40: SessionStore.disconnect?() in interface + called in both shutdown handlers
+  - BUG-05: Redis SessionIsolation init moved from constructor to loadSubsystems() (awaited)
+  - BUG-30: loadServers() atomic swap — builds in temp vars, swaps after all boots complete
+  - BUG-38: reconnectServer() per-server with reconnecting Set guard; background trigger at errorCount>=5
+  - e2e pipeline test updated for BUG-05 (SessionIsolation now constructed with args, not empty parens)
+  - Merged as squash `7e11960`
+- Cleaned 12 stale session worktrees
+- main @ 7e11960: no open PRs, Phase 4A+4B complete
+
+## 2026-04-03
 - Merged PR `#210` to `main` as `ce1a75f`, closing the post-M3 ARCH-AEP / M4 review slice
 - Created fresh worktree `D:/GITHUB/EVOKORE-MCP-s3-6` on branch `feat/prometheus-metrics-endpoint`
 - Researched the S3.6 metrics surface across `TelemetryManager`, `HttpServer`, auth middleware, and existing integration tests
