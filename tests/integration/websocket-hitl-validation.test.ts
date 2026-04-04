@@ -9,6 +9,9 @@ const DASHBOARD_PATH = path.resolve(__dirname, '..', '..', 'scripts', 'dashboard
 const ENV_EXAMPLE_PATH = path.resolve(__dirname, '..', '..', '.env.example');
 
 describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
+  // BUG-28: This test suite uses source-scraping assertions (reading .ts files and matching
+  // string patterns) rather than behavioral/runtime tests. TODO: convert to behavioral tests
+  // that use actual WebSocket connections and dist/ imports. Tracked in Phase 4E.
   let httpServerSource: string;
   let securityManagerSource: string;
   let indexSource: string;
@@ -24,32 +27,39 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
   });
 
   describe('Section 1: Module Structure', () => {
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('HttpServer imports WebSocketServer from ws', () => {
       expect(httpServerSource).toContain('import { WebSocketServer, WebSocket } from "ws"');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('HttpServer imports SecurityManager and ApprovalEvent', () => {
       expect(httpServerSource).toContain('import { SecurityManager, ApprovalEvent } from "./SecurityManager"');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('EVOKORE_WS_APPROVALS_ENABLED env var recognized in HttpServer', () => {
       expect(httpServerSource).toContain('EVOKORE_WS_APPROVALS_ENABLED');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('EVOKORE_WS_HEARTBEAT_MS env var recognized in HttpServer', () => {
       expect(httpServerSource).toContain('EVOKORE_WS_HEARTBEAT_MS');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('EVOKORE_WS_MAX_CLIENTS env var recognized in HttpServer', () => {
       expect(httpServerSource).toContain('EVOKORE_WS_MAX_CLIENTS');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('All WS-related env vars documented in .env.example', () => {
       expect(envExampleSource).toContain('EVOKORE_WS_APPROVALS_ENABLED');
       expect(envExampleSource).toContain('EVOKORE_WS_HEARTBEAT_MS');
       expect(envExampleSource).toContain('EVOKORE_WS_MAX_CLIENTS');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('dashboard approvals WS endpoint vars documented in .env.example', () => {
       expect(envExampleSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_URL');
       expect(envExampleSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_TOKEN');
@@ -57,10 +67,12 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
   });
 
   describe('Section 2: WebSocket Protocol', () => {
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('connection endpoint path is /ws/approvals', () => {
       expect(httpServerSource).toContain('/ws/approvals');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('auth required on upgrade via Authorization header (BUG-04)', () => {
       // Primary auth: Authorization header
       expect(httpServerSource).toContain('req.headers.authorization');
@@ -71,21 +83,25 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(httpServerSource).toContain('Bearer ${bearerToken}');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('missing token rejected with 401 during upgrade', () => {
       expect(httpServerSource).toContain('Missing Authorization header');
       expect(httpServerSource).toContain('401 Unauthorized');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('resolved WebSocket role is propagated onto the request after auth', () => {
       expect(httpServerSource).toContain('_evokoreRole');
       expect(httpServerSource).toContain('process.env.EVOKORE_ROLE');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('snapshot sent on connection', () => {
       expect(httpServerSource).toContain('"snapshot"');
       expect(httpServerSource).toContain('getPendingApprovals');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('messages are valid JSON with type field', () => {
       // Server sends JSON messages with type field
       expect(httpServerSource).toContain('JSON.stringify(event)');
@@ -93,6 +109,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(httpServerSource).toContain('JSON.stringify({ type: "pong" })');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('server broadcasts approval_requested, approval_acknowledged, approval_denied, approval_granted types', () => {
       // These are broadcast via broadcastApprovalEvent which sends the raw event from SecurityManager
       expect(httpServerSource).toContain('broadcastApprovalEvent');
@@ -102,16 +119,19 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(securityManagerSource).toContain('"approval_granted"');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('client can send approve message via WebSocket', () => {
       expect(httpServerSource).toContain('msg.type === "approve"');
       expect(httpServerSource).toContain('approveToken(prefix)');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('client can send deny message via WebSocket', () => {
       expect(httpServerSource).toContain("msg.type === \"deny\"");
       expect(httpServerSource).toContain('msg.prefix');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('ping/pong heartbeat implemented', () => {
       // Server-side ping
       expect(httpServerSource).toContain('client.ping()');
@@ -122,10 +142,12 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(httpServerSource).toContain('JSON.stringify({ type: "pong" })');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('non /ws/approvals upgrade requests rejected with 404', () => {
       expect(httpServerSource).toContain('404 Not Found');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('max clients enforced with 503 response', () => {
       expect(httpServerSource).toContain('503 Service Unavailable');
       expect(httpServerSource).toContain('Too many WebSocket clients');
@@ -133,14 +155,17 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
   });
 
   describe('Section 3: SecurityManager Callback', () => {
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('SecurityManager exports ApprovalEvent interface', () => {
       expect(securityManagerSource).toContain('export interface ApprovalEvent');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('SecurityManager has setApprovalCallback method', () => {
       expect(securityManagerSource).toMatch(/setApprovalCallback\s*\(/);
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('callback invoked on generateToken (approval_requested)', () => {
       // Find the generateToken method body and verify it calls emitApprovalEvent
       const generateMatch = securityManagerSource.match(
@@ -151,6 +176,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(generateMatch![1]).toContain('"approval_requested"');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('callback invoked on consumeToken (approval_granted)', () => {
       const consumeMatch = securityManagerSource.match(
         /consumeToken\s*\([^)]*\)[^{]*\{([\s\S]*?)\n  \}/
@@ -160,6 +186,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(consumeMatch![1]).toContain('"approval_granted"');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('callback invoked on approveToken (approval_acknowledged)', () => {
       const approveMatch = securityManagerSource.match(
         /approveToken\s*\([^)]*\)[^{]*\{([\s\S]*?)\n  \}/
@@ -170,6 +197,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(approveMatch![1]).toContain('approvedAt');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('callback invoked on denyToken (approval_denied)', () => {
       const denyMatch = securityManagerSource.match(
         /denyToken\s*\([^)]*\)[^{]*\{([\s\S]*?)\n  \}/
@@ -179,6 +207,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(denyMatch![1]).toContain('"approval_denied"');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('callback failure does not break token lifecycle (try-catch)', () => {
       expect(securityManagerSource).toContain('emitApprovalEvent');
       // The emitApprovalEvent method should have a try-catch
@@ -190,6 +219,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(emitMatch![1]).toContain('catch');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('emitApprovalEvent is a no-op when no callback is registered', () => {
       const emitMatch = securityManagerSource.match(
         /emitApprovalEvent\s*\([^)]*\)[^{]*\{([\s\S]*?)\n  \}/
@@ -200,11 +230,13 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
   });
 
   describe('Section 4: Dashboard Integration', () => {
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('dashboard approvals page includes WebSocket connection code', () => {
       expect(dashboardSource).toContain('new WebSocket(');
       expect(dashboardSource).toContain('connectWebSocket');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('dashboard can target an explicit approvals WebSocket endpoint', () => {
       expect(dashboardSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_URL');
       expect(dashboardSource).toContain('approvalWsUrl');
@@ -212,21 +244,25 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain('approvalWsPort');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('dashboard supports a dedicated approvals WebSocket token override', () => {
       expect(dashboardSource).toContain('EVOKORE_DASHBOARD_APPROVAL_WS_TOKEN');
       expect(dashboardSource).toContain('approvalWsToken');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('dashboard preserves same-origin fallback for non-loopback deployments', () => {
       expect(dashboardSource).toContain("window.location.host + '/ws/approvals'");
       expect(dashboardSource).toContain('loopbackHosts');
       expect(dashboardSource).toContain("approvalWsHost === '0.0.0.0' ? pageHost : approvalWsHost");
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('dashboard appends token with query-safe delimiter handling', () => {
       expect(dashboardSource).toContain("wsUrl.indexOf('?') === -1 ? '?' : '&'");
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('fallback to polling when WebSocket unavailable', () => {
       // On close, starts polling
       expect(dashboardSource).toContain('startPolling()');
@@ -234,6 +270,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain('scheduleReconnect');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('reconnection logic with exponential backoff', () => {
       expect(dashboardSource).toContain('wsReconnectDelay');
       expect(dashboardSource).toContain('wsMaxReconnectDelay');
@@ -242,6 +279,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain('Math.min(');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('connection status indicator in UI', () => {
       expect(dashboardSource).toContain('ws-status');
       expect(dashboardSource).toContain('ws-dot-live');
@@ -250,6 +288,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain('updateWsStatus');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('WS-based deny action when connected uses full token (BUG-01)', () => {
       // The deny function checks wsConnected before deciding transport
       expect(dashboardSource).toContain('wsConnected && wsConnection');
@@ -257,34 +296,41 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain("JSON.stringify({ type: 'deny', token: token })");
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('WS-based approve action requires a live connection', () => {
       expect(dashboardSource).toContain('function approveToken(prefix)');
       expect(dashboardSource).toContain("JSON.stringify({ type: 'approve', prefix: prefix })");
       expect(dashboardSource).toContain('Approve requires a live WebSocket connection');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('handles snapshot message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'snapshot'");
       expect(dashboardSource).toContain('msg.approvals');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('handles approval_requested message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'approval_requested'");
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('handles approval_acknowledged message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'approval_acknowledged'");
       expect(dashboardSource).toContain('approvedAt');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('handles approval_denied message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'approval_denied'");
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('handles approval_granted message type from server', () => {
       expect(dashboardSource).toContain("msg.type === 'approval_granted'");
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('handles WebSocket error messages by reloading approvals', () => {
       expect(dashboardSource).toContain("msg.type === 'error'");
       expect(dashboardSource).toContain('loadApprovals();');
@@ -293,6 +339,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
   });
 
   describe('Section 5: Backward Compatibility', () => {
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('file IPC (pending-approvals.json) still works when WS enabled', () => {
       // SecurityManager still calls persistPendingApprovals in all token lifecycle methods
       expect(securityManagerSource).toContain('persistPendingApprovals');
@@ -304,6 +351,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(generateMatch![1]).toContain('persistPendingApprovals');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('dashboard polling still works when WS disabled', () => {
       // The dashboard always starts with polling and HTTP load
       expect(dashboardSource).toContain('loadApprovals();');
@@ -312,6 +360,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(dashboardSource).toContain('setInterval(loadApprovals, 5000)');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('existing HITL token flow unchanged', () => {
       // generateToken still returns token string
       expect(securityManagerSource).toMatch(/generateToken\s*\(toolName.*\).*:\s*string/);
@@ -327,6 +376,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(consumeMatch![1]).toContain('persistPendingApprovals');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('WebSocket feature is opt-in only (gated by env var)', () => {
       expect(httpServerSource).toContain('EVOKORE_WS_APPROVALS_ENABLED');
       expect(httpServerSource).toContain('"true"');
@@ -334,14 +384,17 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       expect(httpServerSource).toContain('if (process.env.EVOKORE_WS_APPROVALS_ENABLED === "true")');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('index.ts passes securityManager to HttpServer', () => {
       expect(indexSource).toContain('securityManager: this.securityManager');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('HttpServer options interface includes securityManager', () => {
       expect(httpServerSource).toContain('securityManager?: SecurityManager');
     });
 
+    // BUG-28: source-scraping test — TODO convert to behavioral
     it('WebSocket server properly cleaned up on stop()', () => {
       // stop() clears heartbeat interval
       const stopMatch = httpServerSource.match(
