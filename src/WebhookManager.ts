@@ -201,6 +201,16 @@ export class WebhookManager {
    *
    * When `timestamp` is omitted, verification falls back to body-only HMAC
    * comparison for backward compatibility.
+   *
+   * @param body - The raw request body string to verify.
+   * @param secret - The shared HMAC secret.
+   * @param receivedSignature - The signature received in the request header.
+   * @param timestamp - Unix epoch in seconds (not milliseconds).
+   * @param maxAgeMs - Maximum age in milliseconds (not seconds). Defaults to
+   *   REPLAY_WINDOW_MS (300 000 ms / 5 minutes) if null or undefined. Clamped
+   *   to a maximum of 1 hour (3 600 000 ms) to prevent excessively wide
+   *   replay windows.
+   * @returns `true` if the signature is valid and within the replay window.
    */
   static verifySignature(
     body: string,
@@ -212,7 +222,11 @@ export class WebhookManager {
     if (timestamp !== undefined) {
       const ts = Math.floor(timestamp);
       const nowSeconds = Date.now() / 1000;
-      const windowSeconds = (maxAgeMs || WebhookManager.REPLAY_WINDOW_MS) / 1000;
+      const effectiveMaxAge = maxAgeMs ?? WebhookManager.REPLAY_WINDOW_MS;
+      if (effectiveMaxAge > 3_600_000) {
+        console.warn(`[WebhookManager] verifySignature maxAgeMs=${effectiveMaxAge} exceeds 1 hour — clamped to 3600000ms`);
+      }
+      const windowSeconds = Math.min(effectiveMaxAge, 3_600_000) / 1000;
       if (Math.abs(nowSeconds - ts) > windowSeconds) {
         return false;
       }
