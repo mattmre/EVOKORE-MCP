@@ -218,7 +218,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
       const savedWs = process.env.EVOKORE_WS_APPROVALS_ENABLED;
       const savedHb = process.env.EVOKORE_WS_HEARTBEAT_MS;
       process.env.EVOKORE_WS_APPROVALS_ENABLED = 'true';
-      // Set a very short heartbeat (minimum is 5000ms enforced by code)
+      // Set heartbeat to the minimum enforced by code (5000ms)
       process.env.EVOKORE_WS_HEARTBEAT_MS = '5000';
 
       try {
@@ -235,10 +235,24 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
         await server.start();
         const { port } = server.getAddress();
 
-        // Connect and verify the connection stays alive (heartbeat is running)
+        // Connect and verify the snapshot arrives
         const ws = await connectWS(port, '/ws/approvals');
         const msg = await waitForMessage(ws, (m) => m.type === 'snapshot');
         expect(msg.type).toBe('snapshot');
+
+        // Wait for the server heartbeat to fire a ping frame.
+        // The heartbeat interval is 5000ms; wait up to 7000ms for the ping.
+        const pingReceived = await new Promise<boolean>((resolve) => {
+          const timer = setTimeout(() => resolve(false), 7000);
+          ws.on('ping', () => {
+            clearTimeout(timer);
+            resolve(true);
+          });
+        });
+        expect(pingReceived).toBe(true);
+
+        // After the ping cycle, verify the connection is still open
+        expect(ws.readyState).toBe(WebSocket.OPEN);
 
         ws.close();
         await server.stop();
@@ -248,7 +262,7 @@ describe('WebSocket HITL Real-Time Approvals (M3.3)', () => {
         if (savedHb !== undefined) process.env.EVOKORE_WS_HEARTBEAT_MS = savedHb;
         else delete process.env.EVOKORE_WS_HEARTBEAT_MS;
       }
-    });
+    }, 15000);
 
     it('EVOKORE_WS_MAX_CLIENTS limits concurrent WebSocket connections', async () => {
       const { Server } = require('@modelcontextprotocol/sdk/server/index.js');

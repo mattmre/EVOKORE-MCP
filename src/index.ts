@@ -90,16 +90,16 @@ export class EvokoreMCPServer {
     this.telemetryManager = new TelemetryManager();
     this.telemetryExporter = new TelemetryExporter(this.telemetryManager, {
       exportUrl: process.env.EVOKORE_TELEMETRY_EXPORT_URL,
-      intervalMs: parseInt(process.env.EVOKORE_TELEMETRY_EXPORT_INTERVAL_MS || "60000", 10),
+      intervalMs: parseInt(process.env.EVOKORE_TELEMETRY_EXPORT_INTERVAL_MS || "", 10) || 60000,
       secret: process.env.EVOKORE_TELEMETRY_EXPORT_SECRET,
     });
     this.registryManager = new RegistryManager();
     this.auditLog = AuditLog.getInstance();
     this.auditExporter = new AuditExporter(this.auditLog, {
       exportUrl: process.env.EVOKORE_AUDIT_EXPORT_URL,
-      intervalMs: parseInt(process.env.EVOKORE_AUDIT_EXPORT_INTERVAL_MS || "60000", 10),
+      intervalMs: parseInt(process.env.EVOKORE_AUDIT_EXPORT_INTERVAL_MS || "", 10) || 60000,
       secret: process.env.EVOKORE_AUDIT_EXPORT_SECRET,
-      batchSize: parseInt(process.env.EVOKORE_AUDIT_EXPORT_BATCH_SIZE || "100", 10),
+      batchSize: parseInt(process.env.EVOKORE_AUDIT_EXPORT_BATCH_SIZE || "", 10) || 100,
     });
     this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
