@@ -114,12 +114,14 @@ export class HttpServer {
         if (removed > 0) {
           for (const [sessionId, transport] of this.transports.entries()) {
             if (!this.sessionIsolation?.hasSession(sessionId)) {
-              this.transports.delete(sessionId);
               this.auditLog.log("session_expire", "success", { sessionId });
               this.telemetryManager?.recordSessionExpire();
-              transport.close().catch((err) => {
-                console.error(`[EVOKORE-HTTP] Error closing orphaned transport for expired session ${sessionId}:`, err.message);
-              });
+              transport.close()
+                .then(() => { this.transports.delete(sessionId); })
+                .catch((err) => {
+                  console.error(`[EVOKORE-HTTP] Error closing expired transport ${sessionId}:`, err.message);
+                  this.transports.delete(sessionId); // still clean up on error
+                });
             }
           }
         }
@@ -545,8 +547,13 @@ export class HttpServer {
             };
 
             // Connect the MCP server to the reattached transport
-            await this.mcpServer.connect(reattachedTransport);
-            this.transports.set(sessionId, reattachedTransport);
+            try {
+              await this.mcpServer.connect(reattachedTransport);
+            } catch (err) {
+              this.transports.delete(sessionId);
+              await reattachedTransport.close().catch(() => {});
+              throw err;
+            }
 
             console.error(`[EVOKORE-HTTP] Session reattached: ${sessionId}`);
 

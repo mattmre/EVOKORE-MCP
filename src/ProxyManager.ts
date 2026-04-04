@@ -90,10 +90,22 @@ export class ProxyManager {
   private serverRegistry: Map<string, ServerState> = new Map();
   private toolCooldowns: Map<string, number> = new Map();
   private rateLimitBuckets: Map<string, TokenBucket> = new Map();
+  private cooldownSweepInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(security: SecurityManager, webhookManager?: WebhookManager) {
     this.security = security;
     this.webhookManager = webhookManager ?? null;
+    this.startCooldownSweep();
+  }
+
+  private startCooldownSweep(): void {
+    this.cooldownSweepInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [key, expiry] of this.toolCooldowns.entries()) {
+        if (now >= expiry) this.toolCooldowns.delete(key);
+      }
+    }, 60_000);
+    this.cooldownSweepInterval.unref();
   }
 
   private getConfigFilePath(): string {
@@ -508,6 +520,12 @@ export class ProxyManager {
   }
 
   async loadServers() {
+    // Reset cooldown sweep before reload
+    if (this.cooldownSweepInterval) {
+      clearInterval(this.cooldownSweepInterval);
+      this.cooldownSweepInterval = null;
+    }
+
     // Atomic swap: save old state, build into fresh containers via bootSingleServer(),
     // then swap. This eliminates the empty-registry window during reload.
     const oldClients = this.clients;
@@ -552,6 +570,9 @@ export class ProxyManager {
 
     // Clean up old clients after the new state is fully populated
     this.cleanupOldClients(oldClients, oldTransports);
+
+    // Restart cooldown sweep after reload
+    this.startCooldownSweep();
   }
 
   /**

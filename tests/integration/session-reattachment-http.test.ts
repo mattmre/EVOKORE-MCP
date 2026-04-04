@@ -116,8 +116,8 @@ describe('Session Reattachment (HTTP mode) - M1.1', () => {
 
     it('reattached transport registers in transports map', () => {
       const httpSrc = fs.readFileSync(httpServerTsPath, 'utf8');
-      // After loading, should set the transport in the map
-      expect(httpSrc).toMatch(/this\.transports\.set\s*\(\s*sessionId\s*,\s*reattachedTransport\s*\)/);
+      // After loading, transport is registered via onsessioninitialized callback (BUG-08 fix removed redundant explicit set)
+      expect(httpSrc).toMatch(/this\.transports\.set\s*\(\s*restoredId\s*,\s*reattachedTransport\s*\)/);
     });
   });
 

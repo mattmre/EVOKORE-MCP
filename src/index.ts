@@ -641,7 +641,7 @@ export class EvokoreMCPServer {
         } else if (toolName === "reload_plugins") {
           result = await this.handleReloadPlugins();
         } else if (this.telemetryManager.isTelemetryTool(toolName)) {
-          result = this.telemetryManager.handleToolCall(toolName);
+          result = await this.telemetryManager.handleToolCall(toolName);
         } else if (source === "plugin") {
           result = await this.pluginManager.handleToolCall(toolName, args);
         } else if (source === "native") {
@@ -795,15 +795,15 @@ export class EvokoreMCPServer {
       this.webhookManager.emit("session_end", { transport: "stdio", reason: "shutdown" });
       await this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
       await this.auditExporter.shutdown().catch(() => { /* best effort */ });
-      this.telemetryManager.shutdown();
+      await this.telemetryManager.shutdown();
       // Disconnect session store (e.g. close Redis connection)
       const store = this.sessionIsolation.getStore();
       if (store.disconnect) await store.disconnect().catch(() => { /* best effort */ });
       // Grace period to allow fire-and-forget webhook delivery
       setTimeout(() => process.exit(0), 500);
     };
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+    process.once("SIGINT", shutdown);
   }
 
   async runHttp(): Promise<HttpServer> {
@@ -836,7 +836,7 @@ export class EvokoreMCPServer {
       this.webhookManager.emit("session_end", { transport: "http", reason: "shutdown" });
       await this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
       await this.auditExporter.shutdown().catch(() => { /* best effort */ });
-      this.telemetryManager.shutdown();
+      await this.telemetryManager.shutdown();
       // Disconnect session store (e.g. close Redis connection)
       const store = this.sessionIsolation.getStore();
       if (store.disconnect) await store.disconnect().catch(() => { /* best effort */ });
@@ -845,8 +845,8 @@ export class EvokoreMCPServer {
       await httpServer.stop();
       process.exit(0);
     };
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+    process.once("SIGINT", shutdown);
 
     return httpServer;
   }

@@ -7,6 +7,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const registryManagerTsPath = path.join(ROOT, 'src', 'RegistryManager.ts');
 const registryManagerJsPath = path.join(ROOT, 'dist', 'RegistryManager.js');
 const skillManagerTsPath = path.join(ROOT, 'src', 'SkillManager.ts');
+const httpUtilsTsPath = path.join(ROOT, 'src', 'httpUtils.ts');
 const indexTsPath = path.join(ROOT, 'src', 'index.ts');
 
 describe('RegistryManager', () => {
@@ -437,24 +438,24 @@ describe('RegistryManager', () => {
     });
 
     it('httpGet has URL validation', () => {
-      const src = fs.readFileSync(registryManagerTsPath, 'utf8');
+      const src = fs.readFileSync(httpUtilsTsPath, 'utf8');
       expect(src).toMatch(/Invalid URL/);
     });
 
     it('has redirect depth limit', () => {
-      const src = fs.readFileSync(registryManagerTsPath, 'utf8');
+      const src = fs.readFileSync(httpUtilsTsPath, 'utf8');
       expect(src).toMatch(/MAX_REDIRECT_DEPTH/);
       expect(src).toMatch(/Too many redirects/);
     });
 
     it('has response size limit', () => {
-      const src = fs.readFileSync(registryManagerTsPath, 'utf8');
+      const src = fs.readFileSync(httpUtilsTsPath, 'utf8');
       expect(src).toMatch(/MAX_FETCH_SIZE/);
       expect(src).toMatch(/Response too large/);
     });
 
     it('has request timeout', () => {
-      const src = fs.readFileSync(registryManagerTsPath, 'utf8');
+      const src = fs.readFileSync(httpUtilsTsPath, 'utf8');
       expect(src).toMatch(/FETCH_TIMEOUT_MS/);
       expect(src).toMatch(/timed out/);
     });

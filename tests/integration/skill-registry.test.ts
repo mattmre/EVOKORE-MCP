@@ -209,7 +209,9 @@ describe('T21: Remote Skill Registry Validation', () => {
     });
 
     it('httpGet has a 30-second timeout', () => {
-      expect(src).toMatch(/setTimeout\(30000/);
+      // Timeout constant moved to shared src/httpUtils.ts (BUG-10)
+      const httpUtilsSrc = fs.readFileSync(path.join(path.resolve(__dirname, '../..'), 'src', 'httpUtils.ts'), 'utf8');
+      expect(httpUtilsSrc).toMatch(/FETCH_TIMEOUT_MS\s*=\s*30000/);
     });
 
     it('handleToolCall wraps errors in structured isError response', async () => {

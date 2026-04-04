@@ -48,11 +48,11 @@ describe('TelemetryManager', () => {
     });
 
     it('has initialize method', () => {
-      expect(src).toMatch(/initialize\(\):\s*void/);
+      expect(src).toMatch(/initialize\(\)/);
     });
 
     it('has shutdown method', () => {
-      expect(src).toMatch(/shutdown\(\):\s*void/);
+      expect(src).toMatch(/shutdown\(\)/);
     });
 
     it('has recordToolCall method', () => {
@@ -318,19 +318,16 @@ describe('TelemetryManager', () => {
       await fsp.rm(tmpDir, { recursive: true, force: true });
     });
 
-    it('flushToDisk writes metrics to file', () => {
+    it('flushToDisk writes metrics to file', async () => {
       const { TelemetryManager } = require(telemetryManagerJsPath);
       const tm = new TelemetryManager();
       tm.setEnabled(true);
 
-      // Override the metrics file path for testing by directly writing
       tm.recordToolCall(150);
       tm.recordToolCall(250);
 
-      // The actual flushToDisk writes to the real path,
-      // so we test by calling it and reading back
       const metricsPath = TelemetryManager.getMetricsFilePath();
-      tm.flushToDisk();
+      await tm.flushToDiskAsync();
 
       // Verify file exists and contains valid JSON
       expect(fs.existsSync(metricsPath)).toBe(true);
@@ -340,7 +337,7 @@ describe('TelemetryManager', () => {
       expect(data.avgLatencyMs).toBe(200);
     });
 
-    it('loadFromDisk restores persisted metrics', () => {
+    it('loadFromDisk restores persisted metrics', async () => {
       const { TelemetryManager } = require(telemetryManagerJsPath);
 
       // First instance: record and flush
@@ -350,12 +347,12 @@ describe('TelemetryManager', () => {
       tm1.recordToolCall(300);
       tm1.recordToolError();
       tm1.recordSessionStart();
-      tm1.flushToDisk();
+      await tm1.flushToDiskAsync();
 
       // Second instance: load from disk
       const tm2 = new TelemetryManager();
       tm2.setEnabled(true);
-      tm2.loadFromDisk();
+      await tm2.loadFromDiskAsync();
 
       const metrics = tm2.getMetrics();
       expect(metrics.toolCallCount).toBe(2);
@@ -363,14 +360,12 @@ describe('TelemetryManager', () => {
       expect(metrics.sessionCount).toBe(1);
     });
 
-    it('loadFromDisk handles missing file gracefully', () => {
+    it('loadFromDisk handles missing file gracefully', async () => {
       const { TelemetryManager } = require(telemetryManagerJsPath);
       const tm = new TelemetryManager();
       tm.setEnabled(true);
 
-      // Should not throw even if file doesn't exist (may have been created by prior test)
-      // This is a no-op if the file is missing
-      tm.loadFromDisk();
+      await tm.loadFromDiskAsync();
       const metrics = tm.getMetrics();
       expect(typeof metrics.toolCallCount).toBe('number');
     });

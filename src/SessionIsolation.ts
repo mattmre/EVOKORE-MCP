@@ -126,17 +126,10 @@ export class SessionIsolation {
       return;
     }
 
-    // LRU eviction: find the session with the oldest lastAccessedAt
-    let oldestId: string | null = null;
-    let oldestTime = Infinity;
-    for (const [id, state] of this.sessions.entries()) {
-      if (state.lastAccessedAt < oldestTime) {
-        oldestTime = state.lastAccessedAt;
-        oldestId = id;
-      }
-    }
-
-    if (oldestId !== null) {
+    // O(1) LRU eviction: the first entry in the Map is the oldest (least recently accessed)
+    const oldestEntry = this.sessions.entries().next();
+    if (!oldestEntry.done) {
+      const [oldestId] = oldestEntry.value;
       this.sessions.delete(oldestId);
       this.store.delete(oldestId).catch(() => {});
     }
@@ -166,7 +159,10 @@ export class SessionIsolation {
       return null;
     }
 
+    // Update timestamp and re-insert to maintain LRU order (Map tail = most recent)
     state.lastAccessedAt = Date.now();
+    this.sessions.delete(sessionId);
+    this.sessions.set(sessionId, state);
     return state;
   }
 
