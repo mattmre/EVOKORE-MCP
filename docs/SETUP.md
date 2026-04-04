@@ -75,7 +75,7 @@ EVOKORE_TOOL_DISCOVERY_MODE=legacy
 | `EVOKORE_ROLE` | (unset = flat permissions) | RBAC role: `admin`, `developer`, or `readonly`. When unset, flat per-tool rules in `permissions.yml` apply. |
 | `EVOKORE_SKILL_WATCHER` | `false` | Set to `true` to enable filesystem watcher for automatic skill index hot-reload. |
 | `EVOKORE_REPO_AUDIT_HOOK` | `false` | Set to `true` to enable the pre-session repo audit hook (warns about branch drift, stale worktrees). |
-| `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` | `30000` | Timeout in milliseconds for child server boot during async proxy bootstrap. |
+| `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` | `15000` | Timeout in milliseconds for child server boot during async proxy bootstrap. |
 | `EVOKORE_TOOL_DISCOVERY_MODE` | `legacy` | Tool discovery mode: `legacy` or `dynamic`. |
 | `EVOKORE_MCP_CONFIG_PATH` | `mcp.config.json` (project root) | Override path to the child server config file. |
 | `EVOKORE_HTTP_MODE` | `false` | Set to `true` to start in HTTP server mode instead of stdio. |
@@ -251,7 +251,7 @@ Child servers boot asynchronously in the background so the MCP handshake complet
 - Your client connects and receives the native tool list without waiting for child servers
 - Proxied tools become available as each child server finishes booting
 - Boot progress is emitted to stderr: `"Proxy bootstrap complete"` or `"Background proxy bootstrap failed"`
-- Configure the boot timeout via `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` (default: 30000ms)
+- Configure the boot timeout via `EVOKORE_CHILD_SERVER_BOOT_TIMEOUT_MS` (default: 15000ms)
 
 If you need to point EVOKORE at another config file, set:
 

@@ -1,3 +1,4 @@
+// TODO(BUG-28): convert from source-scraping to behavioral test
 import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import fs from 'fs';
 import path from 'path';
