@@ -21,7 +21,7 @@ resolutionHints:
 |---|---|---|
 | **Dr. Raj Patel** | Performance Engineer | Hot paths, complexity, memory, I/O, caching |
 | **Maya Williams** | Capacity Planning Lead | Resource utilization, cost, bottleneck prediction |
-| **Carlos Mendez** | Site Reliability Engineer | Operational readiness, observability, incident response |
+| **Carlos Mendez (SRE)** | Site Reliability Engineer | Operational readiness, observability, incident response |
 
 See [expert-roster.md](../expert-roster.md) for full persona definitions.
 

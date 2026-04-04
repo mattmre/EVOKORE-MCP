@@ -82,6 +82,7 @@
           "name": "Expert 1 Solo Review",
           "action": "invoke-agent",
           "agent": "reviewer",
+          "condition": "{{ active_experts | length > 0 }}",
           "inputs": {
             "expert_persona": "{{ convene.active_experts[0] }}",
             "briefing": "{{ brief.document }}",
@@ -95,6 +96,7 @@
           "name": "Expert 2 Solo Review",
           "action": "invoke-agent",
           "agent": "reviewer",
+          "condition": "{{ active_experts | length > 1 }}",
           "inputs": {
             "expert_persona": "{{ convene.active_experts[1] }}",
             "briefing": "{{ brief.document }}",
@@ -108,6 +110,7 @@
           "name": "Expert 3 Solo Review",
           "action": "invoke-agent",
           "agent": "reviewer",
+          "condition": "{{ active_experts | length > 2 }}",
           "inputs": {
             "expert_persona": "{{ convene.active_experts[2] }}",
             "briefing": "{{ brief.document }}",
@@ -121,8 +124,37 @@
           "name": "Expert 4 Solo Review",
           "action": "invoke-agent",
           "agent": "reviewer",
+          "condition": "{{ active_experts | length > 3 }}",
           "inputs": {
             "expert_persona": "{{ convene.active_experts[3] }}",
+            "briefing": "{{ brief.document }}",
+            "artifact": "{{ inputs.artifact }}",
+            "instruction": "Adopt the persona of this expert completely. Review the artifact exclusively through their defined lens. Use their challenge prompt as your internal standard. Produce findings in the standard review output format."
+          },
+          "outputs": { "review": "findings" }
+        },
+        {
+          "id": "expert-5-review",
+          "name": "Expert 5 Solo Review",
+          "action": "invoke-agent",
+          "agent": "reviewer",
+          "condition": "{{ active_experts | length > 4 }}",
+          "inputs": {
+            "expert_persona": "{{ convene.active_experts[4] }}",
+            "briefing": "{{ brief.document }}",
+            "artifact": "{{ inputs.artifact }}",
+            "instruction": "Adopt the persona of this expert completely. Review the artifact exclusively through their defined lens. Use their challenge prompt as your internal standard. Produce findings in the standard review output format."
+          },
+          "outputs": { "review": "findings" }
+        },
+        {
+          "id": "expert-6-review",
+          "name": "Expert 6 Solo Review",
+          "action": "invoke-agent",
+          "agent": "reviewer",
+          "condition": "{{ active_experts | length > 5 }}",
+          "inputs": {
+            "expert_persona": "{{ convene.active_experts[5] }}",
             "briefing": "{{ brief.document }}",
             "artifact": "{{ inputs.artifact }}",
             "instruction": "Adopt the persona of this expert completely. Review the artifact exclusively through their defined lens. Use their challenge prompt as your internal standard. Produce findings in the standard review output format."
@@ -152,11 +184,11 @@
       "name": "Convergence — Synthesize Findings",
       "action": "invoke-agent",
       "agent": "orchestrator",
-      "depends_on": ["challenge"],
+      "depends_on": ["solo-reviews"],
       "inputs": {
         "all_reviews": "{{ solo-reviews.*.review }}",
-        "challenges": "{{ challenge.debate_results }}",
-        "instruction": "Act as Synthesis Lead. De-duplicate findings. Priority stack-rank by impact × likelihood × effort × consensus. Capture dissenting opinions. Produce the convergence report: Critical, High, Medium findings with consensus levels, plus Dissenting Opinions and Acknowledged Strengths."
+        "challenge_findings": "{{ challenge.debate_results | default([]) }}",
+        "instruction": "Act as Synthesis Lead. De-duplicate findings. Priority stack-rank by impact × likelihood × effort × consensus. Capture dissenting opinions. If challenge findings are available, incorporate them. Produce the convergence report: Critical, High, Medium findings with consensus levels, plus Dissenting Opinions and Acknowledged Strengths."
       },
       "outputs": {
         "convergence_report": "report"

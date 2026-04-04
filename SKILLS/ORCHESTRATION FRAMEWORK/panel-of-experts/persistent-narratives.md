@@ -40,6 +40,8 @@ Expert personas are not static — they evolve based on meta-improvement feedbac
       "effectiveness_score": null,
       "reviews_participated": 0,
       "unique_findings_count": 0,
+      "devils_advocate_count": 0,
+      "last_served_as_advocate": null,
       "last_meta_review": null,
       "custom_overrides": {}
     }

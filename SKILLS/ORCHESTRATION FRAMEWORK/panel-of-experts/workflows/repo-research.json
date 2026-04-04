@@ -102,35 +102,16 @@
     },
     {
       "id": "deep-evaluation",
-      "name": "Deep Repo Evaluation (Parallel)",
-      "action": "parallel-group",
+      "name": "Deep Repo Evaluation",
+      "action": "invoke-agent",
+      "agent": "researcher",
       "depends_on": ["initial-filter"],
-      "steps": [
-        {
-          "id": "repo-eval-batch-1",
-          "name": "Evaluate Repos (Batch 1)",
-          "action": "invoke-agent",
-          "agent": "researcher",
-          "inputs": {
-            "repos": "{{ initial-filter.shortlist[0:5] }}",
-            "depth": "{{ inputs.evaluation_depth }}",
-            "instruction": "For each repo: (1) Read README and key docs, (2) Analyze file tree structure, (3) Identify architecture pattern, (4) Check test coverage signals, (5) Evaluate dependency health, (6) Assess documentation quality, (7) Note unique capabilities not found in other candidates."
-          },
-          "outputs": { "evaluations": "eval_results" }
-        },
-        {
-          "id": "repo-eval-batch-2",
-          "name": "Evaluate Repos (Batch 2)",
-          "action": "invoke-agent",
-          "agent": "researcher",
-          "inputs": {
-            "repos": "{{ initial-filter.shortlist[5:10] }}",
-            "depth": "{{ inputs.evaluation_depth }}",
-            "instruction": "Same evaluation criteria as batch 1."
-          },
-          "outputs": { "evaluations": "eval_results" }
-        }
-      ]
+      "inputs": {
+        "repos": "{{ initial-filter.shortlist }}",
+        "depth": "{{ inputs.evaluation_depth }}",
+        "instruction": "For each repo in the shortlist: (1) Read README and key docs, (2) Analyze file tree structure, (3) Identify architecture pattern, (4) Check test coverage signals, (5) Evaluate dependency health, (6) Assess documentation quality, (7) Note unique capabilities not found in other candidates."
+      },
+      "outputs": { "evaluations": "eval_results" }
     },
     {
       "id": "expert-panel-review",
@@ -139,7 +120,7 @@
       "agent": "orchestrator",
       "depends_on": ["deep-evaluation"],
       "inputs": {
-        "all_evaluations": ["{{ repo-eval-batch-1.eval_results }}", "{{ repo-eval-batch-2.eval_results }}"],
+        "all_evaluations": "{{ deep-evaluation.eval_results }}",
         "integration_context": "{{ inputs.integration_context }}",
         "instruction": "Convene the Repo Ingestion Panel (Kim, Petrov, Obi, Larsson, Tanaka). Run full panel cycle on the evaluation findings. Each expert reviews all candidate repos through their lens. Produce: (1) per-repo verdicts (ADOPT/CONSIDER/SKIP), (2) comparative ranking, (3) integration risk assessment, (4) supply chain security notes."
       },

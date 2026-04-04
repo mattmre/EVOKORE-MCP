@@ -51,6 +51,7 @@
       "action": "invoke-agent",
       "agent": "orchestrator",
       "depends_on": ["panel-1"],
+      "condition": "{{ inputs.panels | length > 1 }}",
       "inputs": {
         "panel_type": "{{ inputs.panels[1] }}",
         "artifact": "{{ inputs.artifact }}",
@@ -68,11 +69,12 @@
       "action": "invoke-agent",
       "agent": "orchestrator",
       "depends_on": ["panel-2"],
+      "condition": "{{ inputs.panels | length > 2 }}",
       "inputs": {
         "panel_type": "{{ inputs.panels[2] }}",
         "artifact": "{{ inputs.artifact }}",
         "prior_findings_1": "{{ panel-1.report }}",
-        "prior_findings_2": "{{ panel-2.report }}",
+        "prior_findings_2": "{{ panel-2.report | default({}) }}",
         "context": "{{ inputs.context }}",
         "instruction": "Execute the full panel review cycle for this panel type. You have access to the previous panels' findings. Produce the convergence report."
       },
@@ -81,18 +83,75 @@
       }
     },
     {
+      "id": "panel-4",
+      "name": "Fourth Panel Review",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["panel-3"],
+      "condition": "{{ inputs.panels | length > 3 }}",
+      "inputs": {
+        "panel_type": "{{ inputs.panels[3] }}",
+        "artifact": "{{ inputs.artifact }}",
+        "prior_findings": ["{{ panel-1.report }}", "{{ panel-2.report | default({}) }}", "{{ panel-3.report | default({}) }}"],
+        "context": "{{ inputs.context }}",
+        "instruction": "Execute the full panel review cycle for this panel type. You have access to the previous panels' findings. Produce the convergence report."
+      },
+      "outputs": {
+        "panel_4_report": "report"
+      }
+    },
+    {
+      "id": "panel-5",
+      "name": "Fifth Panel Review",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["panel-4"],
+      "condition": "{{ inputs.panels | length > 4 }}",
+      "inputs": {
+        "panel_type": "{{ inputs.panels[4] }}",
+        "artifact": "{{ inputs.artifact }}",
+        "prior_findings": ["{{ panel-1.report }}", "{{ panel-2.report | default({}) }}", "{{ panel-3.report | default({}) }}", "{{ panel-4.report | default({}) }}"],
+        "context": "{{ inputs.context }}",
+        "instruction": "Execute the full panel review cycle for this panel type. You have access to the previous panels' findings. Produce the convergence report."
+      },
+      "outputs": {
+        "panel_5_report": "report"
+      }
+    },
+    {
+      "id": "panel-6",
+      "name": "Sixth Panel Review",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["panel-5"],
+      "condition": "{{ inputs.panels | length > 5 }}",
+      "inputs": {
+        "panel_type": "{{ inputs.panels[5] }}",
+        "artifact": "{{ inputs.artifact }}",
+        "prior_findings": ["{{ panel-1.report }}", "{{ panel-2.report | default({}) }}", "{{ panel-3.report | default({}) }}", "{{ panel-4.report | default({}) }}", "{{ panel-5.report | default({}) }}"],
+        "context": "{{ inputs.context }}",
+        "instruction": "Execute the full panel review cycle for this panel type. You have access to the previous panels' findings. Produce the convergence report."
+      },
+      "outputs": {
+        "panel_6_report": "report"
+      }
+    },
+    {
       "id": "cross-panel-synthesis",
       "name": "Cross-Panel Synthesis",
       "action": "invoke-agent",
       "agent": "orchestrator",
-      "depends_on": ["panel-3"],
+      "depends_on": ["panel-1", "panel-2", "panel-3", "panel-4", "panel-5", "panel-6"],
       "inputs": {
         "all_reports": [
           "{{ panel-1.report }}",
-          "{{ panel-2.report }}",
-          "{{ panel-3.report }}"
+          "{{ panel-2.report | default(null) }}",
+          "{{ panel-3.report | default(null) }}",
+          "{{ panel-4.report | default(null) }}",
+          "{{ panel-5.report | default(null) }}",
+          "{{ panel-6.report | default(null) }}"
         ],
-        "instruction": "Synthesize findings from all panels. Identify: (1) findings that multiple panels flagged (highest confidence), (2) conflicts between panels (needs resolution), (3) gaps that no panel covered. Produce a unified priority stack-rank."
+        "instruction": "Synthesize findings from all completed panels (ignore null entries from panels that were not executed). Identify: (1) findings that multiple panels flagged (highest confidence), (2) conflicts between panels (needs resolution), (3) gaps that no panel covered. Produce a unified priority stack-rank."
       },
       "outputs": {
         "unified_findings": "synthesis"
@@ -123,8 +182,11 @@
           "artifact": "{{ inputs.artifact }}",
           "individual_reports": [
             "{{ panel-1.report }}",
-            "{{ panel-2.report }}",
-            "{{ panel-3.report }}"
+            "{{ panel-2.report | default(null) }}",
+            "{{ panel-3.report | default(null) }}",
+            "{{ panel-4.report | default(null) }}",
+            "{{ panel-5.report | default(null) }}",
+            "{{ panel-6.report | default(null) }}"
           ],
           "unified_synthesis": "{{ cross-panel-synthesis.synthesis }}",
           "feasibility": "{{ unified-feasibility.report }}"
