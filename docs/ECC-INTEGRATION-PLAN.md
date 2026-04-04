@@ -138,7 +138,7 @@ Elevated from the original appendix. These items require no code changes or only
 | SOUL.md | `SOUL.md` at repo root | File exists, referenced in CLAUDE.md preamble, values hierarchy has >= 5 ranked values |
 | RULES.md | `RULES.md` at repo root | File exists, covers all 5 policy domains (file access, tool, commit, session, escalation) |
 | Read tool fix | Updated matcher in `.claude/settings.json` | **DONE** -- matcher is `Bash\|Edit\|Write\|Read` |
-| Steering modes JSON | `scripts/steering-modes.json` | File parses as valid JSON, contains >= 3 modes (dev, research, review), each with `focus`, `tools`, `skills` keys |
+| Steering modes JSON | `scripts/steering-modes.json` | File parses as valid JSON, contains >= 5 modes (dev, research, review, debug, security-audit), each with `focus`, `tools`, `skills` keys |
 | Top 10 ECC skills | 10 skill files in `SKILLS/` | Each has valid frontmatter, passes `SkillManager.loadSkills()` without error |
 
 ### Phase 1: Identity Foundation (Sessions 2-3)
