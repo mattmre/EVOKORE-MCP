@@ -139,7 +139,10 @@ process.stdin.on('end', () => {
       type: classification.type,
       tool: toolName,
       summary: classification.summary,
-      evidence_id: evidenceId
+      evidence_id: evidenceId,
+      exit_code: payload.tool_response?.metadata?.exit_code ?? null,
+      passed: payload.tool_response?.is_error !== true,
+      invocation_ts: new Date().toISOString()
     };
 
     fs.appendFileSync(evidencePath, JSON.stringify(entry) + '\n');

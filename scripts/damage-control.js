@@ -142,7 +142,7 @@ process.stdin.on('end', () => {
           const re = new RegExp(rule.pattern, 'i');
           if (re.test(cmd)) {
             const reason = rule.reason || 'Dangerous command blocked';
-            logViolation({ type: 'dangerous_command', tool: toolName, command: cmd.slice(0, 200), reason });
+            logViolation({ type: 'dangerous_command', tool: toolName, command: cmd.slice(0, 200), reason, rule_id: rule.id });
 
             if (rule.ask) {
               emit('ask', { reason, command: cmd.slice(0, 200) });
@@ -166,7 +166,7 @@ process.stdin.on('end', () => {
       const check = checkPathList(filePaths, rules.zero_access_paths);
       if (check.matched) {
         const reason = `Access to sensitive path denied: ${check.rule}`;
-        logViolation({ type: 'zero_access', tool: toolName, path: check.path, reason });
+        logViolation({ type: 'zero_access', tool: toolName, path: check.path, reason, rule_id: 'zero_access' });
         emit('block', { reason, path: check.path, rule: check.rule, type: 'zero_access' });
         process.stderr.write(`DAMAGE CONTROL BLOCKED: ${reason}\n`);
         process.exit(2);
@@ -178,7 +178,7 @@ process.stdin.on('end', () => {
       const check = checkPathList(filePaths, rules.read_only_paths);
       if (check.matched) {
         const reason = `Write to read-only path denied: ${check.rule}`;
-        logViolation({ type: 'read_only', tool: toolName, path: check.path, reason });
+        logViolation({ type: 'read_only', tool: toolName, path: check.path, reason, rule_id: 'read_only' });
         emit('block', { reason, path: check.path, rule: check.rule, type: 'read_only' });
         process.stderr.write(`DAMAGE CONTROL BLOCKED: ${reason}\n`);
         process.exit(2);
@@ -192,7 +192,7 @@ process.stdin.on('end', () => {
         const check = checkPathList(filePaths, rules.no_delete_paths);
         if (check.matched) {
           const reason = `Deletion of protected file denied: ${check.rule}`;
-          logViolation({ type: 'no_delete', tool: toolName, path: check.path, reason });
+          logViolation({ type: 'no_delete', tool: toolName, path: check.path, reason, rule_id: 'no_delete' });
           emit('block', { reason, path: check.path, rule: check.rule, type: 'no_delete' });
           process.stderr.write(`DAMAGE CONTROL BLOCKED: ${reason}\n`);
           process.exit(2);
@@ -209,30 +209,45 @@ process.stdin.on('end', () => {
           const purposeState = JSON.parse(fs.readFileSync(purposeFile, 'utf8'));
           const purpose = (purposeState.purpose || '').toLowerCase();
           if (purpose) {
-            // Extract project-like keywords from purpose (simple heuristic)
-            const projectHints = purpose.match(/\b[a-z][\w-]{2,}\b/g) || [];
-            // Check if any file paths reference completely different project directories
-            for (const fp of filePaths) {
-              const normalized = fp.toLowerCase().replace(/\\/g, '/');
-              // Only flag if the path looks like an absolute path in a different project
-              const projectDirMatch = normalized.match(/^[a-z]:\/[^/]+\/([^/]+)/i) ||
-                                      normalized.match(/^\/[^/]+\/[^/]+\/([^/]+)/);
-              if (projectDirMatch) {
-                const dirName = projectDirMatch[1].toLowerCase();
-                // If purpose mentions a specific project and this path is in a different one
-                const purposeMentionsProject = projectHints.some(hint =>
-                  hint.length > 3 && !['this', 'that', 'with', 'from', 'have', 'what', 'will', 'work', 'working'].includes(hint)
-                );
-                if (purposeMentionsProject) {
-                  const pathMatchesPurpose = projectHints.some(hint =>
-                    normalized.includes(hint) || dirName.includes(hint)
+            // Per-session rate limit: max 3 scope boundary asks
+            const scopeAsks = purposeState.scope_boundary_asks || 0;
+            if (scopeAsks >= 3) {
+              // Rate limit exceeded — skip scope boundary check
+            } else {
+              // Extract project-like keywords from purpose (min 5 chars to reduce noise)
+              const projectHints = purpose.match(/\b[a-z][\w-]{4,}\b/g) || [];
+              const cwdNormalized = normalizePath(process.cwd()).toLowerCase();
+              // Check if any file paths reference completely different project directories
+              for (const fp of filePaths) {
+                const normalized = fp.toLowerCase().replace(/\\/g, '/');
+                // Skip paths within the current project root — always in scope
+                if (normalized.startsWith(cwdNormalized)) {
+                  continue;
+                }
+                // Only flag if the path looks like an absolute path in a different project
+                const projectDirMatch = normalized.match(/^[a-z]:\/[^/]+\/([^/]+)/i) ||
+                                        normalized.match(/^\/[^/]+\/[^/]+\/([^/]+)/);
+                if (projectDirMatch) {
+                  const dirName = projectDirMatch[1].toLowerCase();
+                  // If purpose mentions a specific project and this path is in a different one
+                  const purposeMentionsProject = projectHints.some(hint =>
+                    hint.length > 3 && !['this', 'that', 'with', 'from', 'have', 'what', 'will', 'work', 'working'].includes(hint)
                   );
-                  if (!pathMatchesPurpose) {
-                    const reason = `File "${fp}" appears outside session scope ("${purposeState.purpose.slice(0, 80)}")`;
-                    logViolation({ type: 'scope_boundary', tool: toolName, path: fp, reason });
-                    emit('ask', { reason, path: fp, type: 'scope_boundary' });
-                    console.log(JSON.stringify({ decision: 'ask', reason: `SCOPE WARNING: ${reason}` }));
-                    process.exit(0);
+                  if (purposeMentionsProject) {
+                    // Require at least 2 keyword matches to consider path in scope
+                    const matchCount = projectHints.filter(hint =>
+                      normalized.includes(hint) || dirName.includes(hint)
+                    ).length;
+                    if (matchCount < 2) {
+                      // Increment rate limit counter and save
+                      purposeState.scope_boundary_asks = scopeAsks + 1;
+                      fs.writeFileSync(purposeFile, JSON.stringify(purposeState, null, 2));
+                      const reason = `File "${fp}" appears outside session scope ("${purposeState.purpose.slice(0, 80)}")`;
+                      logViolation({ type: 'scope_boundary', tool: toolName, path: fp, reason, rule_id: 'scope_boundary' });
+                      emit('ask', { reason, path: fp, type: 'scope_boundary' });
+                      console.log(JSON.stringify({ decision: 'ask', reason: `SCOPE WARNING: ${reason}` }));
+                      process.exit(0);
+                    }
                   }
                 }
               }

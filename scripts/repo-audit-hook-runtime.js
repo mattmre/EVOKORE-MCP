@@ -73,8 +73,13 @@ process.stdin.on('end', () => {
       additionalContext: '[EVOKORE Repo Audit] ' + warnings.join(' ')
     };
     console.log(JSON.stringify(result));
-  } catch {
-    // Fail silently — never block the session
+  } catch (err) {
+    process.stderr.write(JSON.stringify({
+      hook: 'repo-audit-hook',
+      event: 'hook_error',
+      error: err?.message || String(err),
+      ts: new Date().toISOString(),
+    }) + '\n');
   }
   process.exit(0);
 });

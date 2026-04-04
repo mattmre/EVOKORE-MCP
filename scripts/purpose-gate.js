@@ -69,6 +69,19 @@ process.stdin.on('end', () => {
     } else if (state.purpose === null) {
       // Second prompt — save purpose
       const purpose = userMessage.slice(0, 500);
+      if (purpose.trim().length < 10) {
+        writeHookEvent({
+          hook: 'purpose-gate',
+          event: 'purpose_too_short',
+          session_id: sessionId,
+          length: purpose.trim().length
+        });
+        const result = {
+          additionalContext: '[EVOKORE Purpose Gate] Session purpose is too short. Please describe your goal in at least 10 characters (e.g., "fix auth bug in login flow").'
+        };
+        console.log(JSON.stringify(result));
+        process.exit(0);
+      }
       const purposeSetAt = new Date().toISOString();
       writeSessionState(sessionId, {
         workspaceRoot: process.cwd(),

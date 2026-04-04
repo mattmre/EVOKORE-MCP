@@ -15,11 +15,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get week for cache key
+        id: date
+        run: echo "week=$(date +%Y-%V)" >> $GITHUB_OUTPUT
+
       - name: Restore Trivy DB cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
+          key: trivy-db-${{ steps.date.outputs.week }}
           restore-keys: trivy-db-
 
       - name: Run Trivy filesystem scan
@@ -40,11 +44,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get week for cache key
+        id: date
+        run: echo "week=$(date +%Y-%V)" >> $GITHUB_OUTPUT
+
       - name: Restore Trivy DB cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
+          key: trivy-db-${{ steps.date.outputs.week }}
           restore-keys: trivy-db-
 
       - name: Run Trivy config scan
@@ -64,11 +72,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get week for cache key
+        id: date
+        run: echo "week=$(date +%Y-%V)" >> $GITHUB_OUTPUT
+
       - name: Restore Trivy DB cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
+          key: trivy-db-${{ steps.date.outputs.week }}
           restore-keys: trivy-db-
 
       - name: Run Trivy secret scan
@@ -91,11 +103,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get week for cache key
+        id: date
+        run: echo "week=$(date +%Y-%V)" >> $GITHUB_OUTPUT
+
       - name: Restore Trivy DB cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
+          key: trivy-db-${{ steps.date.outputs.week }}
           restore-keys: trivy-db-
 
       - name: Create results directory

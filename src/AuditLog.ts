@@ -38,6 +38,9 @@ export interface AuditEntry {
 
   /** Arbitrary key-value metadata. Must not contain secrets or PII. */
   metadata?: Record<string, unknown>;
+
+  /** Optional invocation correlation ID for cross-referencing hook events. */
+  invocationId?: string;
 }
 
 const AUDIT_DIR = path.join(os.homedir(), ".evokore", "audit");

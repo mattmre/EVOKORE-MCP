@@ -15,13 +15,14 @@ jobs:
   publish:
     runs-on: ubuntu-latest
 
+    # Permissions must be at job level; step-level permissions are not supported in regular GitHub Actions workflow jobs
     permissions:
       contents: write
     env:
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
