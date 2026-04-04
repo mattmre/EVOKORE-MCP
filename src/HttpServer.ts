@@ -99,55 +99,6 @@ export class HttpServer {
       this.initWebSocketApprovals();
     }
 
-    // Periodically clean expired sessions and their orphaned transports (every 60 seconds)
-    if (this.sessionIsolation) {
-      this.cleanupInterval = setInterval(() => {
-        const removed = this.sessionIsolation?.cleanExpired() ?? 0;
-
-        // Close transports whose sessions were just cleaned up.
-        // When cleanExpired() removes a SessionState, the transport entry in
-        // this.transports becomes orphaned — it holds an open SSE connection
-        // and its associated rate limit counters (stored inside SessionState)
-        // are already gone. Pruning these prevents unbounded transport and
-        // counter accumulation for sessions that expired without an explicit
-        // transport close event.
-        if (removed > 0) {
-          for (const [sessionId, transport] of this.transports.entries()) {
-            if (!this.sessionIsolation?.hasSession(sessionId)) {
-              this.auditLog.log("session_expire", "success", { sessionId });
-              this.telemetryManager?.recordSessionExpire();
-              transport.close()
-                .then(() => { this.transports.delete(sessionId); })
-                .catch((err) => {
-                  console.error(`[EVOKORE-HTTP] Error closing expired transport ${sessionId}:`, err.message);
-                  this.transports.delete(sessionId); // still clean up on error
-                });
-            }
-          }
-        }
-      }, 60_000);
-      // Allow the process to exit even if this interval is pending
-      if (this.cleanupInterval.unref) {
-        this.cleanupInterval.unref();
-      }
-    }
-
-    // Periodically persist all active sessions to the backing store (every 30 seconds).
-    // This ensures state survives crashes between explicit persist points.
-    if (this.sessionIsolation) {
-      this.persistInterval = setInterval(() => {
-        const sessionIds = this.sessionIsolation?.listSessions() ?? [];
-        for (const sid of sessionIds) {
-          this.sessionIsolation?.persistSession(sid).catch((err) => {
-            console.error(`[EVOKORE-HTTP] Periodic persist failed for session ${sid}:`, err?.message || err);
-          });
-        }
-      }, 30_000);
-      if (this.persistInterval.unref) {
-        this.persistInterval.unref();
-      }
-    }
-
     return new Promise<void>((resolve, reject) => {
       this.httpServer!.on("error", (err) => {
         console.error("[EVOKORE-HTTP] Server error:", err.message);
@@ -156,6 +107,59 @@ export class HttpServer {
 
       this.httpServer!.listen(this.port, this.host, () => {
         console.error(`[EVOKORE-HTTP] Listening on http://${this.host}:${this.port}`);
+
+        // Start intervals only after the server is confirmed listening.
+        // If port binding fails, reject() fires and no intervals are leaked.
+
+        // Periodically clean expired sessions and their orphaned transports (every 60 seconds)
+        if (this.sessionIsolation) {
+          this.cleanupInterval = setInterval(() => {
+            const removed = this.sessionIsolation?.cleanExpired() ?? 0;
+
+            // Close transports whose sessions were just cleaned up.
+            // When cleanExpired() removes a SessionState, the transport entry in
+            // this.transports becomes orphaned — it holds an open SSE connection
+            // and its associated rate limit counters (stored inside SessionState)
+            // are already gone. Pruning these prevents unbounded transport and
+            // counter accumulation for sessions that expired without an explicit
+            // transport close event.
+            if (removed > 0) {
+              for (const [sessionId, transport] of this.transports.entries()) {
+                if (!this.sessionIsolation?.hasSession(sessionId)) {
+                  this.auditLog.log("session_expire", "success", { sessionId });
+                  this.telemetryManager?.recordSessionExpire();
+                  transport.close()
+                    .then(() => { this.transports.delete(sessionId); })
+                    .catch((err) => {
+                      console.error(`[EVOKORE-HTTP] Error closing expired transport ${sessionId}:`, err.message);
+                      this.transports.delete(sessionId); // still clean up on error
+                    });
+                }
+              }
+            }
+          }, 60_000);
+          // Allow the process to exit even if this interval is pending
+          if (this.cleanupInterval.unref) {
+            this.cleanupInterval.unref();
+          }
+        }
+
+        // Periodically persist all active sessions to the backing store (every 30 seconds).
+        // This ensures state survives crashes between explicit persist points.
+        if (this.sessionIsolation) {
+          this.persistInterval = setInterval(() => {
+            const sessionIds = this.sessionIsolation?.listSessions() ?? [];
+            for (const sid of sessionIds) {
+              this.sessionIsolation?.persistSession(sid).catch((err) => {
+                console.error(`[EVOKORE-HTTP] Periodic persist failed for session ${sid}:`, err?.message || err);
+              });
+            }
+          }, 30_000);
+          if (this.persistInterval.unref) {
+            this.persistInterval.unref();
+          }
+        }
+
         resolve();
       });
     });
@@ -391,7 +395,7 @@ export class HttpServer {
               this.securityManager.approveToken(prefix);
             }
           }
-          // Deny requires full token for timing-safe comparison
+          // Deny accepts full token (32 hex chars) or prefix (8+ hex chars)
           if (msg.type === "deny" && typeof msg.token === "string") {
             if (this.authConfig && this.authConfig.required) {
               const roleLevels: Record<string, number> = { admin: 3, developer: 2, readonly: 1 };
@@ -405,7 +409,7 @@ export class HttpServer {
             }
             if (this.securityManager) {
               const token = msg.token.replace(/[^a-f0-9]/gi, "").substring(0, 64);
-              if (token.length === 32) {
+              if (token.length >= 8) {
                 this.securityManager.denyToken(token);
               }
             }
