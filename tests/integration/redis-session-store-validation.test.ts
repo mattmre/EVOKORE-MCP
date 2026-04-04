@@ -85,6 +85,13 @@ describe('RedisSessionStore Module Structure', () => {
       expect(src).toMatch(/async\s+disconnect\s*\(\s*\)/);
     });
 
+    it('disconnect method satisfies optional SessionStore.disconnect interface', () => {
+      // SessionStore declares disconnect?(): Promise<void>; RedisSessionStore implements it
+      const sessionStoreSrc = fs.readFileSync(path.join(ROOT, 'src', 'SessionStore.ts'), 'utf8');
+      expect(sessionStoreSrc).toMatch(/disconnect\?\(\)\s*:\s*Promise<void>/);
+      expect(src).toMatch(/async\s+disconnect\s*\(\s*\)/);
+    });
+
     it('exports RedisSessionStoreOptions interface', () => {
       expect(src).toMatch(/export\s+interface\s+RedisSessionStoreOptions/);
     });

@@ -61,6 +61,8 @@ export class EvokoreMCPServer {
   private auditExporter: AuditExporter;
   private discoveryMode: ToolDiscoveryMode;
   private sessionIsolation: SessionIsolation;
+  private sessionTtlMs: number | undefined;
+  private httpMode: boolean;
 
   constructor(options?: EvokoreMCPServerOptions) {
     this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
@@ -102,44 +104,22 @@ export class EvokoreMCPServer {
     this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
 
-    // In HTTP mode, use FileSessionStore for persistence unless explicitly overridden
-    const storeOverride = process.env.EVOKORE_SESSION_STORE;
-    if (options?.httpMode && storeOverride !== "memory") {
-      const ttlMs = parseInt(process.env.EVOKORE_SESSION_TTL_MS || "3600000", 10);
-      const ttlOpt = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : undefined;
+    // Session TTL parsed once, used both here and in loadSubsystems() for Redis init
+    const ttlMs = parseInt(process.env.EVOKORE_SESSION_TTL_MS || "3600000", 10);
+    this.sessionTtlMs = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : undefined;
+    this.httpMode = options?.httpMode ?? false;
 
-      if (storeOverride === "redis") {
-        // Deferred initialization: RedisSessionStore is set up asynchronously
-        // because ioredis is an optional dynamic import. The sessionIsolation
-        // starts with the default MemorySessionStore and is replaced once
-        // the Redis store is ready.
-        this.sessionIsolation = new SessionIsolation({ ttlMs: ttlOpt });
-        import("./stores/RedisSessionStore").then(({ RedisSessionStore }) => {
-          const redisStore = new RedisSessionStore({
-            url: process.env.EVOKORE_REDIS_URL,
-            keyPrefix: process.env.EVOKORE_REDIS_KEY_PREFIX,
-            ttlMs: ttlOpt,
-          });
-          this.sessionIsolation = new SessionIsolation({
-            store: redisStore,
-            ttlMs: ttlOpt,
-          });
-          console.error("[EVOKORE] Redis session store initialized");
-        }).catch((err) => {
-          console.error("[EVOKORE] Failed to load Redis session store, falling back to file store:", err.message);
-          this.sessionIsolation = new SessionIsolation({
-            store: new FileSessionStore(),
-            ttlMs: ttlOpt,
-          });
-        });
-      } else {
-        this.sessionIsolation = new SessionIsolation({
-          store: new FileSessionStore(),
-          ttlMs: ttlOpt,
-        });
-      }
+    // In HTTP mode, use FileSessionStore for persistence unless explicitly overridden.
+    // Redis store initialization is deferred to loadSubsystems() (async, pre-request).
+    const storeOverride = process.env.EVOKORE_SESSION_STORE;
+    if (this.httpMode && storeOverride !== "memory" && storeOverride !== "redis") {
+      this.sessionIsolation = new SessionIsolation({
+        store: new FileSessionStore(),
+        ttlMs: this.sessionTtlMs,
+      });
     } else {
-      this.sessionIsolation = new SessionIsolation();
+      // Default (memory) or redis — start with memory; redis is replaced in loadSubsystems()
+      this.sessionIsolation = new SessionIsolation({ ttlMs: this.sessionTtlMs });
     }
 
     this.setupHandlers();
@@ -713,6 +693,30 @@ export class EvokoreMCPServer {
   }
 
   private async loadSubsystems(): Promise<void> {
+    // Initialize Redis session store if configured (must happen before any requests)
+    const storeOverride = process.env.EVOKORE_SESSION_STORE;
+    if (this.httpMode && storeOverride === "redis") {
+      try {
+        const { RedisSessionStore } = await import("./stores/RedisSessionStore");
+        const redisStore = new RedisSessionStore({
+          url: process.env.EVOKORE_REDIS_URL,
+          keyPrefix: process.env.EVOKORE_REDIS_KEY_PREFIX,
+          ttlMs: this.sessionTtlMs,
+        });
+        this.sessionIsolation = new SessionIsolation({
+          store: redisStore,
+          ttlMs: this.sessionTtlMs,
+        });
+        console.error("[EVOKORE] Redis session store initialized");
+      } catch (err: any) {
+        console.error("[EVOKORE] Failed to load Redis session store, falling back to file store:", err.message);
+        this.sessionIsolation = new SessionIsolation({
+          store: new FileSessionStore(),
+          ttlMs: this.sessionTtlMs,
+        });
+      }
+    }
+
     await this.securityManager.loadPermissions();
     await this.skillManager.loadSkills();
     const skillStats = this.skillManager.getStats();
@@ -787,11 +791,14 @@ export class EvokoreMCPServer {
     );
 
     // Graceful shutdown for stdio mode
-    const shutdown = () => {
+    const shutdown = async () => {
       this.webhookManager.emit("session_end", { transport: "stdio", reason: "shutdown" });
-      this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
-      this.auditExporter.shutdown().catch(() => { /* best effort */ });
+      await this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
+      await this.auditExporter.shutdown().catch(() => { /* best effort */ });
       this.telemetryManager.shutdown();
+      // Disconnect session store (e.g. close Redis connection)
+      const store = this.sessionIsolation.getStore();
+      if (store.disconnect) await store.disconnect().catch(() => { /* best effort */ });
       // Grace period to allow fire-and-forget webhook delivery
       setTimeout(() => process.exit(0), 500);
     };
@@ -830,6 +837,9 @@ export class EvokoreMCPServer {
       await this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
       await this.auditExporter.shutdown().catch(() => { /* best effort */ });
       this.telemetryManager.shutdown();
+      // Disconnect session store (e.g. close Redis connection)
+      const store = this.sessionIsolation.getStore();
+      if (store.disconnect) await store.disconnect().catch(() => { /* best effort */ });
       // Grace period to allow fire-and-forget webhook delivery
       await new Promise(resolve => setTimeout(resolve, 500));
       await httpServer.stop();
