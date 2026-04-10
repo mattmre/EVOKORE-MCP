@@ -5,7 +5,7 @@ aliases: [retrospective-miner, session-miner, retro-miner, session-retrospective
 category: Orchestration Framework
 tags: [retrospective, session-analysis, metrics, narrative-quality, efficiency, continuous-improvement]
 version: 1.0.0
-requires: [session_analyze_replay, session_work_ratio]
+requiresTools: [session_analyze_replay, session_work_ratio]
 resolutionHints:
   - analyze session data or efficiency metrics
   - run a retrospective on recent sessions
@@ -131,9 +131,13 @@ const growthRate = usageByTurn.length > 1
 ```javascript
 const hasCommit = entries.some(e =>
   e.message?.content?.some(c =>
-    c.type === 'tool_result' &&
-    typeof c.content === 'string' &&
-    c.content.includes('main')
+    // Bash tool_use with a git commit command
+    (c.type === 'tool_use' && c.name === 'Bash' &&
+      /git\s+commit\b/.test(c.input?.command || '')) ||
+    // git commit output shape: "[branch abc1234] message"
+    (c.type === 'tool_result' &&
+      typeof c.content === 'string' &&
+      /\[[\w\-/]+\s+[0-9a-f]{7,}\]/.test(c.content))
   )
 );
 ```
@@ -205,7 +209,8 @@ Affects: [X% of sessions] / [N sessions] in [project(s)]
 |---------|------------------|-------------------|---------------|-------|
 | [name]  | X.X              | X.X               | XX/100        | [↑↓→] |
 
-Clarity score = 100 - (clarificationLoops * 12) - (firstProductiveTurn > 6 ? 15 : 0) - (commitsZero% * 0.5)
+Clarity score = Math.max(0, 100 - (clarificationLoops * 12) - (firstProductiveTurn > 6 ? 15 : 0) - (commitsZeroPercent * 0.5))
+// commitsZeroPercent: integer percentage, e.g. 17 for 17% of sessions with no commit
 
 ---
 

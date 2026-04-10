@@ -56,7 +56,7 @@ Output: summary table + worst-3 individual reports
 
 ## Scoring Rubric
 
-Each element is worth points because it correlates with measured session efficiency improvements. Scores are additive; maximum is 100.
+Each element is worth points because it correlates with measured session efficiency improvements. Scores are additive; maximum base score is 80, with up to +20 bonus points for a total of 100.
 
 | Element | Points | Efficiency Basis |
 |---------|--------|-----------------|
@@ -197,11 +197,11 @@ Tool: narrative-quality-scorer v1.0
 ### Estimated Efficiency Improvement
 
 Based on historical session data for [context]:
-- Current estimated turns: ~N turns
-- Projected turns with improvements: ~N turns  
-- Improvement: approximately N% reduction
+- Sum the efficiency basis deltas for each missing element (e.g., insertion points → −8 turns, acceptance criteria → −8 turns, explicit file paths → −5 turns).
+- Apply deltas against the project's median session length from session-retrospective-miner output.
+- If no retrospective data is available, omit numeric estimates entirely.
 
-[Note: Estimates based on aggregate session data. Individual sessions vary.]
+[Note: These are directional estimates, not guarantees. Include only if session-retrospective-miner has been run and provides a baseline turn count for the project.]
 ```
 
 ---
