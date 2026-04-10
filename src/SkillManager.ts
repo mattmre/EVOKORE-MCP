@@ -911,7 +911,7 @@ export class SkillManager {
       {
         name: "discover_tools",
         title: "Discover Tools",
-        description: "Lists available tools. In 'legacy' mode (default), this is read-only — no state is modified. In 'dynamic' mode (EVOKORE_TOOL_DISCOVERY_MODE=dynamic), calling this tool activates listed tools for the current session. Set readOnlyHint: false conservatively to prevent unintended auto-approval in dynamic mode.",
+        description: "Search and list tools available in the current session. Behavior depends on EVOKORE_TOOL_DISCOVERY_MODE: in 'legacy' mode (default), this call is side-effect-free. In 'dynamic' mode, calling discover_tools activates the matched tools for the current session — mutating session state. Because the effect is mode-dependent, readOnlyHint is conservatively false to prevent clients from auto-approving the call in dynamic mode.",
         inputSchema: {
           type: "object",
           properties: {
@@ -924,7 +924,7 @@ export class SkillManager {
           title: "Discover Tools",
           readOnlyHint: false,
           destructiveHint: false,
-          idempotentHint: true,
+          idempotentHint: false,
           openWorldHint: false
         }
       },

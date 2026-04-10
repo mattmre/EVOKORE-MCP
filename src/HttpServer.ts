@@ -128,12 +128,12 @@ export class HttpServer {
                 if (!this.sessionIsolation?.hasSession(sessionId)) {
                   this.auditLog.log("session_expire", "success", { sessionId });
                   this.telemetryManager?.recordSessionExpire();
-                  transport.close()
-                    .then(() => { this.transports.delete(sessionId); })
-                    .catch((err) => {
-                      console.error(`[EVOKORE-HTTP] Error closing expired transport ${sessionId}:`, err.message);
-                      this.transports.delete(sessionId); // still clean up on error
-                    });
+                  // Remove from map FIRST so concurrent handleMcpRequest() calls
+                  // cannot route to a closing transport, then close best-effort.
+                  this.transports.delete(sessionId);
+                  transport.close().catch((err) => {
+                    console.error(`[EVOKORE-HTTP] Error closing expired transport ${sessionId}:`, err.message);
+                  });
                 }
               }
             }
@@ -579,7 +579,15 @@ export class HttpServer {
 
       // Session not found in persistent store (or no store configured): 404
       res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Session not found" }));
+      res.end(JSON.stringify({
+        jsonrpc: "2.0",
+        error: {
+          code: -32001,
+          message: "Session not found",
+          data: { sessionId },
+        },
+        id: null,
+      }));
       return;
     }
 
