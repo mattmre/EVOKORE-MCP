@@ -266,6 +266,13 @@ export class NavigationAnchorManager {
 
       const startLine = sec.line;
       const endLine = end.line;
+
+      // Guard: END appearing before SEC produces an invalid section
+      if (endLine < startLine) {
+        warnings.push(`Section '${id}' has END (line ${endLine}) before SEC (line ${startLine}) — skipping`);
+        continue;
+      }
+
       const insertPoints: NavInsertPoint[] = anchors
         .filter((a) => a.type === "INS" && a.line >= startLine && a.line <= endLine)
         .map((a) => ({ id: a.id, line: a.line, description: a.description }));

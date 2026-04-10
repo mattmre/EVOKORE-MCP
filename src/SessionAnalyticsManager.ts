@@ -108,7 +108,7 @@ export class SessionAnalyticsManager {
       {
         name: "session_work_ratio",
         description:
-          "Compute the ratio of significant evidence entries to total replay entries per session. Low ratios indicate many tool calls producing little meaningful work (retry storms, excessive re-reads).",
+          "Compute the ratio of non-empty evidence entries to total replay entries per session. Low ratios indicate many tool calls producing little meaningful work (retry storms, excessive re-reads).",
         inputSchema: {
           type: "object" as const,
           properties: {
