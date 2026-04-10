@@ -26,6 +26,19 @@ Each improvement cycle follows four phases:
 
 ### Phase 1: Metrics Collection
 
+**Automated (recommended):** Use the `session-retrospective-miner` skill to generate a structured metrics report with no manual data gathering. The skill uses `session_analyze_replay` + `session_work_ratio` MCP tools plus direct JSONL parsing to compute all key metrics and produce actionable findings automatically:
+
+```
+Run session-retrospective-miner with:
+  time_window: "last-30-days"  (or match your cycle period)
+  project_filter: "all"        (or a specific project slug)
+  focus: "all"
+Save output to: docs/session-logs/retro-[date].md
+Then proceed to Phase 2 using the report as input.
+```
+
+**Manual fallback** (if session-retrospective-miner or its MCP tools are unavailable):
+
 Gather quantitative data from recent sessions.
 
 **Sources:**
