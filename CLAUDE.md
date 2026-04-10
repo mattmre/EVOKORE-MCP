@@ -95,8 +95,8 @@ Seven hooks are wired in `.claude/settings.json` through canonical `scripts/hook
 ## v3.0 Runtime Additions
 
 - **Test Suite:** Tests now use vitest (121 files, ~2053 tests as of v3.1 sprint). Run with `npx vitest run`. Old `node test-*.js` chaining is removed.
-- **Tool Annotations:** All 14 native tools have MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
-- **Native Tool Count:** 14 built-in tools: 11 in SkillManager (docs_architect, skill_creator, resolve_workflow, search_skills, get_skill_help, discover_tools, proxy_server_status, refresh_skills, fetch_skill, list_registry, execute_skill), 2 in TelemetryManager (get_telemetry, reset_telemetry), 1 in PluginManager (reload_plugins). Canonical source: `getTools()` methods in each manager class. Plugin tools are dynamic and not counted here.
+- **Tool Annotations:** All 19 native tools have MCP annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) and `title` fields.
+- **Native Tool Count:** 19 built-in tools: 11 in SkillManager (docs_architect, skill_creator, resolve_workflow, search_skills, get_skill_help, discover_tools, proxy_server_status, refresh_skills, fetch_skill, list_registry, execute_skill), 2 in TelemetryManager (get_telemetry, reset_telemetry), 1 in PluginManager (reload_plugins), 2 in NavigationAnchorManager (nav_get_map, nav_read_anchor), 3 in SessionAnalyticsManager (session_context_health, session_analyze_replay, session_work_ratio). Canonical source: `getTools()` methods in each manager class. Plugin tools are dynamic and not counted here. Last verified: 2026-04-10.
 - **Server Instructions:** The MCP Server constructor includes an `instructions` string for client-side display.
 - **HTTP Client Transport:** ProxyManager supports `StreamableHTTPClientTransport` for HTTP-based child servers. Configure with `"transport": "http"` and `"url"` in mcp.config.json.
 - **MCP Resources:** `resources/list` returns skills as `skill://` URIs plus server-level resources (`evokore://server/status`, `evokore://server/config`, `evokore://skills/categories`).
@@ -116,3 +116,5 @@ Seven hooks are wired in `.claude/settings.json` through canonical `scripts/hook
 - **Plugin System:** `PluginManager` loads external tool providers from `plugins/` directory with hot-reload support.
 - **OAuth Auth:** `OAuthProvider` validates Bearer tokens with JWKS support for HTTP transport.
 - **Multi-Tenant Sessions:** `SessionIsolation` provides per-connection state isolation with configurable TTL.
+- **AI Navigation Anchors:** `src/NavigationAnchorManager.ts` exposes `nav_get_map` (scan a file for `@AI:NAV` structured comments, return section map at ~100 tokens vs 4K–40K for full read) and `nav_read_anchor` (read N lines centered on a named anchor without loading the full file). All reads use `readline` streaming. Anchor syntax: `@AI:NAV[(SEC|END|INS):id] description`. See `docs/ai-nav-anchors-plan.md`.
+- **Session Analytics:** `src/SessionAnalyticsManager.ts` exposes `session_context_health` (context size + cost/turn + compact recommendation), `session_analyze_replay` (tool usage + retry signals across `~/.evokore/sessions/*-replay.jsonl`), and `session_work_ratio` (evidence-to-replay density scorer). See `docs/ai-nav-anchors-plan.md` Session Analytics section.

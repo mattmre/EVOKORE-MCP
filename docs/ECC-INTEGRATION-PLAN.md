@@ -36,7 +36,7 @@ The original 17-row comparison matrix is condensed into four strategic categorie
 | Capability | ECC | EVOKORE-MCP | Gap |
 |---|---|---|---|
 | Security | RULES.md declarative policies | RBAC + HITL + SecurityManager + 7 hooks | EVOKORE stronger |
-| MCP Server | None (file-based) | Full MCP v3.1 runtime, 14 native tools | EVOKORE stronger |
+| MCP Server | None (file-based) | Full MCP v3.1 runtime, 19 native tools (as of 2026-04-10) | EVOKORE stronger |
 | Webhooks/Events | None | WebhookManager: 10 event types, HMAC signing | EVOKORE stronger |
 | Multi-Tenant | None | SessionIsolation + OAuth + FileSessionStore | EVOKORE stronger |
 | Telemetry | None | TelemetryManager + HMAC export | EVOKORE stronger |
@@ -48,7 +48,7 @@ The original 17-row comparison matrix is condensed into four strategic categorie
 |---|---|---|---|
 | Agent Archetypes | 29 agents (language-specific, meta-agents) | 6 generic archetypes | ECC larger catalog |
 | Orchestration | PM2 fleet, worktree-per-agent, loop operator | Agent33 framework, 8 DAG workflows | Cross-pollinate |
-| Commands | 50+ slash commands | 14 native tools + skill resolution (336+ skills) | Different models |
+| Commands | 50+ slash commands | 19 native tools (as of 2026-04-10) + skill resolution (336+ skills) | Different models |
 | Plugin System | Declarative plugin.json, marketplace | Imperative PluginManager + hot-reload | Complement |
 | Session Management | Session save/resume, strategic compact | Session manifest + replay + evidence JSONL | Complement |
 
@@ -85,7 +85,7 @@ A 4-panel expert cascade (Feasibility, Security, Architecture, Prioritization) r
 The PreToolUse matcher in `.claude/settings.json` previously matched only `Bash|Write`. The Read tool could exfiltrate sensitive files (`.env`, credentials) without interception. Fixed: matcher now includes `Read` (current value: `Bash|Edit|Write|Read`).
 
 **2. Wrong baseline numbers throughout (CRITICAL -- CORRECTED)**
-The original plan stated "5 native tools" -- the actual count is **14 native tools** (11 in SkillManager + 2 telemetry + reload_plugins). The plan stated "5 hooks" -- the actual count is **7 hook handlers** across 4 hook types. The plan stated "6 webhook events" -- the actual count is **10 event types**. All figures are corrected in this revision.
+The original plan stated "5 native tools" -- the actual count is **19 native tools (as of 2026-04-10)** (11 SkillManager + 2 telemetry + 1 reload_plugins + 2 NavigationAnchorManager + 3 SessionAnalyticsManager). The plan stated "5 hooks" -- the actual count is **7 hook handlers** across 4 hook types. The plan stated "6 webhook events" -- the actual count is **10 event types**. All figures are corrected in this revision.
 
 **3. No acceptance criteria on any phase (HIGH -- CORRECTED)**
 The original plan described deliverables but never stated how to verify them. Every phase in this revision includes explicit acceptance criteria.
@@ -604,4 +604,4 @@ All four expert panels (Feasibility, Security, Architecture, Prioritization) ind
 
 2. **Security gap was real.** The Read tool bypass in damage-control was the highest-severity finding. It has been fixed in the current `.claude/settings.json` configuration.
 
-3. **Baseline numbers were wrong throughout.** The original plan understated EVOKORE's capabilities (5 tools vs 14 actual, 5 hooks vs 7 actual, 6 events vs 10 actual), which inflated the perceived gap and led to over-scoped phases. Corrected baselines reduce the integration scope by approximately 50%.
+3. **Baseline numbers were wrong throughout.** The original plan understated EVOKORE's capabilities (5 tools vs 19 actual as of 2026-04-10, 5 hooks vs 7 actual, 6 events vs 10 actual), which inflated the perceived gap and led to over-scoped phases. Corrected baselines reduce the integration scope by approximately 50%.
