@@ -704,11 +704,20 @@ export class ProxyManager {
 
     let client = this.clients.get(serverId);
 
-    // If the server is in error state, attempt a reconnect before giving up
+    // If the server is in error state, kick off a background reconnect and
+    // return an immediate retryable error — never block the MCP caller for
+    // up to 15s waiting for child server reboot.
     const serverState = this.serverRegistry.get(serverId);
-    if (serverState?.status === 'error' && !this.reconnecting.has(serverId)) {
-      await this.reconnectServer(serverId);
-      client = this.clients.get(serverId);
+    if (serverState?.status === 'error') {
+      if (!this.reconnecting.has(serverId)) {
+        // Fire-and-forget: reconnectServer() guards against concurrent attempts
+        // via this.reconnecting and logs its own errors.
+        this.reconnectServer(serverId).catch(() => {});
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Child server '${serverId}' is reconnecting. Please retry in a moment.`
+      );
     }
 
     if (!client) {

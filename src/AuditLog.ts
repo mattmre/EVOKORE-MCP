@@ -144,11 +144,7 @@ export class AuditLog {
    */
   getEntries(limit: number = 100, offset: number = 0): AuditEntry[] {
     try {
-      const entries = this.readAllEntries();
-
-      // Reverse to newest-first, then apply offset + limit
-      entries.reverse();
-      return entries.slice(offset, offset + limit);
+      return this.readEntriesFromTail(limit, offset);
     } catch {
       return [];
     }
@@ -272,6 +268,72 @@ export class AuditLog {
       fs.renameSync(this.auditFile, `${this.auditFile}.1`);
     } catch {
       // Never throw from rotation -- fail-safe
+    }
+  }
+
+  /**
+   * Read up to `limit` entries from the tail of the audit JSONL file, skipping
+   * the most recent `offset` entries. Returns newest-first. Reads the file in
+   * 64 KB chunks from the end and stops once enough lines are collected — O(result)
+   * rather than O(file) cost per dashboard poll.
+   */
+  private readEntriesFromTail(limit: number, offset: number): AuditEntry[] {
+    if (!fs.existsSync(this.auditFile)) return [];
+
+    const needed = limit + offset;
+    if (needed <= 0) return [];
+
+    const fd = fs.openSync(this.auditFile, "r");
+    try {
+      const stat = fs.fstatSync(fd);
+      let pos = stat.size;
+      const CHUNK = 64 * 1024;
+      let carry = "";
+      const rawLines: string[] = [];
+
+      while (pos > 0 && rawLines.length < needed) {
+        const readSize = Math.min(CHUNK, pos);
+        pos -= readSize;
+        const buf = Buffer.alloc(readSize);
+        fs.readSync(fd, buf, 0, readSize, pos);
+        // Prepend carry from the previous (later) chunk
+        const chunk = buf.toString("utf-8") + carry;
+
+        // The first newline in `chunk` splits a partial line that belongs to
+        // an earlier chunk — keep that prefix as the next carry.
+        const firstNewline = chunk.indexOf("\n");
+        if (pos > 0 && firstNewline >= 0) {
+          carry = chunk.slice(0, firstNewline);
+        } else {
+          carry = "";
+        }
+
+        const body = pos > 0 && firstNewline >= 0
+          ? chunk.slice(firstNewline + 1)
+          : chunk;
+
+        const lines = body.split("\n");
+        // Walk lines in reverse order (newest entries are at the bottom)
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          rawLines.push(line);
+          if (rawLines.length >= needed) break;
+        }
+      }
+
+      const sliced = rawLines.slice(offset, offset + limit);
+      const entries: AuditEntry[] = [];
+      for (const line of sliced) {
+        try {
+          entries.push(JSON.parse(line));
+        } catch {
+          // Skip malformed lines
+        }
+      }
+      return entries;
+    } finally {
+      fs.closeSync(fd);
     }
   }
 

@@ -2,6 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
+  CallToolResult,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
@@ -642,24 +643,24 @@ export class EvokoreMCPServer {
         this.webhookManager.emit("tool_call", { tool: toolName, source, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
 
         const callStartTime = Date.now();
-        let result: any;
+        let result: CallToolResult;
 
         if (toolName === "discover_tools") {
-          result = await this.handleDiscoverTools(args, extra);
+          result = (await this.handleDiscoverTools(args, extra)) as CallToolResult;
         } else if (toolName === "refresh_skills") {
-          result = await this.handleRefreshSkills();
+          result = (await this.handleRefreshSkills()) as CallToolResult;
         } else if (toolName === "fetch_skill") {
-          result = await this.handleFetchSkill(args);
+          result = (await this.handleFetchSkill(args)) as CallToolResult;
         } else if (toolName === "reload_plugins") {
-          result = await this.handleReloadPlugins();
+          result = (await this.handleReloadPlugins()) as CallToolResult;
         } else if (this.telemetryManager.isTelemetryTool(toolName)) {
-          result = await this.telemetryManager.handleToolCall(toolName);
+          result = (await this.telemetryManager.handleToolCall(toolName)) as CallToolResult;
         } else if (this.navAnchorManager.isNavTool(toolName)) {
-          result = await this.navAnchorManager.handleToolCall(toolName, args);
+          result = (await this.navAnchorManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (this.sessionAnalyticsManager.isSessionAnalyticsTool(toolName)) {
-          result = await this.sessionAnalyticsManager.handleToolCall(toolName, args);
+          result = (await this.sessionAnalyticsManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (source === "plugin") {
-          result = await this.pluginManager.handleToolCall(toolName, args);
+          result = (await this.pluginManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (source === "native") {
           const nativeSessionId = this.getSessionId(extra);
           const nativeSession = this.sessionIsolation.getSession(nativeSessionId);
@@ -668,13 +669,13 @@ export class EvokoreMCPServer {
             role: nativeSession?.role ?? null,
             metadata: nativeSession?.metadata ?? new Map(),
           };
-          result = await this.skillManager.handleToolCall(toolName, args, skillContext);
+          result = (await this.skillManager.handleToolCall(toolName, args, skillContext)) as CallToolResult;
         } else if (source === "proxied") {
           const sessionId = this.getSessionId(extra);
           const session = this.sessionIsolation.getSession(sessionId);
           const sessionRole = session?.role ?? undefined;
           const sessionCounters = session?.rateLimitCounters;
-          result = await this.proxyManager.callProxiedTool(toolName, args, sessionRole, sessionCounters);
+          result = (await this.proxyManager.callProxiedTool(toolName, args, sessionRole, sessionCounters)) as CallToolResult;
         } else {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`);
         }

@@ -128,13 +128,37 @@ export class SecurityManager {
   /**
    * Set the active role at runtime.
    * Pass null to deactivate role-based permissions and revert to flat rules.
-   * Returns true if the role was set successfully, false if the role name is unknown.
+   *
+   * Access control:
+   *   - If `callerRole` is provided, only `admin` may change the active role.
+   *     Any other caller role produces an audit "denied" entry and returns false.
+   *   - If `callerRole` is omitted (internal/bootstrap callers), the call is
+   *     allowed — preserves backwards compatibility.
+   *
+   * Returns true if the role was set successfully, false if unauthorized or
+   * the role name is unknown.
    */
-  setActiveRole(role: string | null): boolean {
+  setActiveRole(role: string | null, callerRole?: string | null): boolean {
     const previousRole = this.activeRole;
+
+    // Access gate: if the caller supplied an identity, only admins may mutate.
+    if (callerRole !== undefined && callerRole !== null && callerRole !== "admin") {
+      AuditLog.getInstance().log("config_change", "denied", {
+        actor: callerRole,
+        metadata: {
+          action: "set_active_role",
+          previousRole,
+          attemptedRole: role,
+          reason: "insufficient_role",
+        },
+      });
+      return false;
+    }
+
     if (role === null) {
       this.activeRole = null;
       AuditLog.getInstance().log("config_change", "success", {
+        actor: callerRole ?? "system",
         metadata: { action: "set_active_role", previousRole, newRole: null },
       });
       return true;
@@ -142,11 +166,13 @@ export class SecurityManager {
     if (this.roles.has(role)) {
       this.activeRole = role;
       AuditLog.getInstance().log("config_change", "success", {
+        actor: callerRole ?? "system",
         metadata: { action: "set_active_role", previousRole, newRole: role },
       });
       return true;
     }
     AuditLog.getInstance().log("config_change", "failure", {
+      actor: callerRole ?? "system",
       metadata: { action: "set_active_role", previousRole, attemptedRole: role, reason: "unknown_role" },
     });
     return false;

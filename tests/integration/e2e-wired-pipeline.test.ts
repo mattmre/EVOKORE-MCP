@@ -571,7 +571,13 @@ describe('E2E Wired Pipeline', () => {
 
         expect(res.statusCode).toBe(404);
         const body = JSON.parse(res.body);
-        expect(body.error).toMatch(/Session not found/i);
+        // JSON-RPC error envelope shape (API-02 fix)
+        expect(body.jsonrpc).toBe('2.0');
+        expect(body.error).toBeDefined();
+        expect(body.error.code).toBe(-32001);
+        expect(body.error.message).toMatch(/Session not found/i);
+        expect(body.error.data?.sessionId).toBe('nonexistent-session-id-12345');
+        expect(body.id).toBeNull();
       });
     });
 
