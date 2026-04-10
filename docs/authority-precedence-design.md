@@ -33,7 +33,7 @@ Three sources can assert authority for a given tool call, in precedence order:
 
 ### Source 3: Flat permission rules (lowest precedence for unroled calls; can override role)
 **Where:** `permissions.yml rules:` section. Key = tool name, value = `allow|require_approval|deny`.
-**Important:** Flat rules in `rules:` take priority over role `overrides:` (see Algorithm below). This is counterintuitive and may be a design decision to revisit.
+**Important:** Flat rules in `rules:` take priority over role `default_permission` but NOT over role `overrides:` (see Algorithm below). Role-specific overrides always win first.
 **Fallback:** `EVOKORE_SECURITY_DEFAULT_DENY=true` denies any tool not explicitly listed; else default-allow.
 
 ---
@@ -46,8 +46,8 @@ For any `checkPermission(toolName, role?)` call:
 1. effectiveRole = role ?? this.activeRole
 
 2. If effectiveRole is set AND role exists in this.roles:
-   a. If rules[toolName] exists -> return rules[toolName]   <- flat rules WIN over role
-   b. If roleDef.overrides[toolName] exists -> return it
+   a. If roleDef.overrides[toolName] exists -> return it    <- role overrides WIN first
+   b. If rules[toolName] exists -> return rules[toolName]   <- flat rules win over role default
    c. Return roleDef.default_permission
 
 3. If no role active:
@@ -58,8 +58,10 @@ For any `checkPermission(toolName, role?)` call:
 
 **Source:** `src/SecurityManager.ts:85-119`
 
-### Design note on step 2a
-Flat `rules:` entries beat role `overrides:` entries. This means a `rules: { fs_write_file: allow }` in `permissions.yml` gives everyone (including `readonly`) write access via the proxied path. Operators should be aware that `rules:` is not "per-role" but "override-everything." A future refactor should consider inverting this so roles take priority and `rules:` are truly a baseline default.
+### Design note on step 2b
+Role `overrides:` entries always win first. Flat `rules:` entries beat the role *default* (`default_permission`), but they cannot override a per-tool entry in `overrides:`. This means:
+- A `rules: { fs_write_file: deny }` in `permissions.yml` will block `fs_write_file` for roles that do NOT have it in their `overrides:` block, but will NOT override a role that explicitly grants it via `overrides: { fs_write_file: allow }`.
+- To give everyone write access regardless of role, an operator must add `fs_write_file: allow` to each role's `overrides:` explicitly (or accept that flat rules only affect roles whose `overrides:` don't mention that tool).
 
 ---
 
@@ -147,7 +149,7 @@ Client with Bearer token ->
 | G-01 | Native tool dispatch bypasses SecurityManager.checkPermission() | HIGH | `src/index.ts:664-672` |
 | G-02 | No API to set session role after creation; HTTP sessions always role=null | MED | `src/SessionIsolation.ts` |
 | G-03 | OAuth JWT claims never mapped to session role | MED | `src/auth/OAuthProvider.ts` |
-| G-04 | Flat rules: beat role overrides: in permissions.yml — unintuitive layering | LOW | `src/SecurityManager.ts:98` |
+| G-04 | Flat rules: beat role default_permission but NOT role overrides: — operators may expect flat rules to be a true baseline below all role entries | LOW | `src/SecurityManager.ts:99-102` |
 | G-05 | setActiveRole callerRole=null treated same as callerRole=undefined | LOW (style) | `src/SecurityManager.ts:160` |
 | G-06 | No precedence defined for planned features (steering modes, SOUL.md) | PLANNING | Future phases |
 
@@ -178,7 +180,7 @@ This ordering must be codified in code BEFORE implementing steering modes to pre
 
 1. **G-01 resolution:** Should native tools (skill execution, nav anchors, session analytics) be subject to RBAC? If yes, route them through `checkPermission()` at `index.ts` dispatch. If no, document explicitly and add a `readOnlyHint`-equivalent warning.
 
-2. **G-04 resolution:** Should flat `rules:` continue to beat role `overrides:`, or should role overrides take priority? This changes which value wins at step 2a/2b in the algorithm.
+2. **G-04 resolution:** Should flat `rules:` continue to beat role `default_permission` (current behavior), or should they be demoted to a true baseline that role overrides AND role defaults both win over? This changes whether step 2b in the algorithm is checked at all when a role is active.
 
 3. **Claim extraction from OAuth:** What JWT claim field carries the role? Default `role`? Custom claim? Configurable via `EVOKORE_OAUTH_ROLE_CLAIM`?
 

@@ -604,4 +604,4 @@ All four expert panels (Feasibility, Security, Architecture, Prioritization) ind
 
 2. **Security gap was real.** The Read tool bypass in damage-control was the highest-severity finding. It has been fixed in the current `.claude/settings.json` configuration.
 
-3. **Baseline numbers were wrong throughout.** The original plan understated EVOKORE's capabilities (5 tools vs 14 actual, 5 hooks vs 7 actual, 6 events vs 10 actual), which inflated the perceived gap and led to over-scoped phases. Corrected baselines reduce the integration scope by approximately 50%.
+3. **Baseline numbers were wrong throughout.** The original plan understated EVOKORE's capabilities (5 tools vs 19 actual as of 2026-04-10, 5 hooks vs 7 actual, 6 events vs 10 actual), which inflated the perceived gap and led to over-scoped phases. Corrected baselines reduce the integration scope by approximately 50%.
