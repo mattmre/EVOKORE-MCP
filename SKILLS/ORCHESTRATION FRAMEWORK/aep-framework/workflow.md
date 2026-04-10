@@ -44,6 +44,13 @@ Related documents in this skill:
    - Define PR range and time window.
    - Freeze inputs (refinement report + framework + PR list).
 
+1a. **Retrospective input** _(optional but recommended before normalization)_
+   - Run `session-retrospective-miner` for the time window matching this scope.
+   - Provides: first-productive-turn baseline, clarification loop rates, work density, sessions without commits.
+   - If narrative quality scores < 50/100 on relevant phase specs, update them before proceeding to EXECUTE.
+   - Save retrospective report to `docs/session-logs/retro-[date].md` and attach as a supplemental input.
+   - Skip this step if: scope is a bug-fix batch without phase specs, or no session data exists for the time window.
+
 2. **Discovery + normalization**
    - Orchestrator ingests the review framework and the latest refinement report.
    - Normalize all findings into a single backlog with unique IDs.
