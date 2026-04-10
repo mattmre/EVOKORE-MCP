@@ -29,6 +29,8 @@ import { FileSessionStore } from "./stores/FileSessionStore";
 import { loadAuthConfig } from "./auth/OAuthProvider";
 import { TelemetryManager } from "./TelemetryManager";
 import { TelemetryExporter } from "./TelemetryExporter";
+import { NavigationAnchorManager } from "./NavigationAnchorManager";
+import { SessionAnalyticsManager } from "./SessionAnalyticsManager";
 import { RegistryManager } from "./RegistryManager";
 import { AuditLog } from "./AuditLog";
 import { AuditExporter } from "./AuditExporter";
@@ -56,6 +58,8 @@ export class EvokoreMCPServer {
   private webhookManager: WebhookManager;
   private telemetryManager: TelemetryManager;
   private telemetryExporter: TelemetryExporter;
+  private navAnchorManager: NavigationAnchorManager;
+  private sessionAnalyticsManager: SessionAnalyticsManager;
   private registryManager: RegistryManager;
   private auditLog: AuditLog;
   private auditExporter: AuditExporter;
@@ -88,6 +92,8 @@ export class EvokoreMCPServer {
     this.proxyManager = new ProxyManager(this.securityManager, this.webhookManager);
     this.pluginManager = new PluginManager(this.webhookManager);
     this.telemetryManager = new TelemetryManager();
+    this.navAnchorManager = new NavigationAnchorManager();
+    this.sessionAnalyticsManager = new SessionAnalyticsManager();
     this.telemetryExporter = new TelemetryExporter(this.telemetryManager, {
       exportUrl: process.env.EVOKORE_TELEMETRY_EXPORT_URL,
       intervalMs: parseInt(process.env.EVOKORE_TELEMETRY_EXPORT_INTERVAL_MS || "", 10) || 60000,
@@ -144,6 +150,8 @@ export class EvokoreMCPServer {
       ...this.skillManager.getTools(),
       ...this.pluginManager.getTools(),
       ...this.telemetryManager.getTools(),
+      ...this.navAnchorManager.getTools(),
+      ...this.sessionAnalyticsManager.getTools(),
     ];
     this.toolCatalog = new ToolCatalogIndex(nativeTools, this.proxyManager.getProxiedTools());
   }
@@ -616,6 +624,10 @@ export class EvokoreMCPServer {
         source = "builtin";
       } else if (this.telemetryManager.isTelemetryTool(toolName)) {
         source = "builtin";
+      } else if (this.navAnchorManager.isNavTool(toolName)) {
+        source = "builtin";
+      } else if (this.sessionAnalyticsManager.isSessionAnalyticsTool(toolName)) {
+        source = "builtin";
       } else if (this.pluginManager.isPluginTool(toolName)) {
         source = "plugin";
       } else if (this.toolCatalog.isNativeTool(toolName)) {
@@ -642,6 +654,10 @@ export class EvokoreMCPServer {
           result = await this.handleReloadPlugins();
         } else if (this.telemetryManager.isTelemetryTool(toolName)) {
           result = await this.telemetryManager.handleToolCall(toolName);
+        } else if (this.navAnchorManager.isNavTool(toolName)) {
+          result = await this.navAnchorManager.handleToolCall(toolName, args);
+        } else if (this.sessionAnalyticsManager.isSessionAnalyticsTool(toolName)) {
+          result = await this.sessionAnalyticsManager.handleToolCall(toolName, args);
         } else if (source === "plugin") {
           result = await this.pluginManager.handleToolCall(toolName, args);
         } else if (source === "native") {
