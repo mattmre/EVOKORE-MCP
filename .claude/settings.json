@@ -46,10 +46,32 @@
                                                             "type":  "command",
                                                             "command":  "node scripts/hooks/evidence-capture.js",
                                                             "timeout":  5000
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "command":  "node scripts/hooks/after-edit.js",
+                                                            "timeout":  5000
+                                                        },
+                                                        {
+                                                            "type":  "command",
+                                                            "command":  "node scripts/hooks/subagent-tracker.js",
+                                                            "timeout":  5000
                                                         }
                                                     ]
                                       }
                                   ],
+                  "PreCompact":  [
+                                     {
+                                         "matcher":  "",
+                                         "hooks":  [
+                                                       {
+                                                           "type":  "command",
+                                                           "command":  "node scripts/hooks/pre-compact.js",
+                                                           "timeout":  10000
+                                                       }
+                                                   ]
+                                     }
+                                 ],
                   "Stop":  [
                                {
                                    "matcher":  "",
