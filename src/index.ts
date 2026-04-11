@@ -642,6 +642,55 @@ export class EvokoreMCPServer {
       try {
         this.webhookManager.emit("tool_call", { tool: toolName, source, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
 
+        // RBAC permission gate for native / builtin / plugin tools.
+        // Proxied tools are gated inside ProxyManager.callProxiedTool to
+        // avoid double-enforcement; unknown tools fall through to the
+        // MethodNotFound branch below and must not be permission-checked.
+        if (source !== "proxied" && source !== "unknown") {
+          const gateSessionId = this.getSessionId(extra);
+          const gateSession = this.sessionIsolation.getSession(gateSessionId);
+          const gateRole = gateSession?.role ?? undefined;
+          const permission = this.securityManager.checkPermission(toolName, gateRole);
+
+          if (permission === "deny") {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Execution of '${toolName}' is strictly denied by EVOKORE-MCP security policies.`
+            );
+          }
+
+          if (permission === "require_approval") {
+            const argsObj = args as Record<string, unknown>;
+            const providedToken = argsObj._evokore_approval_token as string | undefined;
+            // Always strip the token from args before the native handlers
+            // see them, regardless of whether it was present.
+            delete argsObj._evokore_approval_token;
+
+            if (!providedToken || !this.securityManager.validateToken(toolName, providedToken, argsObj)) {
+              const newToken = this.securityManager.generateToken(toolName, argsObj);
+              this.webhookManager.emit("approval_requested", {
+                tool: toolName,
+                source,
+                tokenPrefix: newToken.substring(0, 8) + "...",
+              });
+              return {
+                content: [{
+                  type: "text",
+                  text: `[EVOKORE-MCP SECURITY INTERCEPTOR] ACTION REQUIRES HUMAN APPROVAL.\n\nYou attempted to call '${toolName}'. You must stop right now and ask the user for explicit permission to execute this tool with these arguments. DO NOT proceed until they say YES.\n\nIf they approve, retry this exact same tool call but add the argument '_evokore_approval_token' with the value '${newToken}'.`,
+                }],
+                isError: true,
+              };
+            }
+
+            // Valid token: consume it and let the dispatch continue.
+            this.securityManager.consumeToken(providedToken);
+            this.webhookManager.emit("approval_granted", {
+              tool: toolName,
+              source,
+            });
+          }
+        }
+
         const callStartTime = Date.now();
         let result: CallToolResult;
 
