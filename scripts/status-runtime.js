@@ -339,6 +339,17 @@ function renderLastToolSegment(sessionState, useAnsi) {
 }
 
 /**
+ * Subagents segment: agents:N (dim). Null when count is 0.
+ */
+function renderSubagentsSegment(sessionState, useAnsi) {
+  const count = Number(
+    (sessionState && sessionState.subagents && sessionState.subagents.length) || 0
+  );
+  if (!count) return null;
+  return useAnsi ? `${DIM}agents:${count}${RESET}` : `agents:${count}`;
+}
+
+/**
  * O: session age: 16m old
  */
 function renderSessionAgeSegment(sessionState, useAnsi) {
@@ -574,6 +585,8 @@ function renderStatusLine(snapshot, options = {}) {
   line3Parts.push(`continuity ${renderContinuitySegment(snapshot.health, snapshot.sessionState, useAnsi)}`);
   const lastToolSeg = renderLastToolSegment(snapshot.sessionState, useAnsi);
   if (lastToolSeg) line3Parts.push(lastToolSeg);
+  const subagentsSeg = renderSubagentsSegment(snapshot.sessionState, useAnsi);
+  if (subagentsSeg) line3Parts.push(subagentsSeg);
   const ageSeg = renderSessionAgeSegment(snapshot.sessionState, useAnsi);
   if (ageSeg) line3Parts.push(ageSeg);
   const tokBreak = renderTokenBreakdownSegment(snapshot.context, useAnsi);
@@ -600,5 +613,6 @@ module.exports = {
   renderStatusLine,
   deriveContinuityHealth,
   parseManagedProjectState,
-  parseContext
+  parseContext,
+  renderSubagentsSegment
 };
