@@ -1,5 +1,7 @@
 # EVOKORE-MCP Developer Context & Learnings
 
+> See SOUL.md for behavioral identity. See RULES.md for declarative security policies.
+
 ## System Architecture
 - EVOKORE-MCP v3.0 acts as a Multi-Server MCP Aggregator proxying to child servers (e.g., github, fs, supabase) defined in `mcp.config.json` with a JSON-RPC router.
 - Tool-prefixing is active to prevent namespace collisions.

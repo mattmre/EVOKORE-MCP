@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "description": "Named context presets for EVOKORE-MCP session mode selection. Consumed by purpose-gate.js on session start to shape active tool surface, skill focus, and damage-control posture.",
+  "modes": {
+    "dev": {
+      "name": "dev",
+      "description": "Implementation focus: writing new features, editing existing code, running tests, and committing changes.",
+      "focus": "You are in DEV mode. Focus on implementation: read before edit, run relevant tests after changes, follow existing patterns, keep commits conventional. All write tools are enabled. Damage-control runs at normal posture. Prioritize correctness over speed.",
+      "tools": ["read", "edit", "write", "bash", "grep", "glob", "skill_resolution", "nav_anchors"],
+      "skills": ["implementation", "testing", "refactoring", "coding-reference", "workflow-templates"],
+      "damage_control_level": "normal",
+      "allow_writes": true
+    },
+    "research": {
+      "name": "research",
+      "description": "Read-only exploration: reading code, searching patterns, analyzing architecture, producing written findings without touching the working tree.",
+      "focus": "You are in RESEARCH mode. Explore and analyze: use Read, Grep, Glob, and skill search freely. Do NOT edit or write files without explicit operator confirmation. Produce findings as chat output, not committed artifacts. Prioritize thoroughness and citation over speed.",
+      "tools": ["read", "grep", "glob", "skill_resolution", "nav_anchors", "session_analytics"],
+      "skills": ["analysis", "research", "documentation-review", "architecture-discovery"],
+      "damage_control_level": "normal",
+      "allow_writes": false
+    },
+    "review": {
+      "name": "review",
+      "description": "Code review focus: inspecting diffs, validating PRs, checking CI state, leaving review comments without editing files directly.",
+      "focus": "You are in REVIEW mode. Act as the reviewer archetype: read diffs, check PR metadata, validate CI state, cite file paths and line numbers in findings. Do NOT edit files in the working tree. Use gh CLI for PR interaction. Prioritize completeness of findings over brevity.",
+      "tools": ["read", "grep", "glob", "bash", "skill_resolution"],
+      "skills": ["code-review", "pr-inspection", "security-review", "quality-gate"],
+      "damage_control_level": "normal",
+      "allow_writes": false
+    },
+    "debug": {
+      "name": "debug",
+      "description": "Diagnostic focus: systematic investigation of failures, reading logs, reproducing bugs, isolating root causes before proposing fixes.",
+      "focus": "You are in DEBUG mode. Systematic investigation: read logs under ~/.evokore/sessions/, run failing tests in isolation, use nav_read_anchor for targeted file inspection, form and test hypotheses one at a time. Prefer Read and Bash. Edit only after root cause is confirmed. Document findings as you go.",
+      "tools": ["read", "bash", "grep", "glob", "nav_anchors", "session_analytics", "get_telemetry"],
+      "skills": ["debugging", "diagnostics", "log-analysis", "test-isolation"],
+      "damage_control_level": "normal",
+      "allow_writes": true
+    },
+    "security-audit": {
+      "name": "security-audit",
+      "description": "Security focus: auditing code and configuration for vulnerabilities, checking damage-control rules, validating HITL and RBAC policies. Report-only by default.",
+      "focus": "You are in SECURITY-AUDIT mode. Damage-control is at MAXIMUM posture. Inspect code and configuration for vulnerabilities: check HITL enforcement paths, RBAC policies, webhook signature verification, timing-safe comparisons, redaction paths, and secret handling. Do NOT modify source code. Produce audit findings as a structured report. The only write allowed is to docs/audit-report-*.md files.",
+      "tools": ["read", "grep", "glob", "bash", "nav_anchors", "session_analytics"],
+      "skills": ["security-audit", "vulnerability-analysis", "rbac-inspection", "hitl-validation"],
+      "damage_control_level": "maximum",
+      "allow_writes": false
+    }
+  }
+}
