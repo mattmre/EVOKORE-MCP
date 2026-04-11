@@ -19,6 +19,7 @@
 
 import type { SessionStore } from "./SessionStore";
 import { MemorySessionStore } from "./stores/MemorySessionStore";
+import { AuditLog } from "./AuditLog";
 
 const DEFAULT_SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -248,6 +249,50 @@ export class SessionIsolation {
     if (state) {
       await this.store.set(sessionId, state);
     }
+  }
+
+  /**
+   * Update the RBAC role on an existing session.
+   *
+   * Returns true if the session exists (including as a no-op when the role is
+   * unchanged), false if the session is missing or expired. A no-op (role
+   * already matches) skips the audit write to avoid per-request spam when a
+   * JWT with a stable role claim arrives on every request.
+   *
+   * The update is persisted to the backing store on a best-effort basis; the
+   * in-memory change is still applied even if persistence fails.
+   */
+  async setSessionRole(sessionId: string, role: string | null): Promise<boolean> {
+    const state = this.sessions.get(sessionId);
+    if (!state || this.isExpired(state)) {
+      return false;
+    }
+
+    const previousRole = state.role;
+    if (previousRole === role) {
+      // No-op: avoid audit-log noise for per-request JWT refresh.
+      return true;
+    }
+
+    state.role = role;
+    state.lastAccessedAt = Date.now();
+
+    // Re-insert to keep LRU ordering coherent (Map tail = most recent).
+    this.sessions.delete(sessionId);
+    this.sessions.set(sessionId, state);
+
+    try {
+      await this.store.set(sessionId, state);
+    } catch {
+      // Persistence is best-effort; in-memory change still applies.
+    }
+
+    AuditLog.getInstance().log("config_change", "success", {
+      sessionId,
+      metadata: { action: "set_session_role", previousRole, newRole: role },
+    });
+
+    return true;
   }
 
   /**

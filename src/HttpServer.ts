@@ -521,7 +521,13 @@ export class HttpServer {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (sessionId && this.transports.has(sessionId)) {
-      // Route to existing transport
+      // Route to existing transport.
+      // Refresh the session role from the incoming JWT claim so that role
+      // changes (promotion/demotion) propagate without requiring a new
+      // MCP session. Missing claim leaves the current role untouched.
+      if (roleOverride !== undefined) {
+        await this.sessionIsolation?.setSessionRole(sessionId, roleOverride);
+      }
       const transport = this.transports.get(sessionId)!;
       await transport.handleRequest(req, res);
       return;
@@ -533,6 +539,11 @@ export class HttpServer {
         try {
           const loaded = await this.sessionIsolation.loadSession(sessionId);
           if (loaded) {
+            // Apply the latest JWT role claim to the rehydrated session
+            // (if present) so reattach does not pin the persisted role.
+            if (roleOverride !== undefined) {
+              await this.sessionIsolation.setSessionRole(sessionId, roleOverride);
+            }
             // Recreate a transport bound to the recovered session ID
             const reattachedTransport = new StreamableHTTPServerTransport({
               sessionIdGenerator: () => sessionId,
