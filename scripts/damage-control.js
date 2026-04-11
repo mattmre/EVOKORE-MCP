@@ -9,7 +9,77 @@ const { writeHookEvent } = require('./hook-observability');
 const { rotateIfNeeded } = require('./log-rotation');
 
 const RULES_PATH = path.resolve(__dirname, '..', 'damage-control-rules.yaml');
+const RULES_MD_PATH = path.resolve(__dirname, '..', 'RULES.md');
 const LOGS_DIR = path.join(os.homedir(), '.evokore', 'logs');
+
+// ---------------------------------------------------------------------------
+// ECC Phase 1: RULES.md intent enrichment
+// Loads the declarative RULES.md document and extracts per-section Intent
+// paragraphs so damage-control reasons can cite the governing policy. Fail
+// open on any read/parse error — never block the damage-control flow.
+// ---------------------------------------------------------------------------
+function loadRulesIntent() {
+  try {
+    const raw = fs.readFileSync(RULES_MD_PATH, 'utf8');
+    const mapping = {};
+    const sectionPatterns = [
+      { key: 'file_access', header: '## 1. File Access Policies' },
+      { key: 'tool_restrictions', header: '## 2. Tool Restrictions' },
+      { key: 'commit_policies', header: '## 3. Commit Policies' },
+      { key: 'session_policies', header: '## 4. Session Policies' },
+      { key: 'escalation_policies', header: '## 5. Escalation Policies' },
+    ];
+    for (let i = 0; i < sectionPatterns.length; i++) {
+      const { key, header } = sectionPatterns[i];
+      const nextHeader = sectionPatterns[i + 1] ? sectionPatterns[i + 1].header : null;
+      const escapedHeader = header.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escapedNext = nextHeader ? nextHeader.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : null;
+      const pattern = escapedNext
+        ? new RegExp(escapedHeader + '\\s*\\n([\\s\\S]*?)\\n' + escapedNext)
+        : new RegExp(escapedHeader + '\\s*\\n([\\s\\S]*)$');
+      const match = raw.match(pattern);
+      if (match) {
+        const intentMatch = match[1].match(/\*\*Intent:\*\*\s*([^\n]+)/);
+        mapping[key] = intentMatch ? intentMatch[1].trim() : '';
+      }
+    }
+    return mapping;
+  } catch {
+    return {}; // fail open — never block damage-control flow
+  }
+}
+
+function enrichReasonWithRules(reason, ruleType, rulesIntent) {
+  if (!rulesIntent || !reason) return reason;
+  const sectionMap = {
+    dangerous_commands: '§2 Tool Restrictions / §3 Commit Policies',
+    zero_access_paths: '§1 File Access Policies',
+    read_only_paths: '§1 File Access Policies',
+    no_delete_paths: '§1 File Access Policies',
+    scope_boundary: '§4 Session Policies',
+  };
+  const section = sectionMap[ruleType];
+  if (!section) return reason;
+  return `${reason} (See RULES.md ${section})`;
+}
+
+module.exports = { loadRulesIntent, enrichReasonWithRules };
+
+// The stdin hook loop only runs when invoked as a script — either directly
+// (`node scripts/damage-control.js`) or through the canonical fail-safe
+// wrapper (`node scripts/hooks/damage-control.js`). Tests `require()` this
+// module to exercise the exported helpers and must not attach stdin
+// listeners that could consume the worker's stdin and trigger a mid-test
+// fail-open exit.
+const __dcMainFilename = (require.main && require.main.filename) ? require.main.filename : '';
+const __dcMainBase = path.basename(__dcMainFilename);
+const __dcIsDirectInvocation =
+  require.main === module ||
+  (__dcMainBase === 'damage-control.js' && path.basename(path.dirname(__dcMainFilename)) === 'hooks');
+
+if (!__dcIsDirectInvocation) {
+  return;
+}
 
 function ensureLogsDir() {
   if (!fs.existsSync(LOGS_DIR)) {
@@ -129,6 +199,9 @@ process.stdin.on('end', () => {
       process.exit(0); // Fail open
     }
 
+    // ECC Phase 1: enrich reasons with RULES.md section citations (fail open)
+    const rulesIntent = loadRulesIntent();
+
     payload = JSON.parse(input);
     toolName = payload.tool_name || '';
     toolInput = payload.tool_input || {};
@@ -141,7 +214,7 @@ process.stdin.on('end', () => {
         try {
           const re = new RegExp(rule.pattern, 'i');
           if (re.test(cmd)) {
-            const reason = rule.reason || 'Dangerous command blocked';
+            const reason = enrichReasonWithRules(rule.reason || 'Dangerous command blocked', 'dangerous_commands', rulesIntent);
             logViolation({ type: 'dangerous_command', tool: toolName, command: cmd.slice(0, 200), reason, rule_id: rule.id });
 
             if (rule.ask) {
@@ -165,7 +238,7 @@ process.stdin.on('end', () => {
     if (rules.zero_access_paths) {
       const check = checkPathList(filePaths, rules.zero_access_paths);
       if (check.matched) {
-        const reason = `Access to sensitive path denied: ${check.rule}`;
+        const reason = enrichReasonWithRules(`Access to sensitive path denied: ${check.rule}`, 'zero_access_paths', rulesIntent);
         logViolation({ type: 'zero_access', tool: toolName, path: check.path, reason, rule_id: 'zero_access' });
         emit('block', { reason, path: check.path, rule: check.rule, type: 'zero_access' });
         process.stderr.write(`DAMAGE CONTROL BLOCKED: ${reason}\n`);
@@ -177,7 +250,7 @@ process.stdin.on('end', () => {
     if ((toolName === 'Edit' || toolName === 'Write') && rules.read_only_paths) {
       const check = checkPathList(filePaths, rules.read_only_paths);
       if (check.matched) {
-        const reason = `Write to read-only path denied: ${check.rule}`;
+        const reason = enrichReasonWithRules(`Write to read-only path denied: ${check.rule}`, 'read_only_paths', rulesIntent);
         logViolation({ type: 'read_only', tool: toolName, path: check.path, reason, rule_id: 'read_only' });
         emit('block', { reason, path: check.path, rule: check.rule, type: 'read_only' });
         process.stderr.write(`DAMAGE CONTROL BLOCKED: ${reason}\n`);
@@ -191,7 +264,7 @@ process.stdin.on('end', () => {
       if (/\b(rm|del|remove|unlink)\b/i.test(cmd)) {
         const check = checkPathList(filePaths, rules.no_delete_paths);
         if (check.matched) {
-          const reason = `Deletion of protected file denied: ${check.rule}`;
+          const reason = enrichReasonWithRules(`Deletion of protected file denied: ${check.rule}`, 'no_delete_paths', rulesIntent);
           logViolation({ type: 'no_delete', tool: toolName, path: check.path, reason, rule_id: 'no_delete' });
           emit('block', { reason, path: check.path, rule: check.rule, type: 'no_delete' });
           process.stderr.write(`DAMAGE CONTROL BLOCKED: ${reason}\n`);
@@ -242,7 +315,7 @@ process.stdin.on('end', () => {
                       // Increment rate limit counter and save
                       purposeState.scope_boundary_asks = scopeAsks + 1;
                       fs.writeFileSync(purposeFile, JSON.stringify(purposeState, null, 2));
-                      const reason = `File "${fp}" appears outside session scope ("${purposeState.purpose.slice(0, 80)}")`;
+                      const reason = enrichReasonWithRules(`File "${fp}" appears outside session scope ("${purposeState.purpose.slice(0, 80)}")`, 'scope_boundary', rulesIntent);
                       logViolation({ type: 'scope_boundary', tool: toolName, path: fp, reason, rule_id: 'scope_boundary' });
                       emit('ask', { reason, path: fp, type: 'scope_boundary' });
                       console.log(JSON.stringify({ decision: 'ask', reason: `SCOPE WARNING: ${reason}` }));
