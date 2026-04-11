@@ -1,0 +1,100 @@
+{
+  "$schema": "./schemas/agent.schema.json",
+  "name": "loop-operator",
+  "version": "1.0.0",
+  "role": "orchestrator",
+  "description": "Meta-agent that monitors running agents for degenerate iteration patterns and intervenes with change-approach, escalation, or termination when loops are detected.",
+  "agent_id": "AGT-013",
+  "status": "active",
+  "capabilities": ["orchestration", "file-read", "api-calls", "validation"],
+  "spec_capabilities": ["P-03", "P-04", "V-03", "V-05"],
+  "governance": {
+    "scope": "full-system",
+    "commands": "none",
+    "network": "internal",
+    "approval_required": ["terminate"]
+  },
+  "ownership": {
+    "owner": "platform-team",
+    "escalation_target": "human-operator"
+  },
+  "inputs": {
+    "session_id": {
+      "type": "string",
+      "description": "Session ID to monitor for degenerate agent patterns",
+      "required": true
+    },
+    "error_threshold": {
+      "type": "number",
+      "description": "Number of identical errors before declaring a degenerate loop. Default: 3",
+      "required": false
+    },
+    "stall_window_ms": {
+      "type": "number",
+      "description": "Milliseconds without progress before declaring a stalled agent. Default: 600000 (10 minutes)",
+      "required": false
+    }
+  },
+  "outputs": {
+    "is_degenerate": {
+      "type": "boolean",
+      "description": "Whether a degenerate loop was detected"
+    },
+    "pattern": {
+      "type": "string",
+      "description": "Pattern type: repeated-error | stalled | null"
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "Intervention: change-approach | escalate | terminate | null"
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Agent IDs (SA-NNN) contributing to the detected pattern"
+    },
+    "count": {
+      "type": "number",
+      "description": "Number of degenerate events observed"
+    }
+  },
+  "dependencies": [],
+  "loop_detection": {
+    "patterns": [
+      {
+        "id": "repeated-error",
+        "description": "Same error description repeated more than error_threshold times in recent history",
+        "trigger": "error_count > error_threshold",
+        "escalation_ladder": ["change-approach", "terminate"]
+      },
+      {
+        "id": "stalled",
+        "description": "All recent agent calls within stall_window_ms returned errors with no successful completion",
+        "trigger": "all_recent_errors AND count >= 2",
+        "escalation_ladder": ["escalate"]
+      }
+    ],
+    "lookback_count": 20,
+    "intervention_options": {
+      "change-approach": "Instruct the failing agent to try a different implementation strategy. Does not require human approval.",
+      "escalate": "Pause the agent and notify the human operator via session manifest + hook event. Requires human review.",
+      "terminate": "Stop the agent immediately. Requires explicit human approval (listed in governance.approval_required)."
+    }
+  },
+  "prompts": {
+    "system": "prompts/loop-operator/system.md",
+    "user": "prompts/loop-operator/user.md",
+    "examples": []
+  },
+  "constraints": {
+    "max_tokens": 4096,
+    "timeout_seconds": 30,
+    "max_retries": 1,
+    "parallel_allowed": true
+  },
+  "metadata": {
+    "author": "evokore-platform",
+    "created": "2026-04-11",
+    "updated": "2026-04-11",
+    "tags": ["meta-agent", "monitoring", "loop-detection", "orchestration", "ecc-phase3"]
+  }
+}
