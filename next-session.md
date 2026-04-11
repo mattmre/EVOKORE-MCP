@@ -1,122 +1,129 @@
 # Next Session Priorities
 
-Last Updated (UTC): 2026-04-10
+Last Updated (UTC): 2026-04-11
 
 ## Current Handoff State
 - **Active branch:** `main` (clean — all PRs merged)
-- **HEAD:** `e62cbb2`
+- **HEAD:** `60a7236` (feat: ECC Phase 3 Loop Operator)
 - **Open PRs:** None
 - **Worktrees:** Root checkout only
 
-## THIS SESSION: Session 10 — Full Roadmap Execution (2026-04-10)
+## THIS SESSION: Session 11 — ECC Phases 0–3 + Phase 4 Research (2026-04-11)
 
 ### PRs Merged This Session
-- PR #237 (docs/ecc-tier1 — ECC Tier 1: claims verification [12], authority design [C4], AC template [9]), merged `de889b4`
-- PR #238 (feat/retrospective-skills-phase-b — Phase B skills: session-retrospective-miner + narrative-quality-scorer), merged `e62cbb2`
-- PR #235 (feat/token-efficiency-tools — Track A: nav anchors + session analytics), merged in prior session
-- PR #236 (fix/phase-5c-med-batch — REL-01/03, SEC-02, PERF-03, TS-04, API-02/03), merged in prior session
+- PR #239 (`fix/rbac-session-gaps` — G-01/G-02/G-03: native tool RBAC gate, setSessionRole, OAuth JWT claim reapply)
+- PR #240 (`fix/lockfile-sync` — CI `npm ci --legacy-peer-deps` pre-existing failure)
+- PR #241 (`feat/retrospective-skills-phase-c` — phase-spec-optimizer + cross-project-process-miner skills)
+- PR #242 (`feat/ecc-phase-0` — SOUL.md + RULES.md + steering-modes.json)
+- PR #243 (`feat/ecc-phase-1` — purpose-gate SOUL values + steering mode injection; damage-control RULES.md enrichment)
+- PR #244 (`feat/ecc-phase-2` — after-edit, subagent-tracker, pre-compact hooks + status-runtime subagent segment)
+- PR #245 (`feat/ecc-phase-3` — AGT-013 Loop Operator archetype + scripts/loop-operator.js detection engine)
 
 ### Key Decisions This Session
-- **docs/authority-precedence-design.md**: Algorithm fixed — role overrides come FIRST (not flat rules), then flat rules, then role default. G-04 reframed: flat rules beat role *defaults* not role *overrides*.
-- **Track C [12]**: 10 ECC claims verified — 8 confirmed, 1 stale (tool count 14→19), 1 soft (skill count). M-01/M-02 fixed; M-03–M-08 follow-up debt.
-- **Track C [C4]**: `docs/authority-precedence-design.md` created — full authority precedence design with gaps G-01 through G-06. G-01 (HIGH: native tool dispatch bypasses RBAC) and G-02/G-03 remain open.
-- **Track C [9]**: `docs/templates/phase-acceptance-criteria.md` created — AC-N.M IDs, verification column, non-goals, dependencies, kill criteria, PR slicing.
-- **Track D Phase B**: `session-retrospective-miner` and `narrative-quality-scorer` skills created in SKILLS/ORCHESTRATION FRAMEWORK/. improvement-cycles Phase 1 now has automated path. AEP Align phase has step 1a Retrospective input.
-- **CLAUDE.md**: Native tool count corrected to 19 (was 14), NavigationAnchorManager/SessionAnalyticsManager bullets moved to v3.0 Runtime Additions section.
+- **G-01 (RBAC gate):** Added gate in `src/index.ts` before native dispatch ladder, excluding `source === "proxied"` and `source === "unknown"`. Uses `SecurityManager.checkPermission(toolName, sessionRole)`.
+- **G-02 (setSessionRole):** Added `async setSessionRole(sessionId, role)` to `SessionIsolation.ts` with LRU-safe re-insert and audit logging.
+- **G-03 (JWT role reapply):** `HttpServer.ts` now calls `setSessionRole` on both the existing-session routing path and the session-reattach path.
+- **ECC Phase 0:** SOUL.md + RULES.md + steering-modes.json (5 modes: dev/research/review/debug/security-audit) created. CLAUDE.md updated with preamble.
+- **ECC Phase 1:** purpose-gate.js reads SOUL.md values + steering-modes.json, selects mode by keyword-precedence, persists mode in session manifest, injects SOUL values + mode focus into context. damage-control.js reads RULES.md for reason enrichment.
+- **ECC Phase 2:** Three new hooks wired: after-edit (PostToolUse, logs edit-trace evidence), subagent-tracker (PostToolUse, maintains SA-NNN records in manifest), pre-compact (PreCompact, dumps state sidecar). status-runtime.js gets `renderSubagentsSegment`.
+- **ECC Phase 3:** `SKILLS/ORCHESTRATION FRAMEWORK/agent-archetypes/AGT-013-loop-operator.json` + `scripts/loop-operator.js` (pure `detectLoop()` + async `checkSession()`). Detection: repeated-error (same description > 3×) → change-approach/terminate; stalled (all recent errors within 10 min window) → escalate.
+- **ECC Phase 4 Research:** Full spike plan saved to `docs/research/ecc-phase4-spike-plan-2026-04-11.md`. Implementer agent interrupted at tool use boundary — research complete, no code written yet.
 
 ---
 
-## PHASE STATUS (as of 2026-04-10)
+## PHASE STATUS (as of 2026-04-11)
 
-### Track A — COMPLETE (PR #235): 5 new MCP tools
-- nav_get_map, nav_read_anchor (NavigationAnchorManager)
-- session_context_health, session_analyze_replay, session_work_ratio (SessionAnalyticsManager)
+### ECC Phase 0 — COMPLETE (PR #242)
+- SOUL.md, RULES.md, steering-modes.json (5 modes)
 
-### Track B — COMPLETE (PR #236): 7 expert-review findings
-- REL-01 (transport close race), REL-03 (sync reconnect), SEC-02 (setActiveRole gate)
-- PERF-03 (AuditLog tail read), TS-04 (CallToolResult typing), API-02 (session-not-found JSON-RPC), API-03 (discover_tools annotation)
+### ECC Phase 1 — COMPLETE (PR #243)
+- purpose-gate: SOUL values + steering mode injection
+- damage-control: RULES.md reason enrichment
 
-### Track C — COMPLETE (PR #237): ECC Tier 1
-- [12] Claims re-verification: 8/10 confirmed, 1 stale fixed, 1 soft
-- [C4] Authority precedence design doc
-- [9] Phase acceptance criteria template
+### ECC Phase 2 — COMPLETE (PR #244)
+- after-edit hook, subagent-tracker hook, pre-compact hook
+- status-runtime subagent segment
 
-### Track D — COMPLETE (PR #238): Retrospective skills Phase B
-- session-retrospective-miner, narrative-quality-scorer
-- improvement-cycles Phase 1 automated, AEP Align step 1a added
+### ECC Phase 3 — COMPLETE (PR #245)
+- AGT-013-loop-operator.json archetype
+- scripts/loop-operator.js detection engine (detectLoop + checkSession)
+- tests/integration/ecc-phase3-loop-operator.test.ts (19 tests)
+
+### ECC Phase 4 — PENDING (research complete)
+- Research: `docs/research/ecc-phase4-spike-plan-2026-04-11.md`
+- To implement: `scripts/eval-harness.js`, `scripts/pattern-extractor.js`, `tests/helpers/synth-evidence.ts`, `tests/integration/ecc-phase4-spike.test.ts`
+- Branch: `feat/ecc-phase-4-spike`
+
+### RBAC Gaps — COMPLETE (PR #239)
+- G-01 native tool RBAC gate, G-02 setSessionRole, G-03 JWT claim reapply
+
+### Track D Phase C — COMPLETE (PR #241)
+- phase-spec-optimizer, cross-project-process-miner
 
 ---
 
 ## NEXT SESSION: Recommended Priorities
 
-### 1. Remaining MED findings from 2026-04-04 review (deferred from Track B)
+### 1. ECC Phase 4 Spike (highest priority — research ready)
 
-From `docs/research/repo-review-2026-04-04.md` — these were not in the Phase 5C batch:
+All research is in `docs/research/ecc-phase4-spike-plan-2026-04-11.md`. This is a direct implementation task.
 
-| ID | File | Summary | Effort |
-|---|---|---|---|
-| G-01 | src/index.ts | Native tool dispatch bypasses SecurityManager.checkPermission() — HIGH gap from authority-precedence-design.md | HIGH |
-| G-02 | src/SessionIsolation.ts | No API to set session role; HTTP sessions always role=null | MED |
-| G-03 | src/auth/OAuthProvider.ts | OAuth JWT claims never mapped to session role | MED |
-
-These three gaps were documented in `docs/authority-precedence-design.md` this session. G-01 is HIGH severity. Recommend addressing in one PR: `fix/rbac-session-gaps`.
-
-### 2. ECC Cascade Tier 1 — remaining items (unblocked since Tier 0 complete)
-
-From `docs/research/ecc-cascade-feasibility-panel-2026-03-30.md`:
-- [12] Re-verify ECC claims → DONE this session (Track C)
-- [C4] Authority precedence design doc → DONE this session (Track C)
-- [9] Acceptance criteria per phase → DONE this session (Track C)
-
-**Tier 1 is complete.** Move to Tier 2 when ready.
-
-### 3. Track D Phase C (if Phase B validated)
-
-From `docs/session-retrospective-plan.md`:
-- `phase-spec-optimizer` skill — analyzes batch of phase specs against session outcomes, produces template diff
-- `cross-project-process-miner` skill — finds patterns across 3+ repos, feeds global CLAUDE.md improvements
+Files to create:
+- `tests/helpers/synth-evidence.ts` — fixture builders (buildEvidenceJsonl, buildReplayJsonl, buildTasksJson, buildManifest, buildSuccessfulSession, buildNoisySession)
+- `scripts/eval-harness.js` — single-session evaluator (< 150 lines, readline + fs, no external deps)
+- `scripts/pattern-extractor.js` — multi-session pattern engine, 5 patterns (PAT-001 through PAT-005), Laplace-smoothed confidence, precision gate ≥ 70%
+- `tests/integration/ecc-phase4-spike.test.ts` — 20 vitest tests
 
 Start prompt:
-> "Load docs/session-retrospective-plan.md Phase C. Create phase-spec-optimizer in SKILLS/GENERAL CODING WORKFLOWS/ and cross-project-process-miner in SKILLS/ORCHESTRATION FRAMEWORK/. These build on the Phase B skills (session-retrospective-miner, narrative-quality-scorer) already created. Branch: feat/retrospective-skills-phase-c."
+> "Load docs/research/ecc-phase4-spike-plan-2026-04-11.md. Implement ECC Phase 4 spike: scripts/eval-harness.js, scripts/pattern-extractor.js, tests/helpers/synth-evidence.ts, tests/integration/ecc-phase4-spike.test.ts. Branch: feat/ecc-phase-4-spike. No new npm deps. See the research doc for the exact implementation spec."
 
-### 4. Track D Phase D — Apply to Claudius Maximus
+### 2. npm publish v3.1.0 (blocked: NPM_TOKEN)
 
-After Phase C skills exist:
-- Run session-retrospective-miner on completed Claudius Maximus phase sessions
-- Run phase-spec-optimizer on remaining unstarted phase specs
-- Update Claudius Maximus/CLAUDE.md with findings
-- Update Claudius Maximus/04-planning/ phase spec template
+The v3.1.0 git tag and GitHub release exist but npm publish was never completed. `npm view evokore-mcp version` returns 404.
 
-### 5. v3.1.0 npm publish gap
+Requires NPM_TOKEN to be set in GitHub Actions secrets or local env before running:
+```
+npm run release:preflight
+npm publish
+```
 
-From previous sessions:
-- v3.1.0 git tag and GitHub release exist but npm publish was never completed (NPM_TOKEN missing)
-- `npm view evokore-mcp version` returns 404 — package is not on npm
-- Requires: confirm NPM_TOKEN is set, then `npm run release:preflight` and publish
+### 3. ECC Phase 5–6: Commands and Skills (after Phase 4 spike verdict)
+
+From ECC-INTEGRATION-PLAN.md: 10 command skills (`/tdd`, `/verify`, `/quality-gate`, `/context-budget`, `/compact`, `/session-save`, `/session-resume`, `/handoff`, `/loop-start`, `/fleet-status`). Each maps to a skill markdown file in `SKILLS/`.
+
+### 4. ECC Phase 7: Plugin Manifest (declarative plugin.json)
+
+Migrate `PluginManager.ts` to load `plugin.json` manifests. Backwards-compatible with existing imperative plugins.
+
+### 5. ECC Phase 8: CI/CD (reusable workflows + commitlint)
+
+Reusable GitHub Actions workflows (test, lint, security, release), commitlint config, automated changelog.
 
 ---
 
 ## How to Start Next Session
 
-Option A — RBAC session gaps (G-01/G-02/G-03, HIGH priority):
-> "Load next-session.md and docs/authority-precedence-design.md. Fix the three RBAC gaps: G-01 (native tool dispatch bypasses SecurityManager.checkPermission at src/index.ts:664-672), G-02 (add setSessionRole API to SessionIsolation), G-03 (OAuth JWT claim extraction into session role). Branch: fix/rbac-session-gaps."
+**Option A — ECC Phase 4 Spike (recommended):**
+> "Load next-session.md and docs/research/ecc-phase4-spike-plan-2026-04-11.md. Implement ECC Phase 4 spike: scripts/eval-harness.js + scripts/pattern-extractor.js + tests/helpers/synth-evidence.ts + tests/integration/ecc-phase4-spike.test.ts. Branch: feat/ecc-phase-4-spike. No new npm deps. Standard PR + merge flow."
 
-Option B — Track D Phase C (retrospective skills):
-> "Load docs/session-retrospective-plan.md Phase C. Implement phase-spec-optimizer and cross-project-process-miner skills. Branch: feat/retrospective-skills-phase-c."
+**Option B — Session wrap only:**
+> "Load next-session.md. Run session-retrospective-miner on this session. Update CLAUDE.md if any new patterns emerged. Confirm all PRs from this session are merged."
 
-Option C — Claudius Maximus Phase D application:
-> "Run session-retrospective-miner on the Claudius Maximus project. Read docs/session-retrospective-plan.md Phase D. Apply findings to update CLAUDE.md and phase spec template."
+**Option C — npm publish:**
+> "Load next-session.md. Confirm NPM_TOKEN is set, then run npm run release:preflight and npm publish for v3.1.0. Document the result."
 
 ---
 
 ## Guardrails (carry forward)
 - `.commit-msg.txt` + `git commit -F` (not heredocs)
 - DC-01 catches `rm -f` — use `unlink` for single-file deletion
-- File writes in shell: `node -e "require('fs').writeFileSync(...)"`  — or use Write tool (preferred)
-- PR body with sensitive path substring: use `--body-file` with temp file
+- File writes in shell: use Write tool (preferred) or `node -e "require('fs').writeFileSync(...)"`
+- PR body with `.env` substring: use `--body-file` with temp file
 - New `EVOKORE_*` env vars → add to example config in same PR (CI shard 3)
 - `npx vitest run` locally before pushing
 - Merge PRs sequentially (not batch); rebase if parallel agents touch same files
 - Research → `docs/research/` per stage
 - `EVOKORE_HTTP_ALLOW_PRIVATE=true` needed for tests that start local HTTP servers
 - Native tool count is now **19** (not 14): 11 SkillManager + 2 TelemetryManager + 1 PluginManager + 2 NavigationAnchorManager + 3 SessionAnalyticsManager
+- Pre-existing CI failures (NOT our bugs): Dependency CVE Scan (always fails), `flushToDisk writes metrics to file` in telemetry-manager.test.ts (flaky shard 2 — SyntaxError: Unexpected end of JSON input). Safe to merge when Build + TypeCheck + Windows + shards 1/3 pass.
+- Squash merge branch cleanup: use `git branch -D` (force) — squash-merged branches are not git ancestors of main
