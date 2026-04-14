@@ -97,6 +97,8 @@ If you want a live registry snapshot after startup, call `proxy_server_status`.
 - Confirm values are available in the same shell/session used to start your MCP host.
 - Restart EVOKORE after updating env vars.
 
+Disabled child servers are skipped before placeholder resolution. If you want an optional local integration to stay dormant until the machine-specific paths are ready, leave `"disabled": true`.
+
 ## 10. HITL Token Retry Keeps Failing (`_evokore_approval_token`)
 **Symptoms:** You retry a `require_approval` tool call and still get the security interceptor error.
 
@@ -144,6 +146,14 @@ Get-Content "$HOME\.evokore\logs\hooks.jsonl" |
 - Verify `uv --version` and `uvx --version` in the same shell used to launch your MCP host.
 - Ensure the configured command in `mcp.config.json` matches a command available on PATH.
 - Use `npx`-based child configs only when that command is intentionally required.
+
+If you are booting local reverse-engineering child servers, also verify the resolved Python interpreter path and repo working directory:
+
+- `EVOKORE_RE_GHIDRA_HEADLESS_PYTHON` + `EVOKORE_RE_GHIDRA_HEADLESS_REPO`
+- `EVOKORE_RE_REVA_PYTHON` + `EVOKORE_RE_REVA_REPO`
+- `EVOKORE_RE_BINARY_MCP_PYTHON` + `EVOKORE_RE_BINARY_MCP_REPO`
+
+EVOKORE now passes the configured `cwd` through to stdio child launches, so a bad repo path can break `python -m ...` startup even when the interpreter path is valid.
 
 ## 13. CI Fails on Submodule Cleanliness Validation
 **Symptoms:** CI fails on `node scripts/validate-submodule-cleanliness.js`.
@@ -217,4 +227,3 @@ git branch -r
 ```
 
 Then delete only the still-present remote branches that remain explicitly accounted for. Do not treat the initial failure as evidence of a repo problem by itself.
-

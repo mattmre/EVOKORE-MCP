@@ -29,7 +29,7 @@ export interface FileSessionStoreOptions {
 export class FileSessionStore implements SessionStore {
   private directory: string;
   private initialized: boolean = false;
-  private writeChains: Map<string, Promise<void>> = new Map();
+  private fileOps: Map<string, Promise<void>> = new Map();
 
   constructor(options?: FileSessionStoreOptions) {
     this.directory = options?.directory ?? DEFAULT_STORE_DIR;
@@ -55,8 +55,33 @@ export class FileSessionStore implements SessionStore {
     return `${filePath}.${uniqueSuffix}.tmp`;
   }
 
+  private async waitForPendingFileOp(filePath: string): Promise<void> {
+    const pending = this.fileOps.get(filePath);
+    if (pending) {
+      await pending.catch(() => {});
+    }
+  }
+
+  private async queueFileOp(filePath: string, operation: () => Promise<void>): Promise<void> {
+    const previous = this.fileOps.get(filePath) ?? Promise.resolve();
+    const current = previous
+      .catch(() => {})
+      .then(operation);
+
+    this.fileOps.set(filePath, current);
+
+    try {
+      await current;
+    } finally {
+      if (this.fileOps.get(filePath) === current) {
+        this.fileOps.delete(filePath);
+      }
+    }
+  }
+
   async get(sessionId: string): Promise<SessionState | undefined> {
     const filePath = this.sessionFilePath(sessionId);
+    await this.waitForPendingFileOp(filePath);
     try {
       const content = await fs.readFile(filePath, "utf-8");
       const data = JSON.parse(content);
@@ -70,47 +95,32 @@ export class FileSessionStore implements SessionStore {
   }
 
   async set(sessionId: string, state: SessionState): Promise<void> {
-    await this.ensureDir();
     const filePath = this.sessionFilePath(sessionId);
     const serialized = serializeSessionState(state);
     const content = JSON.stringify(serialized, null, 2);
 
-    const writeOperation = async (): Promise<void> => {
+    await this.queueFileOp(filePath, async () => {
+      await this.ensureDir();
       // Use a unique temp file per write so overlapping persists do not race on the same .tmp path.
       const tmpPath = this.tempFilePath(filePath);
       await fs.writeFile(tmpPath, content, "utf-8");
       await fs.rename(tmpPath, filePath);
-    };
-
-    const previousWrite = this.writeChains.get(filePath) ?? Promise.resolve();
-    const currentWrite = previousWrite
-      .catch(() => {})
-      .then(writeOperation);
-
-    this.writeChains.set(filePath, currentWrite);
-
-    try {
-      await currentWrite;
-    } finally {
-      if (this.writeChains.get(filePath) === currentWrite) {
-        this.writeChains.delete(filePath);
-      }
-    }
+    });
   }
 
   async delete(sessionId: string): Promise<void> {
     const filePath = this.sessionFilePath(sessionId);
-    try {
-      await fs.unlink(filePath);
-    } catch (err: any) {
-      if (err.code === "ENOENT") {
-        // Already gone, that is fine
-      } else {
+    await this.queueFileOp(filePath, async () => {
+      try {
+        await fs.unlink(filePath);
+      } catch (err: any) {
+        if (err.code === "ENOENT") {
+          // Already gone, that is fine
+          return;
+        }
         throw err;
       }
-    } finally {
-      this.writeChains.delete(filePath);
-    }
+    });
   }
 
   async list(): Promise<string[]> {
@@ -149,12 +159,14 @@ export class FileSessionStore implements SessionStore {
 
       const filePath = path.join(this.directory, entry);
       try {
-        const content = await fs.readFile(filePath, "utf-8");
-        const data = JSON.parse(content);
-        if ((now - data.lastAccessedAt) > maxAgeMs) {
-          await fs.unlink(filePath);
-          removed++;
-        }
+        await this.queueFileOp(filePath, async () => {
+          const content = await fs.readFile(filePath, "utf-8");
+          const data = JSON.parse(content);
+          if ((now - data.lastAccessedAt) > maxAgeMs) {
+            await fs.unlink(filePath);
+            removed++;
+          }
+        });
       } catch {
         // Skip files that cannot be read or parsed
       }

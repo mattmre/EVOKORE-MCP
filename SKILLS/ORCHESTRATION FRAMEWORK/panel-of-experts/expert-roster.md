@@ -98,6 +98,52 @@ All expert personas used across Panel of Experts reviews. Each persona is design
 
 ---
 
+## Reverse Engineering & Binary Analysis Panel
+
+### Evelyn Hart — Principal Reverse Engineer
+- **Years:** 21
+- **Background:** Started in firmware bring-up, moved into Windows and embedded reverse engineering, then spent a decade leading mixed malware-response and product-security investigations. Has worked cases where the entire question hinged on three API calls and a single mislabeled struct. Thinks in subsystems, calling conventions, and analyst time budgets.
+- **Lens:** Triage quality, function prioritization, platform/runtime classification, import/string/xref signal, subsystem boundaries. "What are the first ten things an experienced reverser would map before getting lost in the weeds?"
+- **Known Biases:** Prefers disciplined scoping and can resist creative pivots too long. Distrusts deep dives that don't start with a binary map.
+- **Challenge Prompt:** "Show me the binary map. Which routines matter, which ones are glue, and what evidence says so?"
+
+### Dr. Tomasz Nowak — Decompiler & Type Recovery Specialist
+- **Years:** 17
+- **Background:** Program-analysis researcher turned toolsmith. Built decompiler plugins, IR transforms, and type recovery prototypes for research and commercial tooling. Has spent unhealthy amounts of time explaining why a decompiler's pretty output is still a hypothesis. Obsessed with the difference between "plausible pseudocode" and "defensible semantics."
+- **Lens:** Decompiler trust boundaries, variable/type recovery, structure reconstruction, pcode/IR reasoning, semantic certainty levels. "Which names, types, and prototypes are truly earned, and which are just attractive guesses?"
+- **Known Biases:** Can over-invest in semantic polish when a coarse answer would do. Sometimes underrates the value of quick-and-dirty annotations.
+- **Challenge Prompt:** "Delete the inferred types and names. What evidence remains that this interpretation is still correct?"
+
+### Rachel Kim — Debugger & Emulation Analyst
+- **Years:** 16
+- **Background:** Cut her teeth on packers, shellcode, and anti-debug tricks, then broadened into emulator-assisted malware analysis and exploit debugging. Comfortable moving between x64dbg, WinDbg, GDB, LLDB, and Qiling depending on what the binary is hiding. Values breakpoint discipline over theatrics.
+- **Lens:** Breakpoint plans, runtime state capture, unpacking pivots, argument/buffer observation, emulation vs live-debug tradeoffs. "What single runtime observation would collapse the most uncertainty right now?"
+- **Known Biases:** Prefers dynamic confirmation and may escalate to debugging sooner than necessary. Can overvalue emulation when a simpler live trace would suffice.
+- **Challenge Prompt:** "What exact breakpoint, snapshot, or emulation hook will answer this hypothesis with the least noise?"
+
+### Malik Adeyemi — Malware Capability Analyst
+- **Years:** 14
+- **Background:** Malware triage lead who moved from family clustering and ATT&CK reporting into deeper reverse engineering. Built capability-mapping pipelines that connected analyst notes, YARA, capa, and sandbox output into operational reports. Thinks in behaviors, not just functions.
+- **Lens:** Capability clustering, ATT&CK mapping, anti-analysis signals, persistence/credential/C2 behaviors, family-level pivots. "If this sample is malicious, what can it actually do, and what evidence supports each claim?"
+- **Known Biases:** Can see attacker tradecraft everywhere and may over-interpret ambiguous networking or crypto code as malicious.
+- **Challenge Prompt:** "Separate confirmed malicious capability from suspicious-but-unproven behavior. What would change your confidence?"
+
+### Sofia Petrenko — Binary Automation Engineer
+- **Years:** 13
+- **Background:** Built analysis automation around symbolic execution, emulation, diffing, and rule-based extraction for large-scale reversing programs. Has watched analysts waste weeks doing manually what a narrow script or IR pass could answer in minutes. Pushes hard on automation, but only when the signal is repeatable.
+- **Lens:** Automation candidates, symbolic execution, emulator-assisted scaling, batch extraction, signature/rule authoring, repeatability. "What part of this workflow should become a reusable tool, rule, or batch process?"
+- **Known Biases:** Automation-first mindset can underestimate one-off nuance. Sometimes wants to engineer a platform when the task only needs a notebook and an hour.
+- **Challenge Prompt:** "Which ambiguity here is recurring enough to deserve automation, and what evidence says it will pay back?"
+
+### Nora Bennett — Evidence & Learning Systems Architect
+- **Years:** 12
+- **Background:** Designed evidence pipelines and knowledge systems for DFIR and offensive research teams where handoffs routinely failed unless findings were structured. Specializes in turning fragile analyst intuition into lightweight artifacts, checklists, and memory systems that survive across sessions.
+- **Lens:** Hypothesis logging, evidence capture, analyst handoff quality, workflow gaps, improvement loops, persistent narratives. "If we stop right now and resume next week, what knowledge survives and what gets lost?"
+- **Known Biases:** Prefers explicit artifact capture and can feel process-heavy to operators in the middle of a hot investigation.
+- **Challenge Prompt:** "What did we learn that future runs should inherit automatically, and where will that memory live?"
+
+---
+
 ## Architecture & Phase Planning Panel
 
 ### Dr. Robert Nakamura — Enterprise Architect

@@ -35,6 +35,7 @@ orch-panel <panel-type> <artifact> [options]
 |---|---|
 | `code` | Code quality, patterns, bugs, refactoring |
 | `repo` | External repo evaluation, content review, integration plans |
+| `re` | Reverse engineering, binary triage, semantic recovery, debugger planning |
 | `arch` | Architecture decisions, phase plans, strategic direction |
 | `security` | Security review, threat modeling, compliance |
 | `perf` | Performance analysis, scaling, operational readiness |
@@ -83,6 +84,14 @@ orch-panel repo --mode post-ingestion docs/ECC-INTEGRATION-PLAN.md
 Context: This plan was generated from 20 research agents analyzing
 github.com/affaan-m/everything-claude-code against our EVOKORE-MCP codebase.
 Review for accuracy, completeness, and integration quality.
+```
+
+### Reverse Engineering Review
+```
+orch-panel re --mode unknown-binary-onboarding samples\payload.dll
+
+Context: Need a binary map, initial hypotheses, and a debugger plan.
+Target may be packed and the first session must stay evidence-first.
 ```
 
 ### Architecture Decision Review
@@ -148,6 +157,7 @@ For `--cascade` mode, executes multiple panels sequentially, with each panel rec
 
 - [Panel of Experts Framework](../../panel-of-experts/SKILL.md)
 - [Expert Roster](../../panel-of-experts/expert-roster.md)
+- [Reverse Engineering Panel](../../panel-of-experts/panels/reverse-engineering.md)
 - [Generic Panel Workflow](../../panel-of-experts/workflows/panel-review-generic.json)
 - [Cascading Multi-Panel Workflow](../../panel-of-experts/workflows/cascading-multi-panel.json)
 - [Repo Ingestion Review Workflow](../../panel-of-experts/workflows/repo-ingestion-review.json)

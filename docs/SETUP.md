@@ -139,6 +139,29 @@ Current repo configuration:
       "env": {
         "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
       }
+    },
+    "ghidra_headless": {
+      "disabled": true,
+      "command": "${EVOKORE_RE_GHIDRA_HEADLESS_PYTHON}",
+      "args": ["-m", "ghidra_headless_mcp", "--ghidra-install-dir", "${GHIDRA_INSTALL_DIR}"],
+      "cwd": "${EVOKORE_RE_GHIDRA_HEADLESS_REPO}"
+    },
+    "reva": {
+      "disabled": true,
+      "command": "${EVOKORE_RE_REVA_PYTHON}",
+      "args": ["-m", "reva_cli"],
+      "cwd": "${EVOKORE_RE_REVA_REPO}"
+    },
+    "binary_analysis": {
+      "disabled": true,
+      "command": "${EVOKORE_RE_BINARY_MCP_PYTHON}",
+      "args": ["-m", "src.server"],
+      "cwd": "${EVOKORE_RE_BINARY_MCP_REPO}",
+      "env": {
+        "GHIDRA_HOME": "${GHIDRA_INSTALL_DIR}",
+        "WINDBG_PATH": "${WINDBG_PATH}",
+        "X64DBG_BRIDGE_URL": "${X64DBG_BRIDGE_URL}"
+      }
     }
   }
 }
@@ -149,8 +172,36 @@ Walkthrough:
 - `github`, `fs`, and `supabase` are booted through `npx`
 - `elevenlabs` is optional and booted through `uvx`
 - `supabase` is optional and requires `SUPABASE_ACCESS_TOKEN`
+- `ghidra_headless`, `reva`, and `binary_analysis` are disabled by default so the checked-in config stays safe on machines without the local RE toolchain
 - child env values can interpolate shell environment variables via `${VAR}` syntax
+- child `command`, `args`, `cwd`, and `url` fields also support `${VAR}` interpolation
+- disabled child servers are skipped entirely before placeholder resolution, so optional local integrations can live in the shared config without generating startup noise
 - `skillRegistries` configures remote skill registries for `list_registry` using `{ name, baseUrl, index }` objects
+
+### Optional local reverse-engineering child servers
+
+If you want EVOKORE to proxy your local reverse-engineering MCP stack, set the following environment variables:
+
+```bash
+GHIDRA_INSTALL_DIR=/absolute/path/to/ghidra
+EVOKORE_RE_GHIDRA_HEADLESS_PYTHON=/absolute/path/to/ghidra-headless-mcp/.venv/bin/python
+EVOKORE_RE_GHIDRA_HEADLESS_REPO=/absolute/path/to/ghidra-headless-mcp
+EVOKORE_RE_REVA_PYTHON=/absolute/path/to/reverse-engineering-assistant/.venv/bin/python
+EVOKORE_RE_REVA_REPO=/absolute/path/to/reverse-engineering-assistant
+EVOKORE_RE_BINARY_MCP_PYTHON=/absolute/path/to/binary-mcp/.venv/bin/python
+EVOKORE_RE_BINARY_MCP_REPO=/absolute/path/to/binary-mcp
+WINDBG_PATH=/absolute/path/to/windbg
+X64DBG_BRIDGE_URL=http://127.0.0.1:8765
+```
+
+Then set the corresponding `disabled` flags in `mcp.config.json` to `false` for the child servers you want to boot.
+
+Current guidance:
+
+- `ghidra_headless`: safe path for Ghidra 12.x headless analysis
+- `reva`: stdio bridge to ReVa headless/Ghidra-backed workflows
+- `binary_analysis`: binary-mcp for static, .NET, and debugger-assisted analysis
+- `ghidra-live` / GhidraMCP GUI bridge is intentionally not wired here yet because the available plugin build is for Ghidra 11.3.2, while the current workstation is on Ghidra 12.0.4
 
 ### HTTP transport for child servers
 

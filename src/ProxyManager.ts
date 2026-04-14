@@ -24,6 +24,8 @@ interface ServerConfig {
   env?: Record<string, string>;
   transport?: "stdio" | "http";
   url?: string;
+  cwd?: string;
+  disabled?: boolean;
   rateLimit?: RateLimitConfig;
 }
 
@@ -161,6 +163,37 @@ export class ProxyManager {
     }
 
     return value;
+  }
+
+  private resolveConfigString(serverId: string, key: string, value?: string): string | undefined {
+    if (value === undefined) {
+      return value;
+    }
+
+    const missingVars = new Set<string>();
+    const resolvedValue = value.replace(ENV_PLACEHOLDER_REGEX, (_match, varName: string) => {
+      const envValue = process.env[varName];
+      if (envValue === undefined) {
+        missingVars.add(varName);
+        return "";
+      }
+      return envValue;
+    });
+
+    if (missingVars.size > 0) {
+      const missingList = Array.from(missingVars).map((varName) => `\${${varName}}`).join(", ");
+      throw new Error(`Unresolved env placeholder(s) for child server '${serverId}' key '${key}': ${missingList}`);
+    }
+
+    return resolvedValue;
+  }
+
+  private resolveConfigArgs(serverId: string, args?: string[]): string[] {
+    if (!args) {
+      return [];
+    }
+
+    return args.map((value, index) => this.resolveConfigString(serverId, `args[${index}]`, value) as string);
   }
 
   private getCooldownKey(toolName: string, args: any): string {
@@ -356,22 +389,7 @@ export class ProxyManager {
     if (!serverEnv) return resolvedEnv;
 
     for (const [key, value] of Object.entries(serverEnv)) {
-      const missingVars = new Set<string>();
-      const resolvedValue = value.replace(ENV_PLACEHOLDER_REGEX, (_match, varName: string) => {
-        const envValue = process.env[varName];
-        if (envValue === undefined) {
-          missingVars.add(varName);
-          return "";
-        }
-        return envValue;
-      });
-
-      if (missingVars.size > 0) {
-        const missingList = Array.from(missingVars).map((varName) => `\${${varName}}`).join(", ");
-        throw new Error(`Unresolved env placeholder(s) for child server '${serverId}' key '${key}': ${missingList}`);
-      }
-
-      resolvedEnv[key] = resolvedValue;
+      resolvedEnv[key] = this.resolveConfigString(serverId, key, value) as string;
     }
 
     return resolvedEnv;
@@ -382,7 +400,14 @@ export class ProxyManager {
     let transport: StdioClientTransport | StreamableHTTPClientTransport | undefined;
 
     try {
-      const isHttpTransport = serverConfig.transport === "http" && serverConfig.url;
+      const resolvedUrl = this.resolveConfigString(serverId, "url", serverConfig.url);
+      const resolvedCommand = this.resolveConfigString(serverId, "command", serverConfig.command);
+      const resolvedArgs = this.resolveConfigArgs(serverId, serverConfig.args);
+      const resolvedCwd = this.resolveConfigString(serverId, "cwd", serverConfig.cwd);
+      const isHttpTransport = serverConfig.transport === "http";
+      if (isHttpTransport && !resolvedUrl) {
+        throw new Error(`HTTP server '${serverId}' requires a 'url' field`);
+      }
       const connectionType = isHttpTransport ? "http" : "stdio";
       const childServerBootTimeoutMs = this.getChildServerBootTimeoutMs();
 
@@ -405,13 +430,13 @@ export class ProxyManager {
       );
 
       if (isHttpTransport) {
-        transport = new StreamableHTTPClientTransport(new URL(serverConfig.url!));
+        transport = new StreamableHTTPClientTransport(new URL(resolvedUrl!));
       } else {
-        if (!serverConfig.command) {
+        if (!resolvedCommand) {
           throw new Error(`Stdio server '${serverId}' requires a 'command' field`);
         }
 
-        const cmd = resolveCommandForPlatform(serverConfig.command);
+        const cmd = resolveCommandForPlatform(resolvedCommand);
 
         // Resolve ${VAR} references in env values from process.env
         const resolvedEnv = this.resolveServerEnv(serverId, serverConfig.env);
@@ -419,9 +444,10 @@ export class ProxyManager {
 
         transport = new StdioClientTransport({
           command: cmd,
-          args: serverConfig.args || [],
+          args: resolvedArgs,
           env: env as Record<string, string>,
-          stderr: "inherit"
+          stderr: "inherit",
+          cwd: resolvedCwd
         });
       }
 
@@ -550,7 +576,8 @@ export class ProxyManager {
         return;
       }
 
-      const serverEntries = Object.entries(config.servers as Record<string, ServerConfig>);
+      const serverEntries = Object.entries(config.servers as Record<string, ServerConfig>)
+        .filter(([, serverConfig]) => !serverConfig.disabled);
       const bootResults = await Promise.allSettled(
         serverEntries.map(([serverId, serverConfig]) =>
           this.bootSingleServer(serverId, serverConfig)
@@ -619,6 +646,8 @@ export class ProxyManager {
         if (serverConfig.args) sanitizedServer.args = serverConfig.args;
         if (serverConfig.transport) sanitizedServer.transport = serverConfig.transport;
         if (serverConfig.url) sanitizedServer.url = serverConfig.url;
+        if (serverConfig.cwd) sanitizedServer.cwd = serverConfig.cwd;
+        if (serverConfig.disabled !== undefined) sanitizedServer.disabled = serverConfig.disabled;
         if (serverConfig.env) {
           const redactedEnv: Record<string, string> = {};
           for (const key of Object.keys(serverConfig.env)) {

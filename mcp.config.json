@@ -33,6 +33,29 @@
       "env": {
         "STITCH_API_KEY": "${STITCH_API_KEY}"
       }
+    },
+    "ghidra_headless": {
+      "disabled": true,
+      "command": "${EVOKORE_RE_GHIDRA_HEADLESS_PYTHON}",
+      "args": ["-m", "ghidra_headless_mcp", "--ghidra-install-dir", "${GHIDRA_INSTALL_DIR}"],
+      "cwd": "${EVOKORE_RE_GHIDRA_HEADLESS_REPO}"
+    },
+    "reva": {
+      "disabled": true,
+      "command": "${EVOKORE_RE_REVA_PYTHON}",
+      "args": ["-m", "reva_cli"],
+      "cwd": "${EVOKORE_RE_REVA_REPO}"
+    },
+    "binary_analysis": {
+      "disabled": true,
+      "command": "${EVOKORE_RE_BINARY_MCP_PYTHON}",
+      "args": ["-m", "src.server"],
+      "cwd": "${EVOKORE_RE_BINARY_MCP_REPO}",
+      "env": {
+        "GHIDRA_HOME": "${GHIDRA_INSTALL_DIR}",
+        "WINDBG_PATH": "${WINDBG_PATH}",
+        "X64DBG_BRIDGE_URL": "${X64DBG_BRIDGE_URL}"
+      }
     }
   }
 }

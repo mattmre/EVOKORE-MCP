@@ -25,7 +25,7 @@ EVOKORE exists to solve three common MCP operator problems:
 
 - **Single stdio MCP endpoint** for native EVOKORE tools plus proxied child servers.
 - **11 native tools**: `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`, `refresh_skills`, `fetch_skill`, `execute_skill`, `list_registry`.
-- **Proxied server aggregation** from `mcp.config.json`, currently `github`, `fs`, optional `elevenlabs`, and optional `supabase`.
+- **Proxied server aggregation** from `mcp.config.json`, currently `github`, `fs`, optional `elevenlabs`, optional `supabase`, optional `stitch`, plus opt-in local reverse-engineering child servers for `ghidra_headless`, `reva`, and `binary_analysis`.
 - **Prefixed proxied tools** in the form `${serverId}_${tool.name}` to avoid collisions.
 - **Tool discovery modes**:
   - `legacy` (default): full native + proxied tool listing
@@ -167,7 +167,7 @@ Use this before a new multi-slice session or cleanup wave to surface branch dive
 | `src/ToolCatalogIndex.ts` | Unified native + proxied tool catalog, search index, projected tool listing |
 | `src/SecurityManager.ts` | HITL/allow/deny policy with RBAC role support (`admin`, `developer`, `readonly`) |
 | `permissions.yml` | Flat and role-based permission rules for proxied tools |
-| `mcp.config.json` | Child-server registry for `github`, `fs`, optional `elevenlabs`, and optional `supabase`; rate limit config |
+| `mcp.config.json` | Child-server registry for hosted integrations plus opt-in reverse-engineering child servers; rate limit config |
 | `src/VoiceSidecar.ts` | Standalone WebSocket voice runtime for hook-driven speech |
 | `scripts/` | Config sync, hook observability, replay viewers, session dashboard, benchmark tooling, and governance helpers |
 

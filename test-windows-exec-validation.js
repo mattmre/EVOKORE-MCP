@@ -18,5 +18,6 @@ test('Windows executable fallback validation', () => {
   assert.doesNotMatch(helperSource, /command === "uvx"\s*&&[\s\S]*"uvx\.cmd"/);
 
   assert.match(proxySource, /import \{ resolveCommandForPlatform \} from "\.\/utils\/resolveCommandForPlatform";/);
-  assert.match(proxySource, /const cmd = resolveCommandForPlatform\(serverConfig\.command\);/);
+  assert.match(proxySource, /const resolvedCommand = this\.resolveConfigString\(serverId, "command", serverConfig\.command\);/);
+  assert.match(proxySource, /const cmd = resolveCommandForPlatform\(resolvedCommand\);/);
 });

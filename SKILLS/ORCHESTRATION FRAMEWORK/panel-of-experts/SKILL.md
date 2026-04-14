@@ -114,6 +114,7 @@ After solo reviews, the panel converges:
 |---|---|---|
 | [Code Refinement](panels/code-refinement.md) | Code quality, patterns, bugs | PR review, refactoring, new feature validation |
 | [Repo Ingestion](panels/repo-ingestion.md) | External repo evaluation | Evaluating repos for adoption, integration planning |
+| [Reverse Engineering](panels/reverse-engineering.md) | Binary analysis, decompilation, debugging, malware triage | Unknown binaries, semantic recovery, runtime validation, RE workflow design |
 | [Architecture & Planning](panels/architecture-planning.md) | System design, phase planning | New initiatives, major refactors, integration plans |
 | [Security Audit](panels/security-audit.md) | Security, compliance, threat modeling | Security-sensitive changes, auth/crypto code, API design |
 | [Performance & Scale](panels/performance-optimization.md) | Performance, scalability, efficiency | Perf-critical paths, scaling decisions, resource optimization |
@@ -158,6 +159,9 @@ After solo reviews, the panel converges:
 | [Cascading Multi-Panel](workflows/cascading-multi-panel.json) | Sequential multi-panel with unified feasibility |
 | [Repo Ingestion Review](workflows/repo-ingestion-review.json) | Content + Architecture + Security → Unified Feasibility |
 | [Repo Research](workflows/repo-research.json) | Topic narrative → Discovery → Evaluation → Panel Review → Presentation |
+| [Reverse Engineering Analysis](workflows/reverse-engineering-analysis.json) | Intake → static recon → semantic review → dynamic validation → learning capture |
+| [Reverse Engineering Repo Research](workflows/reverse-engineering-repo-research.json) | RE repo discovery → portfolio review → extraction strategy → EVOKORE operating model |
+| [Reverse Engineering Improvement Loop](workflows/reverse-engineering-improvement-loop.json) | Session evidence → workflow review → persona refinement → improvement backlog |
 | [Meta-Improvement Cycle](workflows/meta-improvement-cycle.json) | Optional persona/workflow evolution |
 
 ### Persistent Expert Narratives
@@ -174,6 +178,7 @@ Expert personas evolve across sessions. See [persistent-narratives.md](persisten
 ### Via orch-panel Command
 ```
 orch-panel code src/SessionIsolation.ts          # Single panel
+orch-panel re samples\mystery.dll               # Reverse-engineering review
 orch-panel --cascade arch,code,security plan.md  # Multi-panel
 orch-panel security --quick src/auth/*.ts        # Quick review
 orch-panel presentation --mode extraction plan.md # Package for stakeholders
@@ -183,6 +188,7 @@ orch-panel wiring scripts/dashboard.js           # UI/wiring review
 ### Via orch-research Command
 ```
 orch-research "TypeScript MCP server implementations"  # Topic research
+orch-research "recently updated reverse engineering repos for decompilation, debugging, and malware triage" --context "EVOKORE-MCP reverse-engineering skill buildout" --meta-improve
 orch-research "CRDT frameworks" --context "EVOKORE-MCP v3.1" --meta-improve
 ```
 

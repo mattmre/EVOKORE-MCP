@@ -1,0 +1,216 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "reverse-engineering-analysis",
+  "version": "1.0.0",
+  "description": "Run a company-grade reverse-engineering cycle that moves from intake and static recon through semantic recovery, dynamic validation, capability synthesis, and learning capture.",
+  "triggers": {
+    "manual": true
+  },
+  "inputs": {
+    "target_description": {
+      "type": "string",
+      "description": "Binary, library, package, firmware, or analysis target to examine",
+      "required": true
+    },
+    "analysis_goal": {
+      "type": "string",
+      "description": "Primary question or deliverable needed from the analysis",
+      "required": true
+    },
+    "platform_hint": {
+      "type": "string",
+      "description": "Optional platform/runtime hint such as PE, ELF, .NET, APK, JVM, firmware, or unknown",
+      "default": "unknown"
+    },
+    "suspicion_level": {
+      "type": "string",
+      "description": "Operational suspicion framing: benign, unknown, suspicious, malicious",
+      "default": "unknown"
+    },
+    "require_dynamic_validation": {
+      "type": "boolean",
+      "description": "Whether the workflow should plan or run debugger/emulation validation",
+      "default": true
+    },
+    "include_learning_loop": {
+      "type": "boolean",
+      "description": "Whether to emit workflow and memory improvements after the main analysis",
+      "default": true
+    }
+  },
+  "outputs": {
+    "analysis_report": {
+      "type": "object",
+      "description": "Structured reverse-engineering report with findings, open hypotheses, dynamic plan, and learning updates"
+    }
+  },
+  "steps": [
+    {
+      "id": "intake-brief",
+      "name": "Create Analysis Charter",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "inputs": {
+        "target": "{{ inputs.target_description }}",
+        "goal": "{{ inputs.analysis_goal }}",
+        "platform_hint": "{{ inputs.platform_hint }}",
+        "suspicion_level": "{{ inputs.suspicion_level }}",
+        "instruction": "Create a reverse-engineering charter. Identify likely platform/runtime, safety constraints, what success looks like, and the first analysis hypotheses. Produce a short target profile and question queue."
+      },
+      "outputs": {
+        "charter": "profile"
+      }
+    },
+    {
+      "id": "lane-selection",
+      "name": "Select Tool and Skill Lanes",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["intake-brief"],
+      "inputs": {
+        "charter": "{{ intake-brief.profile }}",
+        "instruction": "Choose the initial workflow lanes for this target: native static recon, language-specific decompiler, debugger/emulation, malware triage, or automation-heavy path. Reference EVOKORE reverse-engineering skills and child server families where appropriate."
+      },
+      "outputs": {
+        "lane_plan": "plan"
+      }
+    },
+    {
+      "id": "static-recon",
+      "name": "Run Static Recon Pass",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["lane-selection"],
+      "inputs": {
+        "lane_plan": "{{ lane-selection.plan }}",
+        "target": "{{ inputs.target_description }}",
+        "instruction": "Produce the static recon output the next phase needs: format/runtime classification, imports/exports/strings, entry points, subsystem guesses, priority function queue, and branch recommendation to language-specific or malware-specific tooling."
+      },
+      "outputs": {
+        "static_report": "report"
+      }
+    },
+    {
+      "id": "semantic-panel",
+      "name": "Reverse Engineering Panel Review",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["static-recon"],
+      "inputs": {
+        "panel_type": "reverse-engineering",
+        "mode": "semantic-recovery",
+        "artifact": "{{ static-recon.report }}",
+        "context": "{{ intake-brief.profile }}",
+        "instruction": "Convene the Reverse Engineering Panel. Review the recon findings, challenge weak assumptions, prioritize the next subsystem or function set, and determine what semantic claims are defensible already versus what still needs runtime proof."
+      },
+      "outputs": {
+        "semantic_report": "report"
+      }
+    },
+    {
+      "id": "dynamic-validation",
+      "name": "Plan or Run Dynamic Validation",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["semantic-panel"],
+      "condition": "{{ inputs.require_dynamic_validation }}",
+      "inputs": {
+        "semantic_report": "{{ semantic-panel.report }}",
+        "instruction": "Create the minimum debugger or emulation plan needed to answer the highest-value open questions. Choose between x64dbg, WinDbg, pwndbg-style flows, Qiling, or no-execution fallback. Capture what evidence the runtime phase must return."
+      },
+      "outputs": {
+        "dynamic_report": "report"
+      }
+    },
+    {
+      "id": "capability-triage",
+      "name": "Capability and Risk Synthesis",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["semantic-panel"],
+      "inputs": {
+        "semantic_report": "{{ semantic-panel.report }}",
+        "dynamic_report": "{{ dynamic-validation.report }}",
+        "suspicion_level": "{{ inputs.suspicion_level }}",
+        "instruction": "Synthesize the likely behaviors and risk posture of the target. If the target appears suspicious or malicious, structure the output in terms of capability clusters, ATT&CK-style behaviors, anti-analysis, and operator-facing unknowns."
+      },
+      "outputs": {
+        "capability_report": "report"
+      }
+    },
+    {
+      "id": "converge",
+      "name": "Produce Unified Analysis Report",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["capability-triage"],
+      "inputs": {
+        "charter": "{{ intake-brief.profile }}",
+        "lane_plan": "{{ lane-selection.plan }}",
+        "static_report": "{{ static-recon.report }}",
+        "semantic_report": "{{ semantic-panel.report }}",
+        "dynamic_report": "{{ dynamic-validation.report }}",
+        "capability_report": "{{ capability-triage.report }}",
+        "instruction": "Produce a unified reverse-engineering report: confirmed findings, open hypotheses, priority functions/subsystems, dynamic evidence plan, reporting caveats, and next pivots."
+      },
+      "outputs": {
+        "analysis_summary": "report"
+      }
+    },
+    {
+      "id": "learning-capture",
+      "name": "Capture Memory and Workflow Learnings",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["converge"],
+      "condition": "{{ inputs.include_learning_loop }}",
+      "inputs": {
+        "panel_type": "reverse-engineering",
+        "mode": "workflow-refinement",
+        "artifact": "{{ converge.report }}",
+        "context": "{{ intake-brief.profile }}",
+        "instruction": "Review the completed analysis for reusable learning. Identify what should become a reusable skill, panel adjustment, evidence template, rule candidate, or persistent narrative update for future reverse-engineering runs."
+      },
+      "outputs": {
+        "learning_report": "report"
+      }
+    },
+    {
+      "id": "deliver",
+      "name": "Deliver Reverse Engineering Report",
+      "action": "transform",
+      "depends_on": ["converge"],
+      "inputs": {
+        "template": {
+          "target": "{{ inputs.target_description }}",
+          "goal": "{{ inputs.analysis_goal }}",
+          "platform_hint": "{{ inputs.platform_hint }}",
+          "charter": "{{ intake-brief.profile }}",
+          "lane_plan": "{{ lane-selection.plan }}",
+          "static_recon": "{{ static-recon.report }}",
+          "semantic_review": "{{ semantic-panel.report }}",
+          "dynamic_validation": "{{ dynamic-validation.report }}",
+          "capability_synthesis": "{{ capability-triage.report }}",
+          "learning_updates": "{{ learning-capture.report }}",
+          "unified_report": "{{ converge.report }}"
+        }
+      },
+      "outputs": {
+        "analysis_report": "result"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 4,
+    "continue_on_error": false,
+    "fail_fast": false,
+    "timeout_seconds": 1200,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-04-14",
+    "tags": ["panel-of-experts", "reverse-engineering", "binary-analysis", "debugging", "learning-loop"]
+  }
+}

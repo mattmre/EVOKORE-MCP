@@ -1,0 +1,225 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "reverse-engineering-repo-research",
+  "version": "1.0.0",
+  "description": "Research the strongest reverse-engineering repos for a target need, evaluate them through reverse-engineering and repo-ingestion panels, and extract an EVOKORE-ready operating model.",
+  "triggers": {
+    "manual": true
+  },
+  "inputs": {
+    "narrative": {
+      "type": "string",
+      "description": "User-supplied reverse-engineering or binary-analysis need",
+      "required": true
+    },
+    "target_system": {
+      "type": "string",
+      "description": "Target system or MCP environment the extracted patterns should fit",
+      "default": "EVOKORE-MCP"
+    },
+    "max_candidates": {
+      "type": "number",
+      "description": "Maximum repos to deeply evaluate",
+      "default": 12
+    },
+    "evaluation_depth": {
+      "type": "string",
+      "description": "How deeply to inspect repos: quick, standard, deep",
+      "default": "deep"
+    },
+    "include_meta_improvement": {
+      "type": "boolean",
+      "description": "Run optional meta-improvement after the workflow completes",
+      "default": false
+    }
+  },
+  "outputs": {
+    "research_report": {
+      "type": "object",
+      "description": "Curated reverse-engineering repo report with extracted workflow patterns and EVOKORE adoption recommendations"
+    }
+  },
+  "steps": [
+    {
+      "id": "scope-analysis",
+      "name": "Analyze Reverse Engineering Need",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "inputs": {
+        "narrative": "{{ inputs.narrative }}",
+        "instruction": "Parse the reverse-engineering need into structured criteria. Separate the search into static analysis, debugger/dynamic, automation/emulation, malware triage, and language-specific decompiler lanes. Generate GitHub and community search queries for each lane."
+      },
+      "outputs": {
+        "criteria": "criteria",
+        "queries": "queries"
+      }
+    },
+    {
+      "id": "candidate-discovery",
+      "name": "Discover Candidate Repos",
+      "action": "parallel-group",
+      "depends_on": ["scope-analysis"],
+      "steps": [
+        {
+          "id": "github-search",
+          "name": "GitHub Search",
+          "action": "invoke-agent",
+          "agent": "researcher",
+          "inputs": {
+            "queries": "{{ scope-analysis.queries }}",
+            "instruction": "Execute GitHub searches across all reverse-engineering lanes. Capture stars, forks, recent activity, language, topics, and what part of the workflow each repo strengthens."
+          },
+          "outputs": {
+            "candidates": "repo_list"
+          }
+        },
+        {
+          "id": "community-scan",
+          "name": "Community Pattern Scan",
+          "action": "invoke-agent",
+          "agent": "researcher",
+          "inputs": {
+            "criteria": "{{ scope-analysis.criteria }}",
+            "instruction": "Scan books, docs, conference talks, plugin ecosystems, and community recommendations to identify repos that matter operationally even if GitHub search ranking under-represents them."
+          },
+          "outputs": {
+            "community_picks": "repo_list"
+          }
+        }
+      ]
+    },
+    {
+      "id": "portfolio-clustering",
+      "name": "Cluster Portfolio Coverage",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["candidate-discovery"],
+      "inputs": {
+        "github_candidates": "{{ github-search.repo_list }}",
+        "community_picks": "{{ community-scan.repo_list }}",
+        "max_candidates": "{{ inputs.max_candidates }}",
+        "instruction": "Deduplicate and cluster all candidates by workflow lane: static platform, dynamic debugger, automation/emulation, malware/capability triage, language-specific decompiler, and semantic recovery. Rank for complementarity rather than redundant popularity."
+      },
+      "outputs": {
+        "portfolio": "clustered_repos"
+      }
+    },
+    {
+      "id": "deep-evaluation",
+      "name": "Deep Reverse Engineering Evaluation",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "depends_on": ["portfolio-clustering"],
+      "inputs": {
+        "repos": "{{ portfolio-clustering.clustered_repos }}",
+        "depth": "{{ inputs.evaluation_depth }}",
+        "instruction": "For each shortlisted repo, inspect README/docs and extract: workflow stages supported, plugin or scripting model, evidence/reporting ergonomics, automation hooks, debugger/decompiler interplay, and unique strengths worth adopting into EVOKORE."
+      },
+      "outputs": {
+        "evaluations": "eval_results"
+      }
+    },
+    {
+      "id": "re-panel-review",
+      "name": "Reverse Engineering Panel Review",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["deep-evaluation"],
+      "inputs": {
+        "panel_type": "reverse-engineering",
+        "mode": "workflow-refinement",
+        "artifact": "{{ deep-evaluation.eval_results }}",
+        "context": "{{ inputs.target_system }}",
+        "instruction": "Convene the Reverse Engineering Panel. Review the evaluated repos as a portfolio. Decide which repos best cover static analysis, dynamic validation, automation, malware triage, and semantic recovery. Extract additive workflow patterns, not one-to-one tool clones."
+      },
+      "outputs": {
+        "re_panel_report": "report"
+      }
+    },
+    {
+      "id": "repo-ingestion-gate",
+      "name": "Repo Ingestion Gate",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["re-panel-review"],
+      "inputs": {
+        "panel_type": "repo-ingestion",
+        "mode": "integration-plan-validation",
+        "artifact": "{{ re-panel-review.report }}",
+        "context": "{{ inputs.target_system }}",
+        "instruction": "Convene the Repo Ingestion Panel. Validate that the extracted recommendations are adoptable, accurately represented, and low enough risk for EVOKORE integration. Flag repos or patterns that should remain reference-only."
+      },
+      "outputs": {
+        "ingestion_report": "report"
+      }
+    },
+    {
+      "id": "operating-model-synthesis",
+      "name": "Synthesize EVOKORE Operating Model",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["repo-ingestion-gate"],
+      "inputs": {
+        "criteria": "{{ scope-analysis.criteria }}",
+        "evaluations": "{{ deep-evaluation.eval_results }}",
+        "re_panel_report": "{{ re-panel-review.report }}",
+        "ingestion_report": "{{ repo-ingestion-gate.report }}",
+        "instruction": "Turn the portfolio review into an EVOKORE-native operating model: expert personas, workflows, skills, memory loops, and adoption strategy. Separate direct extraction targets from reference-only inspirations."
+      },
+      "outputs": {
+        "operating_model": "report"
+      }
+    },
+    {
+      "id": "meta-improvement",
+      "name": "Optional Meta-Improvement Cycle",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["operating-model-synthesis"],
+      "condition": "{{ inputs.include_meta_improvement }}",
+      "inputs": {
+        "panel_type": "reverse-engineering",
+        "panel_report": "{{ re-panel-review.report }}",
+        "feasibility_report": "{{ repo-ingestion-gate.report }}",
+        "instruction": "Run the meta-improvement cycle against this reverse-engineering research pass. Evaluate the panel composition, workflow coverage, and whether the extracted operating model still has missing expert lenses."
+      },
+      "outputs": {
+        "meta_report": "report"
+      }
+    },
+    {
+      "id": "deliver",
+      "name": "Deliver Reverse Engineering Research Report",
+      "action": "transform",
+      "depends_on": ["operating-model-synthesis"],
+      "inputs": {
+        "template": {
+          "narrative": "{{ inputs.narrative }}",
+          "target_system": "{{ inputs.target_system }}",
+          "portfolio": "{{ portfolio-clustering.clustered_repos }}",
+          "evaluations": "{{ deep-evaluation.eval_results }}",
+          "reverse_engineering_panel": "{{ re-panel-review.report }}",
+          "repo_ingestion_gate": "{{ repo-ingestion-gate.report }}",
+          "operating_model": "{{ operating-model-synthesis.report }}",
+          "meta_improvements": "{{ meta-improvement.report }}"
+        }
+      },
+      "outputs": {
+        "research_report": "result"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 5,
+    "continue_on_error": false,
+    "fail_fast": false,
+    "timeout_seconds": 1500,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-04-14",
+    "tags": ["panel-of-experts", "reverse-engineering", "repo-research", "workflow-extraction"]
+  }
+}
