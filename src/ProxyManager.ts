@@ -404,7 +404,10 @@ export class ProxyManager {
       const resolvedCommand = this.resolveConfigString(serverId, "command", serverConfig.command);
       const resolvedArgs = this.resolveConfigArgs(serverId, serverConfig.args);
       const resolvedCwd = this.resolveConfigString(serverId, "cwd", serverConfig.cwd);
-      const isHttpTransport = serverConfig.transport === "http" && resolvedUrl;
+      const isHttpTransport = serverConfig.transport === "http";
+      if (isHttpTransport && !resolvedUrl) {
+        throw new Error(`HTTP server '${serverId}' requires a 'url' field`);
+      }
       const connectionType = isHttpTransport ? "http" : "stdio";
       const childServerBootTimeoutMs = this.getChildServerBootTimeoutMs();
 
