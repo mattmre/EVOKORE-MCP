@@ -31,7 +31,7 @@ X-EVOKORE-Signature: <hmac-sha256-hex>
 And an optional replay-protection header:
 
 ```
-X-EVOKORE-Timestamp: <unix-epoch-ms>
+X-EVOKORE-Timestamp: <unix-epoch-seconds>
 ```
 
 As EVOKORE moves toward multi-operator deployments (OAuth/JWKS, SessionIsolation,
@@ -74,7 +74,7 @@ stable, versioned contract in `docs/WEBHOOK_ENVELOPE_V1.md`.
 
 ### Security contract
 
-- HMAC is computed as `HMAC-SHA256(secret, "${timestamp_ms}.${json_body}")` when the
+- HMAC is computed as `HMAC-SHA256(secret, "${timestamp_sec}.${json_body}")` when the
   webhook config includes a `secret`. Delivered in `X-EVOKORE-Signature`.
 - Timestamp replay window: ±5 minutes. Deliveries outside this window must be rejected
   by subscribers.

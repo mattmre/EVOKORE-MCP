@@ -48,12 +48,15 @@ envelopes will include `"envelopeVersion": 2`.
 POST {endpoint_url}
 Content-Type: application/json
 X-EVOKORE-Signature: <hmac-sha256-hex>
-X-EVOKORE-Timestamp: <unix-epoch-ms>
+X-EVOKORE-Timestamp: <unix-epoch-seconds>
+X-EVOKORE-Nonce: <uuid-v4>
 ```
 
 - `X-EVOKORE-Signature` is always present. See [Signature Verification](#signature-verification).
 - `X-EVOKORE-Timestamp` is present when the webhook config includes a `secret`. Its value
   matches the timestamp factor used in the HMAC.
+- `X-EVOKORE-Nonce` carries the envelope `id` (UUIDv4). Subscribers may use it for
+  idempotency checks alongside the signed timestamp.
 
 ---
 
@@ -63,18 +66,18 @@ When a webhook endpoint is configured with a `secret`, the payload is signed wit
 HMAC-SHA256:
 
 ```
-signature = HMAC-SHA256(secret, "${timestamp_ms}.${json_body}")
+signature = HMAC-SHA256(secret, "${timestamp_sec}.${json_body}")
 ```
 
 Where:
-- `timestamp_ms` is the Unix epoch milliseconds value sent in `X-EVOKORE-Timestamp`
+- `timestamp_sec` is the Unix epoch seconds value sent in `X-EVOKORE-Timestamp`
 - `json_body` is the raw POST body string (before any parsing)
 
 **Subscriber verification steps:**
 
 1. Extract `X-EVOKORE-Timestamp` header. Reject if absent or unparseable.
-2. Check `|Date.now() - timestamp_ms| <= 300_000` (5-minute replay window). Reject if stale.
-3. Compute `expected = HMAC-SHA256(your_secret, "${timestamp_ms}.${body}")`.
+2. Check `|Math.floor(Date.now() / 1000) - timestamp_sec| <= 300` (5-minute replay window). Reject if stale.
+3. Compute `expected = HMAC-SHA256(your_secret, "${timestamp_sec}.${body}")`.
 4. Compare `X-EVOKORE-Signature` with `expected` using timing-safe equality.
 5. Accept only if signatures match.
 
@@ -89,17 +92,18 @@ function verifyEvokoreWebhook(body, headers, secret) {
   if (!sigHeader || !tsHeader) return false;
 
   const ts = parseInt(tsHeader, 10);
-  if (isNaN(ts) || Math.abs(Date.now() - ts) > 300_000) return false;
+  if (isNaN(ts) || Math.abs(Math.floor(Date.now() / 1000) - ts) > 300) return false;
 
   const expected = crypto
     .createHmac('sha256', secret)
     .update(`${ts}.${body}`, 'utf8')
     .digest('hex');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(sigHeader, 'hex'),
-    Buffer.from(expected, 'hex')
-  );
+  const sigBuf = Buffer.from(sigHeader, 'hex');
+  const expectedBuf = Buffer.from(expected, 'hex');
+  if (sigBuf.length !== expectedBuf.length) return false;
+
+  return crypto.timingSafeEqual(sigBuf, expectedBuf);
 }
 ```
 
@@ -113,6 +117,8 @@ patterns are replaced with `"[REDACTED]"`:
 - `token`, `secret`, `password`, `key`, `credential`
 
 Redaction is case-insensitive and applies recursively to nested objects.
+
+> **Note:** Argument redaction for sensitive keys is planned but not yet implemented in `WebhookManager.ts`. Until implemented, raw tool arguments are forwarded in the payload.
 
 ---
 
