@@ -7,6 +7,18 @@ const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { readSessionState, writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
 const { buildStatusSnapshot, renderStatusLine } = require('./status-runtime');
 
+// Phase 0-C: dual-write to append-only JSONL manifest alongside the legacy
+// `{sessionId}.json` snapshot. The JSONL module never throws; the require
+// itself is wrapped so a missing or broken dist build still fails open and
+// leaves the legacy writer in place.
+let appendEvent = () => {};
+try {
+  // eslint-disable-next-line global-require
+  ({ appendEvent } = require('../dist/SessionManifest.js'));
+} catch {
+  // Fail open — continue with legacy writeSessionState only.
+}
+
 /**
  * Build a compact status line from cached data only (no network calls).
  * Returns null if the feature is disabled or no cache is available.
@@ -105,10 +117,17 @@ process.stdin.on('end', () => {
 
     if (!state || !hasExistingState) {
       // First prompt — ask for purpose
+      const workspaceRoot = process.cwd();
+      const canonicalRepoRoot = resolveCanonicalRepoRoot(workspaceRoot);
+      const repoName = path.basename(workspaceRoot);
+      appendEvent(sessionId, {
+        type: 'session_initialized',
+        payload: { workspaceRoot, canonicalRepoRoot, repoName }
+      });
       writeSessionState(sessionId, {
-        workspaceRoot: process.cwd(),
-        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-        repoName: path.basename(process.cwd()),
+        workspaceRoot,
+        canonicalRepoRoot,
+        repoName,
         purpose: null,
         status: 'awaiting-purpose',
         lastPromptAt: new Date().toISOString(),
@@ -152,6 +171,15 @@ process.stdin.on('end', () => {
       const purposeSetAt = new Date().toISOString();
       const modes = loadSteeringModes();
       const selectedMode = selectMode(purpose, modes);
+      appendEvent(sessionId, {
+        type: 'purpose_recorded',
+        payload: {
+          purpose,
+          mode: selectedMode,
+          modeSetAt: purposeSetAt,
+          purposeSetAt
+        }
+      });
       writeSessionState(sessionId, {
         workspaceRoot: process.cwd(),
         canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
@@ -183,6 +211,11 @@ process.stdin.on('end', () => {
       console.log(JSON.stringify(result));
     } else {
       // Subsequent prompts — remind of purpose
+      const reminderAt = new Date().toISOString();
+      appendEvent(sessionId, {
+        type: 'purpose_reminder',
+        payload: { lastPromptAt: reminderAt }
+      });
       writeSessionState(sessionId, {
         workspaceRoot: process.cwd(),
         canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
