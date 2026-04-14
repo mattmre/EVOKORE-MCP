@@ -15,6 +15,16 @@ const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { pruneOldSessions } = require('./log-rotation');
 const { writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
 
+// Phase 0-C: dual-write to append-only JSONL manifest. Require is wrapped so
+// a missing dist build fails open to legacy writeSessionState.
+let appendEvent = () => {};
+try {
+  // eslint-disable-next-line global-require
+  ({ appendEvent } = require('../dist/SessionManifest.js'));
+} catch {
+  // Fail open.
+}
+
 // Patterns that indicate a test run in a Bash command
 const TEST_PATTERNS = [
   /\bnpm\s+test\b/i,
@@ -146,6 +156,17 @@ process.stdin.on('end', () => {
     };
 
     fs.appendFileSync(evidencePath, JSON.stringify(entry) + '\n');
+    appendEvent(sessionId, {
+      type: 'evidence_captured',
+      payload: {
+        evidence_id: evidenceId,
+        evidence_type: classification.type,
+        tool: toolName,
+        summary: classification.summary,
+        exit_code: entry.exit_code,
+        passed: entry.passed
+      }
+    });
     writeSessionState(sessionId, {
       workspaceRoot: process.cwd(),
       canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
