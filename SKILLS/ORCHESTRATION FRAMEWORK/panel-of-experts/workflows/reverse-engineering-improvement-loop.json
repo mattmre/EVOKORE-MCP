@@ -1,0 +1,160 @@
+{
+  "$schema": "../../schemas/workflow.schema.json",
+  "name": "reverse-engineering-improvement-loop",
+  "version": "1.0.0",
+  "description": "Review completed reverse-engineering work, extract reusable lessons, and feed approved improvements back into workflows, skills, and persistent expert narratives.",
+  "triggers": {
+    "manual": true,
+    "on_event": ["review-complete", "session-end"]
+  },
+  "inputs": {
+    "session_artifact": {
+      "type": "string",
+      "description": "Session log, report, evidence bundle, or workflow output to review",
+      "required": true
+    },
+    "user_feedback": {
+      "type": "string",
+      "description": "Optional operator feedback on what felt high-friction or high-value",
+      "default": ""
+    },
+    "apply_persona_changes": {
+      "type": "boolean",
+      "description": "Whether approved persona updates should be written to persistent narratives",
+      "default": false
+    }
+  },
+  "outputs": {
+    "improvement_report": {
+      "type": "object",
+      "description": "Prioritized improvements for workflows, skills, personas, and memory artifacts"
+    }
+  },
+  "steps": [
+    {
+      "id": "evidence-scan",
+      "name": "Scan Session Evidence",
+      "action": "invoke-agent",
+      "agent": "researcher",
+      "inputs": {
+        "artifact": "{{ inputs.session_artifact }}",
+        "user_feedback": "{{ inputs.user_feedback }}",
+        "instruction": "Review the supplied session artifact as if it were the combined output of evidence-capture, session-replay, and operator notes. Extract recurring friction points, repeated unknowns, brittle handoffs, and automation opportunities."
+      },
+      "outputs": {
+        "evidence_review": "report"
+      }
+    },
+    {
+      "id": "re-panel-review",
+      "name": "Reverse Engineering Workflow Review",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["evidence-scan"],
+      "inputs": {
+        "panel_type": "reverse-engineering",
+        "mode": "workflow-refinement",
+        "artifact": "{{ evidence-scan.report }}",
+        "context": "{{ inputs.user_feedback }}",
+        "instruction": "Convene the Reverse Engineering Panel. Determine what the last session teaches about missing skills, weak workflow steps, overused tools, underused evidence, and memory leakage."
+      },
+      "outputs": {
+        "re_panel_report": "report"
+      }
+    },
+    {
+      "id": "workflow-optimization",
+      "name": "Improvement Cycle Review",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["re-panel-review"],
+      "inputs": {
+        "artifact": "{{ re-panel-review.report }}",
+        "instruction": "Apply the EVOKORE improvement-cycle methodology. Convert the reverse-engineering findings into concrete action items across workflow optimization, documentation, hook tuning, memory artifacts, and tooling additions."
+      },
+      "outputs": {
+        "workflow_report": "report"
+      }
+    },
+    {
+      "id": "meta-improvement",
+      "name": "Meta-Improve Personas and Panel",
+      "action": "invoke-agent",
+      "agent": "reviewer",
+      "depends_on": ["re-panel-review"],
+      "inputs": {
+        "panel_type": "reverse-engineering",
+        "panel_report": "{{ re-panel-review.report }}",
+        "user_feedback": "{{ inputs.user_feedback }}",
+        "apply_changes": "{{ inputs.apply_persona_changes }}",
+        "instruction": "Run the panel meta-improvement cycle for the Reverse Engineering Panel. Evaluate which personas added unique value, where expertise is still missing, and whether the challenge phase is producing genuine signal."
+      },
+      "outputs": {
+        "persona_report": "report"
+      }
+    },
+    {
+      "id": "backlog-synthesis",
+      "name": "Synthesize Improvement Backlog",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["workflow-optimization", "meta-improvement"],
+      "inputs": {
+        "workflow_report": "{{ workflow-optimization.report }}",
+        "persona_report": "{{ meta-improvement.report }}",
+        "instruction": "Produce a prioritized reverse-engineering improvement backlog. Separate fast documentation fixes, new skill candidates, new workflow assets, persona updates, and research spikes."
+      },
+      "outputs": {
+        "backlog": "report"
+      }
+    },
+    {
+      "id": "persist-updates",
+      "name": "Persist Approved Narrative Updates",
+      "action": "invoke-agent",
+      "agent": "orchestrator",
+      "depends_on": ["backlog-synthesis"],
+      "condition": "{{ inputs.apply_persona_changes }}",
+      "inputs": {
+        "backlog": "{{ backlog-synthesis.report }}",
+        "instruction": "Write approved Reverse Engineering Panel narrative changes to the persistent narratives store and queue any workflow updates that still need user approval."
+      },
+      "outputs": {
+        "persistence_summary": "report"
+      }
+    },
+    {
+      "id": "deliver",
+      "name": "Deliver Improvement Report",
+      "action": "transform",
+      "depends_on": ["backlog-synthesis"],
+      "inputs": {
+        "template": {
+          "session_artifact": "{{ inputs.session_artifact }}",
+          "evidence_review": "{{ evidence-scan.report }}",
+          "reverse_engineering_panel": "{{ re-panel-review.report }}",
+          "workflow_optimization": "{{ workflow-optimization.report }}",
+          "persona_meta_improvement": "{{ meta-improvement.report }}",
+          "backlog": "{{ backlog-synthesis.report }}",
+          "persisted_updates": "{{ persist-updates.report }}"
+        }
+      },
+      "outputs": {
+        "improvement_report": "result"
+      }
+    }
+  ],
+  "execution": {
+    "mode": "dependency-aware",
+    "parallel_limit": 4,
+    "continue_on_error": true,
+    "fail_fast": false,
+    "timeout_seconds": 900,
+    "dry_run": false
+  },
+  "metadata": {
+    "author": "evokore",
+    "created": "2026-04-14",
+    "tags": ["panel-of-experts", "reverse-engineering", "learning-loop", "meta-improvement", "memory"]
+  }
+}

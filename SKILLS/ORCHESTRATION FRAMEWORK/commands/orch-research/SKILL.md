@@ -64,6 +64,14 @@ orch-research "developer productivity CLI tools with hook systems" \
   --meta-improve
 ```
 
+### Reverse Engineering Portfolio Research
+```
+orch-research "recently updated reverse engineering repos with strong debugger, decompiler, automation, and malware triage workflows" \
+  --context "EVOKORE-MCP reverse-engineering operating model buildout" \
+  --depth deep \
+  --meta-improve
+```
+
 ## Workflow Steps
 
 1. **Narrative Analysis** — Parse the user's description into structured search criteria, requirements, and quality signals
@@ -127,6 +135,8 @@ The command produces a structured research report:
 ## Related Skills
 
 - [Repo Ingestion Panel](../../panel-of-experts/panels/repo-ingestion.md)
+- [Reverse Engineering Panel](../../panel-of-experts/panels/reverse-engineering.md)
 - [Presentation Panel](../../panel-of-experts/panels/presentation.md)
 - [Feasibility Panel](../../panel-of-experts/panels/feasibility-research.md)
 - [Repo Research Workflow](../../panel-of-experts/workflows/repo-research.json)
+- [Reverse Engineering Repo Research Workflow](../../panel-of-experts/workflows/reverse-engineering-repo-research.json)

@@ -140,6 +140,10 @@ When EVOKORE proxies child MCP servers, tool names use the prefixed tool name fo
 
 Child server env values in `mcp.config.json` can reference placeholders like `${ELEVENLABS_API_KEY}`. If any placeholder is unresolved at startup, EVOKORE fails fast for that child server and logs an explicit error instead of silently substituting an empty value. Other child servers continue booting.
 
+Child server `command`, `args`, `cwd`, and `url` fields use the same `${VAR_NAME}` interpolation rules. This is what allows local Python-backed MCP repos such as `ghidra_headless`, `reva`, and `binary_analysis` to live in the shared config without hardcoding workstation-specific paths.
+
+If a child server entry is marked with `"disabled": true`, EVOKORE skips it before any placeholder resolution or process spawn happens. This is the intended pattern for optional workstation-specific integrations.
+
 ### 3.1 PR governance metadata for process/tooling/release changes
 
 For process/tooling/release-impacting changes, use `.github/PULL_REQUEST_TEMPLATE.md` and follow `docs/PR_MERGE_RUNBOOK.md`.

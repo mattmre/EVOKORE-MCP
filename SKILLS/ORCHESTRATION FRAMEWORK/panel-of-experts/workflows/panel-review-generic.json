@@ -10,7 +10,7 @@
   "inputs": {
     "panel_type": {
       "type": "string",
-      "description": "Panel to convene: code-refinement, repo-ingestion, architecture-planning, security-audit, performance-optimization, developer-experience, testing-quality, documentation-quality",
+      "description": "Panel to convene: code-refinement, repo-ingestion, reverse-engineering, architecture-planning, security-audit, performance-optimization, developer-experience, testing-quality, documentation-quality",
       "required": true
     },
     "artifact": {
