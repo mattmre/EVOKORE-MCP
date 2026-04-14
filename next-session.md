@@ -64,6 +64,57 @@ Last Updated (UTC): 2026-04-11
 
 ## NEXT SESSION: Recommended Priorities
 
+### 0.5 Deep-Dive Additions (from 5-expert panel, 2026-04-14)
+
+**Research doc:** `docs/research/ruflo-deep-dive-2026-04-14.md`  
+**New phases inserted into roadmap:** Phase 2.5 (Memory & Worker), Phase 3.5 (Governance & Trust), Agent Archetypes, Skills Import, Commands
+
+**Highest-priority new items:**
+
+**A. Memory Manager (Phase 2.5-A — highest immediate ROI):**
+- `src/MemoryManager.ts` — 3 MCP tools: `memory_store`, `memory_search`, `memory_list`; SQLite backend `~/.evokore/memory/{sessionId}.db`; 8 typed memory kinds with TTL
+- Enables agents to store/retrieve intermediate findings without re-reading giant JSONL files
+- Start: > "Implement src/MemoryManager.ts: 3 MCP tools (memory_store, memory_search, memory_list), SQLite backend at ~/.evokore/memory/{sessionId}.db, 8 memory types with TTL enforcement. Follow NavigationAnchorManager pattern. Branch: feat/memory-manager."
+
+**B. AI Defence patterns (Phase B security — content for damage-control-rules.yaml):**
+- Fetch patterns from `https://raw.githubusercontent.com/ruvnet/ruflo/main/v3/%40claude-flow/cli/.claude/skills/aidefence.yaml`
+- Add `output_patterns` section to `damage-control-rules.yaml`: prompt injection markers, role override attempts, PII exfiltration
+- Wire PostToolUse output-scanning branch in `damage-control.js`
+
+**C. AGT-018 Governance Gate (Phase 3.5-B — closes the biggest single architectural gap):**
+- Compile `RULES.md` to `PolicyBundle` at session start in `purpose-gate.js` (not re-parsed per call)
+- `src/TrustLedger.ts` — per-agent score (success+0.01, failure-0.05, gate violation-0.10)
+- SHA-256 proof chaining in `evidence-capture.js` (one-line change)
+- `IrreversibilityClassifier` in `damage-control.js` for destructive/external actions
+
+**D. Agent Archetypes AGT-014 through AGT-021:**
+- AGT-014: Security Sentinel, AGT-015: Performance Engineer, AGT-016: Memory Steward
+- AGT-017: Quality Engineer, AGT-018: Governance Gate, AGT-019: Claims Coordinator
+- AGT-020: Neural Optimizer, AGT-021: Release Engineer
+- Add `domain` field to all archetypes for domain-partitioned routing
+
+**E. Skills Import Wave 1:**
+- `verification-quality` — truth-score gates (0.0-1.0, env-tiered thresholds, machine-readable JSON)
+- `sparc-methodology` — 17-mode SPARC as single importable skill (enables /sparc-pipeline)
+- `hooks-automation` — composable hook grammar with JSON flow-control responses
+- `github-release-management` — progressive deployment (canary 5%→25%→50%→100%), auto-rollback triggers
+- Start: > "Import 3 skills from ruvnet/ruflo into SKILLS/EVOKORE EXTENSIONS/: verification-quality, sparc-methodology, hooks-automation. Adapt frontmatter to EVOKORE schema. Branch: feat/skills-import-wave1."
+
+**F. New Commands (/sparc-spec, /sparc-pipeline, /session-checkpoint, /verify-quality, /scope-lock)**
+
+**G. ECC Phase 4 additions from deep-dive:**
+- Pattern state machine: `candidate → validated → active → stale → retired` (explicit transitions)
+- JUDGE wiring to evidence-capture.js signals (test_pass, no_error_loop, edit_verified)
+- Persistence: `~/.evokore/patterns/patterns.jsonl` + `index.json` (no embeddings needed — use TF-IDF trigger matching)
+- MEMORY.md injection path: high-confidence patterns → `~/.claude/projects/.../memory/patterns.md`
+
+**H. Narrative/session lifecycle:**
+- Phase files as durable intent: write `session-phase-<n>-<slug>.md` at each major work unit
+- Auto-generated session summary at Stop (replaces manual next-session.md authoring)
+- Memory namespace block in session manifest for purpose-gate context injection on resume
+
+---
+
 ### 1. ECC Phase 4 Spike (highest priority — research ready)
 
 All research is in `docs/research/ecc-phase4-spike-plan-2026-04-11.md`. This is a direct implementation task.
