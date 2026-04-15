@@ -40,6 +40,7 @@ import { WorkerScheduler } from "./WorkerScheduler";
 import { TrustLedger } from "./TrustLedger";
 import { MemoryManager } from "./MemoryManager";
 import { FleetManager } from "./FleetManager";
+import { OrchestrationRuntime } from "./OrchestrationRuntime";
 import { RegistryManager } from "./RegistryManager";
 import { AuditLog } from "./AuditLog";
 import { AuditExporter } from "./AuditExporter";
@@ -79,6 +80,7 @@ export class EvokoreMCPServer {
   private trustLedger!: TrustLedger;
   private memoryManager: MemoryManager;
   private fleetManager: FleetManager;
+  private orchestrationRuntime: OrchestrationRuntime;
   private registryManager: RegistryManager;
   private auditLog: AuditLog;
   private auditExporter: AuditExporter;
@@ -120,6 +122,7 @@ export class EvokoreMCPServer {
     this.trustLedger = new TrustLedger(process.env.EVOKORE_SESSION_ID || 'default');
     this.memoryManager = new MemoryManager();
     this.fleetManager = new FleetManager();
+    this.orchestrationRuntime = new OrchestrationRuntime(this.fleetManager, this.claimsManager);
     this.telemetryExporter = new TelemetryExporter(this.telemetryManager, {
       exportUrl: process.env.EVOKORE_TELEMETRY_EXPORT_URL,
       intervalMs: parseInt(process.env.EVOKORE_TELEMETRY_EXPORT_INTERVAL_MS || "", 10) || 60000,
@@ -183,6 +186,7 @@ export class EvokoreMCPServer {
       ...this.claimsManager.getTools(),
       ...this.memoryManager.getTools(),
       ...this.fleetManager.getTools(),
+      ...this.orchestrationRuntime.getTools(),
     ];
     this.toolCatalog = new ToolCatalogIndex(nativeTools, this.proxyManager.getProxiedTools());
   }
@@ -667,6 +671,8 @@ export class EvokoreMCPServer {
         source = "builtin";
       } else if (this.fleetManager.isFleetTool(toolName)) {
         source = "builtin";
+      } else if (this.orchestrationRuntime.isOrchestrationTool(toolName)) {
+        source = "builtin";
       } else if (this.pluginManager.isPluginTool(toolName)) {
         source = "plugin";
       } else if (this.toolCatalog.isNativeTool(toolName)) {
@@ -764,6 +770,8 @@ export class EvokoreMCPServer {
           result = (await this.memoryManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (this.fleetManager.isFleetTool(toolName)) {
           result = (await this.fleetManager.handleTool(toolName, args as Record<string, unknown>)) as CallToolResult;
+        } else if (this.orchestrationRuntime.isOrchestrationTool(toolName)) {
+          result = (await this.orchestrationRuntime.handleTool(toolName, args as Record<string, unknown>)) as CallToolResult;
         } else if (source === "plugin") {
           result = (await this.pluginManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (source === "native") {

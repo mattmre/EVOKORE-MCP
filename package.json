@@ -46,6 +46,7 @@
     "docs:api": "typedoc",
     "worktree:cleanup": "node scripts/worktree-cleanup.js --dry-run",
     "worktree:cleanup:apply": "node scripts/worktree-cleanup.js --apply",
+    "orchestration": "node scripts/orchestration-runner.js",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
     "changelog:full": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0"
   },
