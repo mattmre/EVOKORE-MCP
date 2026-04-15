@@ -237,6 +237,85 @@ function loadSteeringModes() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Wave 2 Phase 3.5-B: Governance Gate — PolicyBundle compilation
+//
+// Compiles the active governance policy from RULES.md + CLAUDE.md into a
+// compact bundle (top-level section headings + SHA-256 fingerprint). The
+// bundle is injected into `additionalContext` so the model has explicit
+// awareness of which policy sections are currently active. The fingerprint
+// is folded into the dedup hash so policy file changes bust the cache.
+//
+// Fail-open: any read/parse error returns an empty bundle with fingerprint
+// "unknown" so the gate never blocks the purpose-gate flow.
+// ---------------------------------------------------------------------------
+function findRepoRoot() {
+  // purpose-gate.js lives in scripts/ at the repo root.
+  return path.resolve(__dirname, '..');
+}
+
+function loadPolicyBundle() {
+  try {
+    const repoRoot = findRepoRoot();
+    const rulesPath = path.join(repoRoot, 'RULES.md');
+    const claudePath = path.join(repoRoot, 'CLAUDE.md');
+    const rules = fs.existsSync(rulesPath) ? fs.readFileSync(rulesPath, 'utf8') : '';
+    const claude = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, 'utf8') : '';
+    const rulesSections = [...rules.matchAll(/^#{1,3}\s+(.+)$/gm)].map(m => m[1]).slice(0, 20);
+    const claudeSections = [...claude.matchAll(/^#{1,3}\s+(.+)$/gm)].map(m => m[1]).slice(0, 20);
+    const fingerprint = crypto.createHash('sha256')
+      .update(rules.slice(0, 2000) + claude.slice(0, 2000))
+      .digest('hex').slice(0, 16);
+    return { rulesSections, claudeSections, fingerprint, loadedAt: Date.now() };
+  } catch {
+    try { writeHookEvent({ hook: 'purpose-gate', event: 'policy_bundle_load_failed', error: 'read_error' }); } catch {}
+    return { rulesSections: [], claudeSections: [], fingerprint: 'unknown', loadedAt: Date.now() };
+  }
+}
+
+function buildPolicyBundleContext(bundle) {
+  if (!bundle) return null;
+  return [
+    `## Active Policy Bundle (fingerprint: ${bundle.fingerprint})`,
+    `RULES.md sections: ${bundle.rulesSections.join(', ') || 'not loaded'}`,
+    `CLAUDE.md sections: ${bundle.claudeSections.join(', ') || 'not loaded'}`,
+    `Verify session purpose aligns with these active policy sections.`
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Wave 2 Phase 3.5-B: ContinueGate — purpose-alignment check
+//
+// Lightweight keyword overlap check between the current user message and the
+// recorded session purpose. When EVOKORE_CONTINUE_GATE=true and alignment
+// drops below 10% on a substantial message (>10 words), inject a soft
+// warning. Fail-open: never hard-blocks, only surfaces a context hint so the
+// operator can explicitly steer.
+// ---------------------------------------------------------------------------
+function checkContinueGate(state, userMessage, currentMode) {
+  if (process.env.EVOKORE_CONTINUE_GATE !== 'true') return null;
+  if (!state || !state.purpose) return null;
+
+  const purposeWords = new Set(
+    String(state.purpose).toLowerCase().split(/\s+/).filter(w => w.length > 4)
+  );
+  const msgWords = String(userMessage || '').toLowerCase().split(/\s+/).filter(w => w.length > 4);
+  const overlap = msgWords.filter(w => purposeWords.has(w)).length;
+  const alignmentRatio = purposeWords.size > 0
+    ? overlap / Math.min(msgWords.length, purposeWords.size)
+    : 1;
+
+  if (alignmentRatio < 0.10 && msgWords.length > 10) {
+    return [
+      `## Governance Gate — Purpose Alignment Check`,
+      `Current session purpose: "${state.purpose}"`,
+      `Current message appears to diverge from session purpose (alignment: ${Math.round(alignmentRatio * 100)}%).`,
+      `Options: (a) continue under existing purpose if this is within scope, (b) use /tilldone to close tasks and start a new session, or (c) explicitly restate a broader purpose. Fail-open: proceeding unless operator intervenes.`
+    ].join('\n');
+  }
+  return null;
+}
+
 function selectMode(purpose, modes) {
   if (!purpose || !modes) return 'dev';
   const p = String(purpose).toLowerCase();
@@ -268,6 +347,11 @@ module.exports = {
   getCompletedWorkerResultsForInject,
   buildWorkerResultsContext,
   buildUnblockedTasksContext,
+  // Wave 2 Phase 3.5-B: Governance Gate.
+  findRepoRoot,
+  loadPolicyBundle,
+  buildPolicyBundleContext,
+  checkContinueGate,
 };
 
 // The stdin hook loop only runs when invoked as a script — either directly
@@ -327,6 +411,9 @@ process.stdin.on('end', () => {
       if (soulValues) {
         contextParts.push(`\n\n[EVOKORE VALUES HIERARCHY]\n${soulValues}`);
       }
+      const policyBundle = loadPolicyBundle();
+      const policyCtx = buildPolicyBundleContext(policyBundle);
+      if (policyCtx) contextParts.push(`\n\n${policyCtx}`);
       const result = { additionalContext: contextParts.join(' ') };
       console.log(JSON.stringify(result));
     } else if (state.purpose === null) {
@@ -371,6 +458,9 @@ process.stdin.on('end', () => {
       if (modes[selectedMode] && modes[selectedMode].focus) {
         contextParts.push(`\n\n[SESSION MODE: ${selectedMode.toUpperCase()}]\n${modes[selectedMode].focus}`);
       }
+      const policyBundle = loadPolicyBundle();
+      const policyCtx = buildPolicyBundleContext(policyBundle);
+      if (policyCtx) contextParts.push(`\n\n${policyCtx}`);
       const result = { additionalContext: contextParts.join(' ') };
       console.log(JSON.stringify(result));
     } else {
@@ -403,6 +493,11 @@ process.stdin.on('end', () => {
       if (soulValues) {
         contextParts.push(`\n\n[EVOKORE VALUES HIERARCHY]\n${soulValues}`);
       }
+      // Wave 2 Phase 3.5-B: PolicyBundle + ContinueGate.
+      const policyBundle = loadPolicyBundle();
+      const policyCtx = buildPolicyBundleContext(policyBundle);
+      if (policyCtx) contextParts.push(`\n\n${policyCtx}`);
+      const continueGateWarning = checkContinueGate(state, userMessage, currentMode);
       // Wave 2 Phase 2.5-B/C: surface completed worker results and newly
       // unblocked tasks. These are appended *outside* the dedup hash basis
       // (below) so they always inject when present — they're cheap and
@@ -413,12 +508,14 @@ process.stdin.on('end', () => {
       const fullContext = contextParts.join(' ');
       // Hash only the steering/values portion, excluding the volatile status
       // line. Status changes every prompt (cost/turn, tool counts) and would
-      // defeat dedup if hashed.
+      // defeat dedup if hashed. PolicyBundle fingerprint is included so a
+      // change to RULES.md / CLAUDE.md busts the dedup cache on next prompt.
       const dedupBasis = [
         state.purpose || '',
         currentMode || '',
         modes[currentMode] && modes[currentMode].focus ? modes[currentMode].focus : '',
         soulValues || '',
+        policyBundle.fingerprint || '',
       ].join('|');
       const contentHash = computeContextHash(dedupBasis);
       const lastHash = readLastPurposeHash(sessionId);
@@ -437,6 +534,7 @@ process.stdin.on('end', () => {
       const tail = [];
       if (workerCtx) tail.push(`\n\n${workerCtx}`);
       if (unblockedCtx) tail.push(`\n\n${unblockedCtx}`);
+      if (continueGateWarning) tail.push(`\n\n${continueGateWarning}`);
       if (autoDispatched.length > 0) {
         tail.push(`\n\n[EVOKORE Purpose Gate] Auto-dispatched workers: ${autoDispatched.map(w => `${w.workerType} (${w.workerId})`).join(', ')}. Poll with worker_context.`);
       }
