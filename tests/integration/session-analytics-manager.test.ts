@@ -27,15 +27,16 @@ describe('SessionAnalyticsManager', () => {
   });
 
   describe('tool definitions', () => {
-    it('getTools returns 3 tools', () => {
+    it('getTools returns 4 tools', () => {
       const { SessionAnalyticsManager } = require(jsPath);
       const mgr = new SessionAnalyticsManager();
       const tools = mgr.getTools();
       const names = tools.map((t: any) => t.name);
-      expect(tools).toHaveLength(3);
+      expect(tools).toHaveLength(4);
       expect(names).toContain('session_context_health');
       expect(names).toContain('session_analyze_replay');
       expect(names).toContain('session_work_ratio');
+      expect(names).toContain('session_trust_report');
     });
 
     it('all tools have readOnlyHint annotation', () => {
@@ -56,6 +57,7 @@ describe('SessionAnalyticsManager', () => {
       expect(mgr.isSessionAnalyticsTool('session_context_health')).toBe(true);
       expect(mgr.isSessionAnalyticsTool('session_analyze_replay')).toBe(true);
       expect(mgr.isSessionAnalyticsTool('session_work_ratio')).toBe(true);
+      expect(mgr.isSessionAnalyticsTool('session_trust_report')).toBe(true);
       expect(mgr.isSessionAnalyticsTool('other')).toBe(false);
       expect(mgr.isSessionAnalyticsTool('get_telemetry')).toBe(false);
     });

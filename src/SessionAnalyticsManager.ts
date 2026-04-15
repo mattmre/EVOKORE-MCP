@@ -4,6 +4,7 @@ import readline from "readline";
 import path from "path";
 import os from "os";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { TrustLedger } from "./TrustLedger";
 
 // Anthropic Sonnet pricing (USD per 1M tokens)
 const SONNET_CACHE_READ_PER_MTOK = 0.3;
@@ -137,6 +138,30 @@ export class SessionAnalyticsManager {
           openWorldHint: false,
         },
       } as Tool,
+      {
+        name: "session_trust_report",
+        title: "Session Trust Report",
+        description:
+          "Returns per-agent trust scores, tiers, and multipliers for the current session.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            session_id: {
+              type: "string",
+              description:
+                "Session ID to report trust for (defaults to 'default' when omitted).",
+            },
+          },
+          required: [],
+        },
+        annotations: {
+          title: "Session Trust Report",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      } as Tool,
     ];
   }
 
@@ -144,7 +169,8 @@ export class SessionAnalyticsManager {
     return (
       name === "session_context_health" ||
       name === "session_analyze_replay" ||
-      name === "session_work_ratio"
+      name === "session_work_ratio" ||
+      name === "session_trust_report"
     );
   }
 
@@ -158,7 +184,28 @@ export class SessionAnalyticsManager {
     if (toolName === "session_work_ratio") {
       return this.handleWorkRatio(args);
     }
+    if (toolName === "session_trust_report") {
+      return this.handleTrustReport(args);
+    }
     return null;
+  }
+
+  // ---- session_trust_report ----
+
+  private async handleTrustReport(args: any): Promise<any> {
+    const sessionId: string = (args && typeof args.session_id === "string" && args.session_id)
+      ? args.session_id
+      : (process.env.EVOKORE_SESSION_ID || "default");
+    const ledger = new TrustLedger(sessionId);
+    const report = ledger.getTrustReport();
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({ session_id: sessionId, ...report }, null, 2),
+        },
+      ],
+    };
   }
 
   // ---- session_context_health ----

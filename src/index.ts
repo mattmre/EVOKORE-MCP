@@ -37,6 +37,7 @@ import { SessionAnalyticsManager } from "./SessionAnalyticsManager";
 import { WorkerManager } from "./WorkerManager";
 import { ClaimsManager } from "./ClaimsManager";
 import { WorkerScheduler } from "./WorkerScheduler";
+import { TrustLedger } from "./TrustLedger";
 import { MemoryManager } from "./MemoryManager";
 import { RegistryManager } from "./RegistryManager";
 import { AuditLog } from "./AuditLog";
@@ -73,6 +74,7 @@ export class EvokoreMCPServer {
   private workerManager: WorkerManager;
   private claimsManager: ClaimsManager;
   private workerScheduler: WorkerScheduler;
+  private trustLedger!: TrustLedger;
   private memoryManager: MemoryManager;
   private registryManager: RegistryManager;
   private auditLog: AuditLog;
@@ -111,6 +113,7 @@ export class EvokoreMCPServer {
     this.workerManager = new WorkerManager();
     this.claimsManager = new ClaimsManager();
     this.workerScheduler = new WorkerScheduler(this.claimsManager);
+    this.trustLedger = new TrustLedger(process.env.EVOKORE_SESSION_ID || 'default');
     this.memoryManager = new MemoryManager();
     this.telemetryExporter = new TelemetryExporter(this.telemetryManager, {
       exportUrl: process.env.EVOKORE_TELEMETRY_EXPORT_URL,
