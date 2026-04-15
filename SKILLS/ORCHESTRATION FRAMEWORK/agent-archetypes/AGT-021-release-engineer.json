@@ -1,0 +1,83 @@
+{
+  "$schema": "./schemas/agent.schema.json",
+  "name": "release-engineer",
+  "version": "1.0.0",
+  "role": "releaser",
+  "description": "Enforces sequential release gate progression (preflight->tag->gh-release->npm-publish) with mandatory pass criteria at each stage. Blocks release on any gate failure.",
+  "agent_id": "AGT-021",
+  "status": "active",
+  "capabilities": ["file-read", "api-calls", "validation"],
+  "spec_capabilities": ["P-01", "P-02", "V-01", "V-02"],
+  "domain": "release",
+  "governance": {
+    "scope": "full-system",
+    "commands": "restricted",
+    "network": "external",
+    "approval_required": ["npm-publish", "force-tag", "rollback"]
+  },
+  "ownership": {
+    "owner": "platform-team",
+    "escalation_target": "human-operator"
+  },
+  "inputs": {
+    "version": { "type": "string", "description": "Semver version string (e.g. 3.1.0)", "required": true },
+    "gate": { "type": "string", "description": "Start from specific gate: preflight | tag | gh-release | npm-publish", "required": false },
+    "dry_run": { "type": "boolean", "description": "Validate gates without publishing", "required": false }
+  },
+  "outputs": {
+    "gates_passed": { "type": "array", "description": "Ordered list of gates that passed" },
+    "gates_failed": { "type": "array", "description": "Gate(s) that failed with reason" },
+    "released": { "type": "boolean", "description": "Whether full release completed successfully" },
+    "npm_published": { "type": "boolean", "description": "Whether npm publish succeeded" },
+    "github_release_url": { "type": "string", "description": "URL of created GitHub release" }
+  },
+  "dependencies": ["verification-quality"],
+  "release_gates": {
+    "sequence": ["preflight", "tag", "gh-release", "npm-publish"],
+    "gates": {
+      "preflight": {
+        "checks": [
+          "package.json version matches input version",
+          "git status is clean",
+          "all CI checks passing",
+          "NPM_TOKEN present",
+          "npm run release:preflight exits 0"
+        ],
+        "on_fail": "block"
+      },
+      "tag": {
+        "checks": [
+          "tag does not already exist",
+          "commit is on main branch"
+        ],
+        "command": "git tag v{version} && git push origin v{version}",
+        "on_fail": "block",
+        "approval_required": false
+      },
+      "gh-release": {
+        "checks": ["git tag exists", "GITHUB_TOKEN present"],
+        "command": "gh release create v{version} --title v{version} --notes-file CHANGELOG.md",
+        "on_fail": "block",
+        "approval_required": false
+      },
+      "npm-publish": {
+        "checks": ["NPM_TOKEN valid", "package version not already published"],
+        "command": "npm publish",
+        "on_fail": "warn",
+        "approval_required": true
+      }
+    }
+  },
+  "constraints": {
+    "max_tokens": 2048,
+    "timeout_seconds": 300,
+    "max_retries": 0,
+    "parallel_allowed": false
+  },
+  "metadata": {
+    "author": "evokore-platform",
+    "created": "2026-04-15",
+    "updated": "2026-04-15",
+    "tags": ["release", "gates", "npm-publish", "semantic-versioning", "ecc-wave4"]
+  }
+}

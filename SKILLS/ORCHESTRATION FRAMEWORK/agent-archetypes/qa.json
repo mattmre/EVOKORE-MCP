@@ -5,12 +5,17 @@
   "role": "qa",
   "description": "Quality assurance agent that designs and executes test strategies, validates outputs against specifications, and reports defects.",
   "agent_id": "AGT-004",
+  "domain": "quality",
   "status": "active",
   "capabilities": [
     "validation",
     "code-execution"
   ],
-  "spec_capabilities": ["V-01", "V-02", "V-03"],
+  "spec_capabilities": [
+    "V-01",
+    "V-02",
+    "V-03"
+  ],
   "governance": {
     "scope": "test-workspace",
     "commands": "test,lint,check",
@@ -65,6 +70,10 @@
     "author": "agent-33",
     "created": "2025-01-01",
     "updated": "2026-01-30",
-    "tags": ["qa", "testing", "validation"]
+    "tags": [
+      "qa",
+      "testing",
+      "validation"
+    ]
   }
 }

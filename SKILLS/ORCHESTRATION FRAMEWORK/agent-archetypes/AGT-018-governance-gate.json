@@ -5,9 +5,19 @@
   "role": "enforcer",
   "description": "Policy enforcer that compiles RULES.md + CLAUDE.md into a PolicyBundle, injects active policy context into session prompts via purpose-gate, and provides ContinueGate alignment checks to prevent session purpose drift.",
   "agent_id": "AGT-018",
+  "domain": "governance",
   "status": "active",
-  "capabilities": ["file-read", "policy-evaluation", "context-injection"],
-  "spec_capabilities": ["P-02", "P-04", "V-02", "V-04"],
+  "capabilities": [
+    "file-read",
+    "policy-evaluation",
+    "context-injection"
+  ],
+  "spec_capabilities": [
+    "P-02",
+    "P-04",
+    "V-02",
+    "V-04"
+  ],
   "governance": {
     "scope": "session-level",
     "commands": "none",
@@ -52,9 +62,14 @@
       "description": "Top-level section headings extracted from CLAUDE.md"
     }
   },
-  "dependencies": ["purpose-gate"],
+  "dependencies": [
+    "purpose-gate"
+  ],
   "policy_bundle": {
-    "sources": ["RULES.md", "CLAUDE.md"],
+    "sources": [
+      "RULES.md",
+      "CLAUDE.md"
+    ],
     "extraction": "section-heading-regex",
     "fingerprint_algorithm": "sha256",
     "cache_key": "policy_fingerprint",
@@ -62,7 +77,7 @@
   },
   "continue_gate": {
     "enabled_via": "EVOKORE_CONTINUE_GATE=true",
-    "alignment_threshold": 0.10,
+    "alignment_threshold": 0.1,
     "min_message_words": 10,
     "action": "inject-warning",
     "hard_block": false
@@ -77,6 +92,12 @@
     "author": "evokore-platform",
     "created": "2026-04-15",
     "updated": "2026-04-15",
-    "tags": ["governance", "policy", "purpose-gate", "continue-gate", "ecc-phase3"]
+    "tags": [
+      "governance",
+      "policy",
+      "purpose-gate",
+      "continue-gate",
+      "ecc-phase3"
+    ]
   }
 }

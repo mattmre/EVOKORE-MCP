@@ -5,9 +5,19 @@
   "role": "analyst",
   "description": "Runs benchmarks, diffs performance regressions against baseline, and enforces token/latency budgets. Surfaces degradation before code reaches main.",
   "agent_id": "AGT-015",
+  "domain": "performance",
   "status": "active",
-  "capabilities": ["file-read", "api-calls", "validation", "benchmarking"],
-  "spec_capabilities": ["P-03", "V-03", "V-05"],
+  "capabilities": [
+    "file-read",
+    "api-calls",
+    "validation",
+    "benchmarking"
+  ],
+  "spec_capabilities": [
+    "P-03",
+    "V-03",
+    "V-05"
+  ],
   "governance": {
     "scope": "session-level",
     "commands": "read-only",
@@ -19,9 +29,21 @@
     "escalation_target": "human-operator"
   },
   "inputs": {
-    "session_id": { "type": "string", "description": "Session context", "required": true },
-    "benchmark_target": { "type": "string", "description": "Function or file to benchmark", "required": false },
-    "baseline_path": { "type": "string", "description": "Path to baseline benchmark JSON for regression diff", "required": false },
+    "session_id": {
+      "type": "string",
+      "description": "Session context",
+      "required": true
+    },
+    "benchmark_target": {
+      "type": "string",
+      "description": "Function or file to benchmark",
+      "required": false
+    },
+    "baseline_path": {
+      "type": "string",
+      "description": "Path to baseline benchmark JSON for regression diff",
+      "required": false
+    },
     "budget": {
       "type": "object",
       "description": "Optional budget constraints: { max_latency_ms, max_tokens, max_memory_mb }",
@@ -29,13 +51,30 @@
     }
   },
   "outputs": {
-    "benchmark_result": { "type": "object", "description": "{ p50_ms, p95_ms, p99_ms, throughput_rps, memory_mb }" },
-    "regression_detected": { "type": "boolean", "description": "True if any metric degrades >10% vs baseline" },
-    "budget_exceeded": { "type": "boolean", "description": "True if any metric exceeds the requested budget" },
-    "diff": { "type": "object", "description": "Delta vs baseline per metric" },
-    "recommendation": { "type": "string", "description": "pass | warn | fail" }
+    "benchmark_result": {
+      "type": "object",
+      "description": "{ p50_ms, p95_ms, p99_ms, throughput_rps, memory_mb }"
+    },
+    "regression_detected": {
+      "type": "boolean",
+      "description": "True if any metric degrades >10% vs baseline"
+    },
+    "budget_exceeded": {
+      "type": "boolean",
+      "description": "True if any metric exceeds the requested budget"
+    },
+    "diff": {
+      "type": "object",
+      "description": "Delta vs baseline per metric"
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "pass | warn | fail"
+    }
   },
-  "dependencies": ["TelemetryIndex"],
+  "dependencies": [
+    "TelemetryIndex"
+  ],
   "performance_budgets": {
     "default": {
       "resolve_workflow_p50_ms": 200,
@@ -56,6 +95,12 @@
     "author": "evokore-platform",
     "created": "2026-04-15",
     "updated": "2026-04-15",
-    "tags": ["performance", "benchmarking", "regression", "latency", "ecc-wave4"]
+    "tags": [
+      "performance",
+      "benchmarking",
+      "regression",
+      "latency",
+      "ecc-wave4"
+    ]
   }
 }

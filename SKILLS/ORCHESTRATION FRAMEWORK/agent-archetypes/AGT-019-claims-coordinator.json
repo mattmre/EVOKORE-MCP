@@ -5,33 +5,78 @@
   "role": "coordinator",
   "description": "Manages the 9-state claim lifecycle for distributed agent coordination. Implements work-stealing, claim handoff, and TTL-based stale-claim recovery.",
   "agent_id": "AGT-019",
+  "domain": "coordination",
   "status": "active",
-  "capabilities": ["orchestration", "file-read", "api-calls"],
-  "spec_capabilities": ["P-01", "P-03", "V-01"],
+  "capabilities": [
+    "orchestration",
+    "file-read",
+    "api-calls"
+  ],
+  "spec_capabilities": [
+    "P-01",
+    "P-03",
+    "V-01"
+  ],
   "governance": {
     "scope": "full-system",
     "commands": "none",
     "network": "internal",
-    "approval_required": ["force-release"]
+    "approval_required": [
+      "force-release"
+    ]
   },
   "ownership": {
     "owner": "platform-team",
     "escalation_target": "human-operator"
   },
   "inputs": {
-    "session_id": { "type": "string", "description": "Session context", "required": true },
-    "action": { "type": "string", "description": "acquire | release | steal | sweep | handoff | list", "required": true },
-    "resource": { "type": "string", "description": "Resource identifier to claim", "required": false },
-    "agent_id": { "type": "string", "description": "Agent requesting the claim", "required": false },
-    "ttl_ms": { "type": "number", "description": "TTL in milliseconds (default 30000)", "required": false }
+    "session_id": {
+      "type": "string",
+      "description": "Session context",
+      "required": true
+    },
+    "action": {
+      "type": "string",
+      "description": "acquire | release | steal | sweep | handoff | list",
+      "required": true
+    },
+    "resource": {
+      "type": "string",
+      "description": "Resource identifier to claim",
+      "required": false
+    },
+    "agent_id": {
+      "type": "string",
+      "description": "Agent requesting the claim",
+      "required": false
+    },
+    "ttl_ms": {
+      "type": "number",
+      "description": "TTL in milliseconds (default 30000)",
+      "required": false
+    }
   },
   "outputs": {
-    "success": { "type": "boolean", "description": "Whether the operation succeeded" },
-    "claim": { "type": "object", "description": "Current claim state if applicable" },
-    "stolen_from": { "type": "string", "description": "Agent ID claim was stolen from (work-stealing only)" },
-    "state": { "type": "string", "description": "Current claim lifecycle state" }
+    "success": {
+      "type": "boolean",
+      "description": "Whether the operation succeeded"
+    },
+    "claim": {
+      "type": "object",
+      "description": "Current claim state if applicable"
+    },
+    "stolen_from": {
+      "type": "string",
+      "description": "Agent ID claim was stolen from (work-stealing only)"
+    },
+    "state": {
+      "type": "string",
+      "description": "Current claim lifecycle state"
+    }
   },
-  "dependencies": ["ClaimsManager"],
+  "dependencies": [
+    "ClaimsManager"
+  ],
   "claim_lifecycle": {
     "states": [
       "uncontested",
@@ -69,6 +114,13 @@
     "author": "evokore-platform",
     "created": "2026-04-15",
     "updated": "2026-04-15",
-    "tags": ["claims", "coordination", "distributed", "work-stealing", "lifecycle", "ecc-wave4"]
+    "tags": [
+      "claims",
+      "coordination",
+      "distributed",
+      "work-stealing",
+      "lifecycle",
+      "ecc-wave4"
+    ]
   }
 }
