@@ -3,9 +3,65 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { readSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
 const { buildStatusSnapshot, renderStatusLine } = require('./status-runtime');
+
+// ---------------------------------------------------------------------------
+// Wave 2 Phase 2-A: context-hash dedup for SOUL/mode injection.
+//
+// Each prompt, purpose-gate builds a "session continuity" context string that
+// pins the session purpose, mode focus, and SOUL values into the model's
+// working context via `additionalContext`. That string is ~5-30K tokens
+// depending on mode, and for an unchanged session it is byte-identical from
+// one prompt to the next. Re-injecting the identical payload every prompt
+// wastes tokens; for long sessions this is the single largest source of
+// avoidable input spend.
+//
+// The dedup strategy stores a short hash of the last-injected payload in a
+// sibling file (`{sessionId}-purpose-hash.txt`) next to the session manifest.
+// On each subsequent prompt we compute the same hash before injecting and
+// short-circuit to a minimal "continuity maintained" marker when it matches.
+// The marker is small enough (~50 tokens) that context routing still sees
+// purpose-gate participated, but we skip the large SOUL/mode payload.
+//
+// Guarantees:
+//  - Fail-open: any FS error reverts to the old behavior (always inject).
+//  - Scoped: dedup only applies to the "subsequent prompts — remind of
+//    purpose" branch. First-prompt and purpose-recording paths always
+//    inject fresh content.
+//  - Invalidates on mode / purpose change: the hash is derived from the
+//    full payload, so switching modes or editing SOUL.md naturally busts
+//    the cache on the next prompt.
+// ---------------------------------------------------------------------------
+function purposeHashPath(sessionId) {
+  const safeId = String(sessionId).replace(/[^a-zA-Z0-9_-]/g, '_');
+  return path.join(SESSIONS_DIR, `${safeId}-purpose-hash.txt`);
+}
+
+function computeContextHash(content) {
+  return crypto.createHash('sha256').update(String(content)).digest('hex').slice(0, 16);
+}
+
+function readLastPurposeHash(sessionId) {
+  try {
+    const p = purposeHashPath(sessionId);
+    if (!fs.existsSync(p)) return null;
+    const raw = fs.readFileSync(p, 'utf8').trim();
+    return raw || null;
+  } catch {
+    return null; // fail-open
+  }
+}
+
+function writeLastPurposeHash(sessionId, hash) {
+  try {
+    fs.writeFileSync(purposeHashPath(sessionId), String(hash), 'utf8');
+  } catch {
+    // fail-open — skipping the write just means the next prompt re-injects.
+  }
+}
 
 // Phase 0-C: dual-write to append-only JSONL manifest alongside the legacy
 // `{sessionId}.json` snapshot. The JSONL module never throws; the require
@@ -87,7 +143,16 @@ function selectMode(purpose, modes) {
   return modes['dev'] ? 'dev' : Object.keys(modes)[0] || 'dev';
 }
 
-module.exports = { loadSoulValues, loadSteeringModes, selectMode };
+module.exports = {
+  loadSoulValues,
+  loadSteeringModes,
+  selectMode,
+  // Wave 2 Phase 2-A dedup helpers — exported for tests.
+  purposeHashPath,
+  computeContextHash,
+  readLastPurposeHash,
+  writeLastPurposeHash,
+};
 
 // The stdin hook loop only runs when invoked as a script — either directly
 // (`node scripts/purpose-gate.js`) or through the canonical fail-safe
@@ -195,26 +260,58 @@ process.stdin.on('end', () => {
     } else {
       // Subsequent prompts — remind of purpose
       const reminderAt = new Date().toISOString();
-      appendEvent(sessionId, {
-        type: 'purpose_reminder',
-        payload: { lastPromptAt: reminderAt }
-      });
-      writeHookEvent({
-        hook: 'purpose-gate',
-        event: 'purpose_reminder',
-        session_id: sessionId
-      });
       const statusLine = getStatusLine(payload);
-      const contextParts = [`[EVOKORE Purpose Gate] Session purpose: "${state.purpose}". Stay focused on this goal.`];
-      if (statusLine) contextParts.push(statusLine);
       const modes = loadSteeringModes();
       // Self-heal legacy sessions that predate ECC Phase 1 (no mode persisted)
       const currentMode = state.mode || selectMode(state.purpose, modes);
+
+      // Wave 2 Phase 2-A: build the full payload first so we can hash and
+      // compare against the last-injected payload for this session.
+      const contextParts = [`[EVOKORE Purpose Gate] Session purpose: "${state.purpose}". Stay focused on this goal.`];
+      if (statusLine) contextParts.push(statusLine);
       if (modes[currentMode] && modes[currentMode].focus) {
         contextParts.push(`\n\n[SESSION MODE: ${currentMode.toUpperCase()}]\n${modes[currentMode].focus}`);
       }
-      const result = { additionalContext: contextParts.join(' ') };
-      console.log(JSON.stringify(result));
+      const soulValues = loadSoulValues();
+      if (soulValues) {
+        contextParts.push(`\n\n[EVOKORE VALUES HIERARCHY]\n${soulValues}`);
+      }
+      const fullContext = contextParts.join(' ');
+      // Hash only the steering/values portion, excluding the volatile status
+      // line. Status changes every prompt (cost/turn, tool counts) and would
+      // defeat dedup if hashed.
+      const dedupBasis = [
+        state.purpose || '',
+        currentMode || '',
+        modes[currentMode] && modes[currentMode].focus ? modes[currentMode].focus : '',
+        soulValues || '',
+      ].join('|');
+      const contentHash = computeContextHash(dedupBasis);
+      const lastHash = readLastPurposeHash(sessionId);
+      const isDuplicate = lastHash === contentHash;
+
+      appendEvent(sessionId, {
+        type: 'purpose_reminder',
+        payload: { lastPromptAt: reminderAt, contentHash, dedup: isDuplicate ? 'skipped' : 'injected' }
+      });
+      writeHookEvent({
+        hook: 'purpose-gate',
+        event: isDuplicate ? 'purpose_reminder_deduped' : 'purpose_reminder',
+        session_id: sessionId
+      });
+
+      if (isDuplicate) {
+        // Same content as last prompt — emit a compact marker instead of the
+        // full SOUL/mode payload. Saves ~25K tokens on long sessions.
+        const compactParts = [`[EVOKORE Purpose Gate] Purpose unchanged: "${state.purpose}" (mode: ${currentMode}).`];
+        if (statusLine) compactParts.push(statusLine);
+        const result = { additionalContext: compactParts.join(' ') };
+        console.log(JSON.stringify(result));
+      } else {
+        writeLastPurposeHash(sessionId, contentHash);
+        const result = { additionalContext: fullContext };
+        console.log(JSON.stringify(result));
+      }
     }
   } catch (error) {
     writeHookEvent({

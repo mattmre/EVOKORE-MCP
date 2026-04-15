@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @AI:NAV[SEC:requires] Module requires and constants
 'use strict';
 
 const fs = require('fs');
@@ -6,6 +7,7 @@ const path = require('path');
 const os = require('os');
 const { execFileSync } = require('child_process');
 const { sanitizeId } = require('./hook-observability');
+// @AI:NAV[END:requires]
 
 const EVOKORE_HOME = path.join(os.homedir(), '.evokore');
 const SESSIONS_DIR = path.join(EVOKORE_HOME, 'sessions');
@@ -13,6 +15,7 @@ const CACHE_DIR = path.join(EVOKORE_HOME, 'cache');
 const LOGS_DIR = path.join(EVOKORE_HOME, 'logs');
 const CONTINUITY_VERSION = 1;
 
+// @AI:NAV[SEC:fn-ensureruntimedirs] function ensureRuntimeDirs
 function ensureRuntimeDirs() {
   for (const dirPath of [EVOKORE_HOME, SESSIONS_DIR, CACHE_DIR, LOGS_DIR]) {
     if (!fs.existsSync(dirPath)) {
@@ -20,7 +23,9 @@ function ensureRuntimeDirs() {
     }
   }
 }
+// @AI:NAV[END:fn-ensureruntimedirs]
 
+// @AI:NAV[SEC:fn-resolvecanonicalreporoot] function resolveCanonicalRepoRoot
 function resolveCanonicalRepoRoot(startDir = process.cwd()) {
   const cwd = path.resolve(startDir);
   try {
@@ -38,7 +43,9 @@ function resolveCanonicalRepoRoot(startDir = process.cwd()) {
   }
   return cwd;
 }
+// @AI:NAV[END:fn-resolvecanonicalreporoot]
 
+// @AI:NAV[SEC:fn-getsessionpaths] function getSessionPaths
 function getSessionPaths(sessionId) {
   const sanitizedSessionId = sanitizeId(sessionId);
   return {
@@ -49,7 +56,9 @@ function getSessionPaths(sessionId) {
     tasksPath: path.join(SESSIONS_DIR, `${sanitizedSessionId}-tasks.json`)
   };
 }
+// @AI:NAV[END:fn-getsessionpaths]
 
+// @AI:NAV[SEC:fn-countjsonlentries] function countJsonlEntries
 function countJsonlEntries(filePath) {
   try {
     if (!fs.existsSync(filePath)) return 0;
@@ -59,7 +68,9 @@ function countJsonlEntries(filePath) {
     return 0;
   }
 }
+// @AI:NAV[END:fn-countjsonlentries]
 
+// @AI:NAV[SEC:fn-counttaskstats] function countTaskStats
 function countTaskStats(tasksPath) {
   try {
     if (!fs.existsSync(tasksPath)) {
@@ -80,11 +91,13 @@ function countTaskStats(tasksPath) {
     return { totalTasks: 0, incompleteTasks: 0 };
   }
 }
+// @AI:NAV[END:fn-counttaskstats]
 
 // Phase 0-D: prefer the append-only JSONL manifest when present so readers
 // transparently benefit from hooks that no longer dual-write the legacy
 // `{sessionId}.json` snapshot. Falls back to the legacy JSON file if the
 // manifest is missing or the dist module is unavailable.
+// @AI:NAV[SEC:fn-foldmanifestsync] function foldManifestSync
 function foldManifestSync(manifestPath, sessionId) {
   try {
     if (!fs.existsSync(manifestPath)) return null;
@@ -176,7 +189,9 @@ function foldManifestSync(manifestPath, sessionId) {
     return null;
   }
 }
+// @AI:NAV[END:fn-foldmanifestsync]
 
+// @AI:NAV[SEC:fn-readsessionstate] function readSessionState
 function readSessionState(sessionId) {
   ensureRuntimeDirs();
   const paths = getSessionPaths(sessionId);
@@ -240,7 +255,9 @@ function readSessionState(sessionId) {
     return null;
   }
 }
+// @AI:NAV[END:fn-readsessionstate]
 
+// @AI:NAV[SEC:fn-buildbasestate] function buildBaseState
 function buildBaseState(sessionId, existingState) {
   const now = new Date().toISOString();
   const paths = getSessionPaths(sessionId);
@@ -287,7 +304,9 @@ function buildBaseState(sessionId, existingState) {
     }
   };
 }
+// @AI:NAV[END:fn-buildbasestate]
 
+// @AI:NAV[SEC:fn-writesessionstate] function writeSessionState
 function writeSessionState(sessionId, patch = {}) {
   ensureRuntimeDirs();
   const existingState = readSessionState(sessionId);
@@ -328,6 +347,7 @@ function writeSessionState(sessionId, patch = {}) {
   fs.writeFileSync(nextState.artifacts.sessionStatePath, JSON.stringify(nextState, null, 2));
   return nextState;
 }
+// @AI:NAV[END:fn-writesessionstate]
 
 module.exports = {
   CONTINUITY_VERSION,

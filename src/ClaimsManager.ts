@@ -1,12 +1,15 @@
+// @AI:NAV[SEC:imports] Import declarations
 import fs from "fs/promises";
 import path from "path";
 import os from "os";
 import crypto from "crypto";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+// @AI:NAV[END:imports]
 
 const DEFAULT_CLAIMS_DIR = path.join(os.homedir(), ".evokore", ".claims");
 const DEFAULT_TTL_MS = 30_000;
 
+// @AI:NAV[SEC:interface-claim] interface Claim
 export interface Claim {
   resource: string;
   agentId: string;
@@ -15,16 +18,21 @@ export interface Claim {
   ttlMs: number;
   expiresAt: string;
 }
+// @AI:NAV[END:interface-claim]
 
+// @AI:NAV[SEC:interface-claimwithstatus] interface ClaimWithStatus
 export interface ClaimWithStatus extends Claim {
   expired: boolean;
   processDead: boolean;
 }
+// @AI:NAV[END:interface-claimwithstatus]
 
+// @AI:NAV[SEC:interface-sweepresult] interface SweepResult
 export interface SweepResult {
   swept: number;
   alive: number;
 }
+// @AI:NAV[END:interface-sweepresult]
 
 /**
  * ClaimsManager provides an exclusive-claim primitive backed by sentinel files
@@ -37,6 +45,7 @@ export interface SweepResult {
  *  - list: list all current claims with staleness metadata
  *  - sweep: remove expired and dead-PID claims
  */
+// @AI:NAV[SEC:class-claimsmanager] class ClaimsManager
 export class ClaimsManager {
   private readonly claimsDir: string;
 
@@ -385,3 +394,4 @@ export class ClaimsManager {
     }
   }
 }
+// @AI:NAV[END:class-claimsmanager]

@@ -17,12 +17,14 @@
  * which is functionally identical to the original in-memory implementation.
  */
 
+// @AI:NAV[SEC:imports] Import declarations
 import path from "path";
 import os from "os";
 
 import type { SessionStore } from "./SessionStore";
 import { MemorySessionStore } from "./stores/MemorySessionStore";
 import { AuditLog } from "./AuditLog";
+// @AI:NAV[END:imports]
 
 const DEFAULT_SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
 
@@ -31,9 +33,11 @@ const DEFAULT_SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
  * override used by SessionManifest and hook scripts. Resolved at call time
  * (not module-load time) so tests can flip the env var between cases.
  */
+// @AI:NAV[SEC:function-evokorehome] function evokoreHome
 function evokoreHome(): string {
   return process.env.EVOKORE_HOME ?? path.join(os.homedir(), ".evokore");
 }
+// @AI:NAV[END:function-evokorehome]
 
 /**
  * Sanitize a tenantId for safe use as a single path component.
@@ -41,9 +45,11 @@ function evokoreHome(): string {
  * else (including path separators and `..`) with underscores. Truncates
  * to 128 characters to bound filesystem path length.
  */
+// @AI:NAV[SEC:function-sanitizetenantid] function sanitizeTenantId
 export function sanitizeTenantId(tenantId: string): string {
   return tenantId.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 128);
 }
+// @AI:NAV[END:function-sanitizetenantid]
 
 /**
  * Resolve the per-tenant sessions directory.
@@ -57,6 +63,7 @@ export function sanitizeTenantId(tenantId: string): string {
  * the same path-resolution logic without requiring a SessionIsolation
  * instance.
  */
+// @AI:NAV[SEC:function-resolvetenantsessiondir] function resolveTenantSessionDir
 export function resolveTenantSessionDir(tenantId?: string): string {
   const base = path.join(evokoreHome(), "sessions");
   if (process.env.EVOKORE_TENANT_SCOPING !== "true" || !tenantId) {
@@ -66,7 +73,9 @@ export function resolveTenantSessionDir(tenantId?: string): string {
   if (!safe) return base;
   return path.join(evokoreHome(), "tenants", safe, "sessions");
 }
+// @AI:NAV[END:function-resolvetenantsessiondir]
 
+// @AI:NAV[SEC:interface-sessionstate] interface SessionState
 export interface SessionState {
   /** Unique session identifier (typically a UUID from the HTTP transport). */
   sessionId: string;
@@ -96,7 +105,9 @@ export interface SessionState {
    */
   tenantId?: string;
 }
+// @AI:NAV[END:interface-sessionstate]
 
+// @AI:NAV[SEC:interface-sessionisolationoptions] interface SessionIsolationOptions
 export interface SessionIsolationOptions {
   /** Session time-to-live in milliseconds. Defaults to EVOKORE_SESSION_TTL_MS env var or 1 hour. */
   ttlMs?: number;
@@ -107,9 +118,11 @@ export interface SessionIsolationOptions {
   /** Optional pluggable session store for persistence. Defaults to MemorySessionStore. */
   store?: SessionStore;
 }
+// @AI:NAV[END:interface-sessionisolationoptions]
 
 const DEFAULT_MAX_SESSIONS = 100;
 
+// @AI:NAV[SEC:class-sessionisolation] class SessionIsolation
 export class SessionIsolation {
   private sessions: Map<string, SessionState> = new Map();
   private ttlMs: number;
@@ -398,3 +411,4 @@ export class SessionIsolation {
     return (now - state.lastAccessedAt) > this.ttlMs;
   }
 }
+// @AI:NAV[END:class-sessionisolation]
