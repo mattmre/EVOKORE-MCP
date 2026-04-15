@@ -9,6 +9,8 @@ import Fuse from "fuse.js";
 import { Tool, Resource, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { ProxyManager } from "./ProxyManager";
 import { RegistryManager, RegistryEntry, RegistryIndex } from "./RegistryManager";
+import { TelemetryIndex } from "./TelemetryIndex";
+import { rerank as rerankCandidates } from "./rerank/successRerank";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import {
@@ -143,6 +145,7 @@ export class SkillManager {
   private _fuseIndexSizeKb: number = 0;
   private watcher: fsSync.FSWatcher | null = null;
   private onRefreshCallback: (() => void) | null = null;
+  private telemetryIndex: TelemetryIndex;
 
   /** Allowlist of environment variable keys safe to pass to sandbox subprocesses. */
   private static readonly SAFE_ENV_KEYS = new Set([
@@ -158,9 +161,15 @@ export class SkillManager {
     'DYLD_LIBRARY_PATH', 'PYTHONPATH', 'SYSTEMROOT', 'COMSPEC'
   ]);
 
-  constructor(proxyManager: ProxyManager, registryManager?: RegistryManager) {
+  constructor(proxyManager: ProxyManager, registryManager?: RegistryManager, telemetryIndex?: TelemetryIndex) {
     this.proxyManager = proxyManager;
     this.registryManager = registryManager || new RegistryManager();
+    this.telemetryIndex = telemetryIndex || new TelemetryIndex();
+  }
+
+  /** Expose the routing telemetry sink (primarily for tests and diagnostics). */
+  getTelemetryIndex(): TelemetryIndex {
+    return this.telemetryIndex;
   }
 
   getStats(): SkillIndexStats {
@@ -1098,11 +1107,33 @@ export class SkillManager {
     if (name === "resolve_workflow") {
         if (!this.fuseIndex) await this.loadSkills();
         const objective = (args.objective as string || "");
-        const results = this.searchSkills(objective, 3);
+        let results = this.searchSkills(objective, 3);
 
         if (results.length === 0) {
             return { content: [{ type: "text", text: "No specific workflows found for '" + objective + "'. Proceed using your general knowledge." }] };
         }
+
+        // RL-lite reranker: blend original rank with historical success rates.
+        try {
+            const [successRates, rows] = await Promise.all([
+                this.telemetryIndex.getSuccessRates(),
+                this.telemetryIndex.totalRows(),
+            ]);
+            const candidateViews = results.map((r) => ({ name: r.skill.name, __match: r }));
+            const reranked = rerankCandidates(candidateViews, successRates, rows);
+            results = reranked.map((v) => v.__match);
+        } catch {
+            // Telemetry I/O failures must not block routing; fall through with original order.
+        }
+
+        // Fire-and-forget telemetry record of the final ordering.
+        const telemetryTs = new Date().toISOString();
+        this.telemetryIndex.append({
+            ts: telemetryTs,
+            query: objective,
+            topCandidate: results[0]?.skill.name ?? "",
+            candidates: results.slice(0, 5).map((r) => r.skill.name),
+        }).catch(() => {});
 
         const injectedWorkflows = results.map(r => {
             const subcatLabel = r.skill.subcategory ? " > " + r.skill.subcategory : "";
