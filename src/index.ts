@@ -44,6 +44,7 @@ import { RegistryManager } from "./RegistryManager";
 import { AuditLog } from "./AuditLog";
 import { AuditExporter } from "./AuditExporter";
 import { warmContainerSandboxImages } from "./ContainerSandbox";
+import { ComplianceChecker } from "./ComplianceChecker";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -81,6 +82,7 @@ export class EvokoreMCPServer {
   private registryManager: RegistryManager;
   private auditLog: AuditLog;
   private auditExporter: AuditExporter;
+  private complianceChecker: ComplianceChecker;
   private discoveryMode: ToolDiscoveryMode;
   private sessionIsolation: SessionIsolation;
   private sessionTtlMs: number | undefined;
@@ -132,6 +134,7 @@ export class EvokoreMCPServer {
       batchSize: parseInt(process.env.EVOKORE_AUDIT_EXPORT_BATCH_SIZE || "", 10) || 100,
     });
     this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
+    this.complianceChecker = new ComplianceChecker();
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
 
     // Session TTL parsed once, used both here and in loadSubsystems() for Redis init
@@ -676,6 +679,16 @@ export class EvokoreMCPServer {
 
       try {
         this.webhookManager.emit("tool_call", { tool: toolName, source, arguments: this.redactSensitiveArgs(args as Record<string, unknown>) });
+
+        // ComplianceChecker gate — runs before RBAC
+        const activeMode = (process.env.EVOKORE_STEERING_MODE) || "dev";
+        const compliance = this.complianceChecker.check(toolName, (args ?? {}) as Record<string, unknown>, activeMode);
+        if (!compliance.allowed) {
+          throw new McpError(
+            ErrorCode.InvalidRequest,
+            `[EVOKORE ComplianceChecker] ${compliance.reason} (mode: ${compliance.steeringMode})`
+          );
+        }
 
         // RBAC permission gate for native / builtin / plugin tools.
         // Proxied tools are gated inside ProxyManager.callProxiedTool to
