@@ -38,12 +38,28 @@ const HAS_DRY_RUN_FLAG = process.argv.includes('--dry-run');
 const HAS_APPLY_FLAG = process.argv.includes('--apply');
 const HAS_FORCE_FLAG = process.argv.includes('--force');
 const HAS_PRESERVE_EXISTING_FLAG = process.argv.includes('--preserve-existing');
-const TARGETS = process.argv.slice(2).filter(a =>
-  a !== '--dry-run'
-  && a !== '--apply'
-  && a !== '--force'
-  && a !== '--preserve-existing'
-);
+
+// Parse --target <ide> flag for cross-IDE template-based sync
+function parseTargetFlag(argv) {
+  const idx = argv.indexOf('--target');
+  if (idx === -1) return null;
+  const value = argv[idx + 1];
+  if (!value || value.startsWith('--')) {
+    console.error('ERROR: --target requires a value (cursor, windsurf, or continue).');
+    process.exit(1);
+  }
+  return value;
+}
+
+const TARGET_IDE = parseTargetFlag(process.argv);
+
+const TARGETS = process.argv.slice(2).filter((a, i, arr) => {
+  if (a === '--dry-run' || a === '--apply' || a === '--force' || a === '--preserve-existing') return false;
+  if (a === '--target') return false;
+  // Also exclude the value following --target
+  if (i > 0 && arr[i - 1] === '--target') return false;
+  return true;
+});
 
 if (HAS_DRY_RUN_FLAG && HAS_APPLY_FLAG) {
   console.error('ERROR: --dry-run and --apply cannot be used together. Choose one mode.');
@@ -155,9 +171,99 @@ function writeJsonSafe(filePath, data) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
 }
 
+// --- Cross-IDE template targets (Cursor, Windsurf, Continue) ---
+
+const CROSS_IDE_TARGETS = {
+  cursor: {
+    label: 'Cursor',
+    templateFile: 'cursor.json',
+    configPath: () => path.join(os.homedir(), '.cursor', 'mcp.json'),
+    mergeKind: 'mcpServers-named',
+  },
+  windsurf: {
+    label: 'Windsurf',
+    templateFile: 'windsurf.json',
+    configPath: () => path.join(os.homedir(), '.codeium', 'windsurf', 'mcp_config.json'),
+    mergeKind: 'mcpServers-named',
+  },
+  continue: {
+    label: 'Continue',
+    templateFile: 'continue.json',
+    configPath: () => path.join(os.homedir(), '.continue', 'config.json'),
+    mergeKind: 'mcpServers-array',
+  },
+};
+
+function substitutePlaceholders(obj, installDir) {
+  const json = JSON.stringify(obj);
+  const escapedDir = installDir.replace(/\\/g, '\\\\');
+  const substituted = json.replace(/\$\{EVOKORE_INSTALL_DIR\}/g, escapedDir);
+  return JSON.parse(substituted);
+}
+
+function runCrossIdeTarget(targetKey) {
+  const def = CROSS_IDE_TARGETS[targetKey];
+  if (!def) {
+    const supported = Object.keys(CROSS_IDE_TARGETS).join(', ');
+    console.error(`ERROR: Unknown --target '${targetKey}'. Supported: ${supported}`);
+    process.exit(1);
+  }
+
+  const templatePath = path.join(PROJECT_ROOT, 'configs', 'cross-ide', def.templateFile);
+  if (!fs.existsSync(templatePath)) {
+    console.error(`ERROR: Template not found: ${templatePath}`);
+    process.exit(1);
+  }
+
+  const rawTemplate = JSON.parse(fs.readFileSync(templatePath, 'utf-8'));
+  const resolved = substitutePlaceholders(rawTemplate, CANONICAL_PROJECT_ROOT);
+  const configPath = def.configPath();
+
+  console.log('EVOKORE-MCP Cross-IDE Config Sync');
+  console.log(`Target: ${def.label}`);
+  console.log(`Install dir: ${CANONICAL_PROJECT_ROOT}`);
+  console.log(`Config path: ${configPath}`);
+  if (DRY_RUN) console.log('Mode: DRY RUN (no files will be written)\n');
+  else console.log('Mode: APPLY (changes will be written)\n');
+
+  let merged;
+  if (def.mergeKind === 'mcpServers-named') {
+    const existing = fs.existsSync(configPath) ? readJsonSafe(configPath) : {};
+    if (!existing.mcpServers) existing.mcpServers = {};
+    existing.mcpServers['evokore-mcp'] = resolved.mcpServers['evokore-mcp'];
+    merged = existing;
+  } else if (def.mergeKind === 'mcpServers-array') {
+    const existing = fs.existsSync(configPath) ? readJsonSafe(configPath) : {};
+    if (!Array.isArray(existing.mcpServers)) existing.mcpServers = [];
+    const filtered = existing.mcpServers.filter(
+      (entry) => entry && entry.name !== 'evokore-mcp'
+    );
+    filtered.push(resolved);
+    existing.mcpServers = filtered;
+    merged = existing;
+  } else {
+    merged = resolved;
+  }
+
+  if (DRY_RUN) {
+    console.log('Resulting config:');
+    console.log(JSON.stringify(merged, null, 2));
+    console.log(`\nWould write to: ${configPath}`);
+  } else {
+    writeJsonSafe(configPath, merged);
+    console.log(`Wrote: ${configPath}`);
+  }
+}
+
 // --- Main ---
 
 function main() {
+  // Cross-IDE template path (--target <ide>) short-circuits the CLI sync flow.
+  if (TARGET_IDE) {
+    runCrossIdeTarget(TARGET_IDE);
+    return;
+  }
+
   console.log('EVOKORE-MCP Config Sync');
   if (CANONICAL_PROJECT_ROOT !== PROJECT_ROOT) {
     console.log(`Sync root: ${CANONICAL_PROJECT_ROOT}`);
