@@ -507,7 +507,12 @@ export class HttpServer {
     // MCP endpoint
     if (url === "/mcp") {
       const roleOverride = (authClaims?.role as string | undefined) ?? undefined;
-      await this.handleMcpRequest(req, res, roleOverride);
+      // Extract tenantId from the JWT `sub` claim so new sessions can be
+      // namespaced under ~/.evokore/tenants/{tenantId}/sessions/ when
+      // EVOKORE_TENANT_SCOPING=true. Undefined for non-JWT / static-token
+      // deployments keeps the legacy flat layout.
+      const tenantIdOverride = (authClaims?.sub as string | undefined) ?? undefined;
+      await this.handleMcpRequest(req, res, roleOverride, tenantIdOverride);
       return;
     }
 
@@ -516,7 +521,7 @@ export class HttpServer {
     res.end(JSON.stringify({ error: "Not found" }));
   }
 
-  private async handleMcpRequest(req: http.IncomingMessage, res: http.ServerResponse, roleOverride?: string): Promise<void> {
+  private async handleMcpRequest(req: http.IncomingMessage, res: http.ServerResponse, roleOverride?: string, tenantIdOverride?: string): Promise<void> {
     // Look up existing session from header
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
@@ -615,11 +620,11 @@ export class HttpServer {
       onsessioninitialized: (newSessionId: string) => {
         this.transports.set(newSessionId, transport);
         const role = roleOverride ?? process.env.EVOKORE_ROLE ?? null;
-        this.sessionIsolation?.createSession(newSessionId, role);
+        this.sessionIsolation?.createSession(newSessionId, role, tenantIdOverride);
         this.auditLog.log("session_create", "success", {
           sessionId: newSessionId,
           actor: role ?? "system",
-          metadata: { transport: "http" },
+          metadata: { transport: "http", tenantId: tenantIdOverride },
         });
         this.telemetryManager?.recordSessionStart();
         console.error(`[EVOKORE-HTTP] Session initialized: ${newSessionId}`);

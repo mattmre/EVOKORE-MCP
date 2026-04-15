@@ -67,7 +67,8 @@ describe('Per-Session RBAC for HttpServer', () => {
     it('passes EVOKORE_ROLE to createSession in onsessioninitialized', () => {
       // Role is resolved through a variable that supports JWT roleOverride fallback to EVOKORE_ROLE
       expect(src).toMatch(/roleOverride\s*\?\?\s*process\.env\.EVOKORE_ROLE\s*\?\?\s*null/);
-      expect(src).toMatch(/createSession\s*\(\s*newSessionId\s*,\s*role\s*\)/);
+      // Accept an optional trailing tenantId argument after `role`
+      expect(src).toMatch(/createSession\s*\(\s*newSessionId\s*,\s*role\b/);
     });
   });
 

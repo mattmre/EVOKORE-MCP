@@ -23,6 +23,8 @@ export interface SerializedSessionState {
   role: string | null;
   rateLimitCounters: Record<string, { tokens: number; lastRefillAt: number }>;
   metadata: Record<string, unknown>;
+  /** Optional tenant identifier (OAuth `sub` claim). Undefined for single-operator deployments. */
+  tenantId?: string;
 }
 
 /**
@@ -37,6 +39,7 @@ export function serializeSessionState(state: SessionState): SerializedSessionSta
     role: state.role,
     rateLimitCounters: Object.fromEntries(state.rateLimitCounters),
     metadata: Object.fromEntries(state.metadata),
+    tenantId: state.tenantId,
   };
 }
 
@@ -52,6 +55,7 @@ export function deserializeSessionState(data: SerializedSessionState): SessionSt
     role: data.role,
     rateLimitCounters: new Map(Object.entries(data.rateLimitCounters)),
     metadata: new Map(Object.entries(data.metadata)),
+    tenantId: data.tenantId,
   };
 }
 

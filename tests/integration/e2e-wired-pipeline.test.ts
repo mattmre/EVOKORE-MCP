@@ -172,7 +172,8 @@ describe('E2E Wired Pipeline', () => {
 
       it('passes roleOverride from auth claims to createSession', () => {
         expect(httpSrc).toMatch(/roleOverride/);
-        expect(httpSrc).toMatch(/createSession\s*\(\s*newSessionId\s*,\s*role\s*\)/);
+        // Allow optional trailing arguments (e.g. tenantIdOverride) after `role`
+        expect(httpSrc).toMatch(/createSession\s*\(\s*newSessionId\s*,\s*role\b/);
       });
     });
 
@@ -273,7 +274,9 @@ describe('E2E Wired Pipeline', () => {
       });
 
       it('createSession accepts optional role parameter', () => {
-        expect(siSrc).toMatch(/createSession\s*\(\s*sessionId\s*:\s*string\s*,\s*role\?\s*:\s*string\s*\|\s*null\s*\)/);
+        // Match createSession with at minimum (sessionId, role?) — allow optional
+        // trailing parameters like tenantId without breaking this check.
+        expect(siSrc).toMatch(/createSession\s*\(\s*sessionId\s*:\s*string\s*,\s*role\?\s*:\s*string\s*\|\s*null\b/);
       });
     });
 

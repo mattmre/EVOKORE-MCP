@@ -17,11 +17,55 @@
  * which is functionally identical to the original in-memory implementation.
  */
 
+import path from "path";
+import os from "os";
+
 import type { SessionStore } from "./SessionStore";
 import { MemorySessionStore } from "./stores/MemorySessionStore";
 import { AuditLog } from "./AuditLog";
 
 const DEFAULT_SESSION_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Resolve the EVOKORE runtime home directory, honoring the EVOKORE_HOME
+ * override used by SessionManifest and hook scripts. Resolved at call time
+ * (not module-load time) so tests can flip the env var between cases.
+ */
+function evokoreHome(): string {
+  return process.env.EVOKORE_HOME ?? path.join(os.homedir(), ".evokore");
+}
+
+/**
+ * Sanitize a tenantId for safe use as a single path component.
+ * Keeps alphanumerics, hyphen, dot, and underscore; replaces everything
+ * else (including path separators and `..`) with underscores. Truncates
+ * to 128 characters to bound filesystem path length.
+ */
+export function sanitizeTenantId(tenantId: string): string {
+  return tenantId.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 128);
+}
+
+/**
+ * Resolve the per-tenant sessions directory.
+ *
+ * When `EVOKORE_TENANT_SCOPING` is unset (or `tenantId` is missing), returns
+ * the legacy flat layout `{EVOKORE_HOME}/sessions`. When scoping is enabled
+ * and a tenantId is provided, returns
+ * `{EVOKORE_HOME}/tenants/{sanitized-tenantId}/sessions`.
+ *
+ * This is exported as a free function so stores and hook scripts can share
+ * the same path-resolution logic without requiring a SessionIsolation
+ * instance.
+ */
+export function resolveTenantSessionDir(tenantId?: string): string {
+  const base = path.join(evokoreHome(), "sessions");
+  if (process.env.EVOKORE_TENANT_SCOPING !== "true" || !tenantId) {
+    return base;
+  }
+  const safe = sanitizeTenantId(tenantId);
+  if (!safe) return base;
+  return path.join(evokoreHome(), "tenants", safe, "sessions");
+}
 
 export interface SessionState {
   /** Unique session identifier (typically a UUID from the HTTP transport). */
@@ -44,6 +88,13 @@ export interface SessionState {
 
   /** Arbitrary metadata that integrations can attach to a session. */
   metadata: Map<string, unknown>;
+
+  /**
+   * Optional tenant identifier, sourced from the OAuth JWT `sub` claim.
+   * When set and `EVOKORE_TENANT_SCOPING=true`, session artifacts are
+   * namespaced under `~/.evokore/tenants/{tenantId}/sessions/`.
+   */
+  tenantId?: string;
 }
 
 export interface SessionIsolationOptions {
@@ -81,11 +132,23 @@ export class SessionIsolation {
   }
 
   /**
+   * Resolve the sessions directory for a given tenant.
+   *
+   * When `EVOKORE_TENANT_SCOPING` is unset or `tenantId` is missing, returns
+   * the legacy flat `{EVOKORE_HOME}/sessions` path, keeping single-operator
+   * deployments bit-for-bit identical to pre-tenant behavior. When scoping
+   * is enabled, returns `{EVOKORE_HOME}/tenants/{sanitized-tenantId}/sessions`.
+   */
+  resolveTenantSessionDir(tenantId?: string): string {
+    return resolveTenantSessionDir(tenantId);
+  }
+
+  /**
    * Create a new isolated session.
    * If a session with the given ID already exists, it is replaced.
    * When at capacity, the least-recently-accessed session is evicted (LRU).
    */
-  createSession(sessionId: string, role?: string | null): SessionState {
+  createSession(sessionId: string, role?: string | null, tenantId?: string): SessionState {
     // If this session already exists, the set-below will replace it, no eviction needed.
     if (!this.sessions.has(sessionId)) {
       this.evictIfAtCapacity();
@@ -100,6 +163,7 @@ export class SessionIsolation {
       role: role ?? null,
       rateLimitCounters: new Map(),
       metadata: new Map(),
+      tenantId: tenantId ?? undefined,
     };
     this.sessions.set(sessionId, state);
 
