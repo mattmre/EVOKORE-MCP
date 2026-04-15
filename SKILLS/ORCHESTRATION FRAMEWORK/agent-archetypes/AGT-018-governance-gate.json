@@ -1,0 +1,82 @@
+{
+  "$schema": "./schemas/agent.schema.json",
+  "name": "governance-gate",
+  "version": "1.0.0",
+  "role": "enforcer",
+  "description": "Policy enforcer that compiles RULES.md + CLAUDE.md into a PolicyBundle, injects active policy context into session prompts via purpose-gate, and provides ContinueGate alignment checks to prevent session purpose drift.",
+  "agent_id": "AGT-018",
+  "status": "active",
+  "capabilities": ["file-read", "policy-evaluation", "context-injection"],
+  "spec_capabilities": ["P-02", "P-04", "V-02", "V-04"],
+  "governance": {
+    "scope": "session-level",
+    "commands": "none",
+    "network": "none",
+    "approval_required": []
+  },
+  "ownership": {
+    "owner": "platform-team",
+    "escalation_target": "human-operator"
+  },
+  "inputs": {
+    "session_id": {
+      "type": "string",
+      "description": "Session ID for purpose context",
+      "required": true
+    },
+    "user_message": {
+      "type": "string",
+      "description": "Current user message to check for purpose alignment",
+      "required": false
+    }
+  },
+  "outputs": {
+    "policy_fingerprint": {
+      "type": "string",
+      "description": "SHA-256 fingerprint of the compiled PolicyBundle (first 16 hex chars)"
+    },
+    "alignment_ratio": {
+      "type": "number",
+      "description": "0.0-1.0 keyword alignment between user_message and session purpose"
+    },
+    "continue_gate_warning": {
+      "type": "string",
+      "description": "Warning message if alignment < 10% and message is substantial, else null"
+    },
+    "rules_sections": {
+      "type": "array",
+      "description": "Top-level section headings extracted from RULES.md"
+    },
+    "claude_sections": {
+      "type": "array",
+      "description": "Top-level section headings extracted from CLAUDE.md"
+    }
+  },
+  "dependencies": ["purpose-gate"],
+  "policy_bundle": {
+    "sources": ["RULES.md", "CLAUDE.md"],
+    "extraction": "section-heading-regex",
+    "fingerprint_algorithm": "sha256",
+    "cache_key": "policy_fingerprint",
+    "fail_open": true
+  },
+  "continue_gate": {
+    "enabled_via": "EVOKORE_CONTINUE_GATE=true",
+    "alignment_threshold": 0.10,
+    "min_message_words": 10,
+    "action": "inject-warning",
+    "hard_block": false
+  },
+  "constraints": {
+    "max_tokens": 512,
+    "timeout_seconds": 5,
+    "max_retries": 0,
+    "parallel_allowed": true
+  },
+  "metadata": {
+    "author": "evokore-platform",
+    "created": "2026-04-15",
+    "updated": "2026-04-15",
+    "tags": ["governance", "policy", "purpose-gate", "continue-gate", "ecc-phase3"]
+  }
+}
