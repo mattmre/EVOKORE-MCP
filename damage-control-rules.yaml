@@ -185,3 +185,26 @@ no_delete_paths:
   - 'LICENSE'
   - 'SOUL.md'
   - 'RULES.md'
+
+# Prompt injection detection patterns (AGT-014 Security Sentinel)
+output_patterns:
+  - id: prompt_injection_ignore
+    pattern: "ignore (previous|prior|all) instructions?"
+    action: block
+    reason: "Prompt injection: attempt to override system instructions"
+  - id: prompt_injection_new_prompt
+    pattern: "new system prompt:"
+    action: block
+    reason: "Prompt injection: inline system prompt injection"
+  - id: prompt_injection_override
+    pattern: "override your (instructions|training|guidelines)"
+    action: block
+    reason: "Prompt injection: explicit override attempt"
+  - id: prompt_injection_you_are_now
+    pattern: "you are now (a |an )?(different|new|unrestricted)"
+    action: block
+    reason: "Prompt injection: identity override"
+  - id: prompt_injection_forget
+    pattern: "forget (your training|all previous|everything)"
+    action: block
+    reason: "Prompt injection: training erasure attempt"
