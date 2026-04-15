@@ -3,8 +3,18 @@ import path from "path";
 import os from "os";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
 
-const TELEMETRY_DIR = path.join(os.homedir(), ".evokore", "telemetry");
-const METRICS_FILE = path.join(TELEMETRY_DIR, "metrics.json");
+/**
+ * Resolve the telemetry directory at call time so tests can redirect writes
+ * via EVOKORE_TELEMETRY_DIR without having to reset the require cache.
+ */
+function resolveTelemetryDir(): string {
+  return process.env.EVOKORE_TELEMETRY_DIR ?? path.join(os.homedir(), ".evokore", "telemetry");
+}
+
+function resolveMetricsFile(): string {
+  return path.join(resolveTelemetryDir(), "metrics.json");
+}
+
 const DEFAULT_FLUSH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
@@ -68,6 +78,22 @@ export class TelemetryManager {
   private startTime: string;
   private flushInterval: ReturnType<typeof setInterval> | null = null;
   private flushIntervalMs: number;
+  /**
+   * Serializes concurrent flushToDiskAsync calls.
+   *
+   * Without this, two overlapping fs.writeFile calls to METRICS_FILE can
+   * interleave on POSIX filesystems: the later open(O_TRUNC) resets the file
+   * to zero length, then both writers flush their buffers at independent
+   * offsets, producing a file whose tail contains remnants of the earlier
+   * write concatenated after the newer JSON object. That manifests as
+   * `SyntaxError: Unexpected non-whitespace character after JSON ...`.
+   *
+   * `handleToolCall('reset_telemetry')` intentionally fires `resetMetrics()`
+   * without awaiting it, so background flushes can still be in flight when
+   * the next caller invokes flushToDiskAsync(). Chain writes here to make
+   * the on-disk file always a single well-formed JSON object.
+   */
+  private flushChain: Promise<void> = Promise.resolve();
 
   // Session lifecycle counters
   private sessionsCreated: number = 0;
@@ -96,7 +122,7 @@ export class TelemetryManager {
     await this.loadFromDiskAsync();
     this.startPeriodicFlush();
 
-    console.error("[EVOKORE] Telemetry enabled. Metrics stored locally at " + METRICS_FILE);
+    console.error("[EVOKORE] Telemetry enabled. Metrics stored locally at " + resolveMetricsFile());
   }
 
   /**
@@ -314,12 +340,25 @@ export class TelemetryManager {
 
   /**
    * Force a flush of current metrics to disk (async).
+   *
+   * Writes are serialized through `flushChain` so overlapping callers cannot
+   * corrupt METRICS_FILE by interleaving two concurrent fs.writeFile calls.
    */
   async flushToDiskAsync(): Promise<void> {
+    const next = this.flushChain.then(() => this.performFlush());
+    // Ensure the chain never rejects; we log inside performFlush.
+    this.flushChain = next.catch(() => undefined);
+    return next;
+  }
+
+  private async performFlush(): Promise<void> {
     try {
-      const dirExists = await fs.access(TELEMETRY_DIR).then(() => true).catch(() => false);
+      const telemetryDir = resolveTelemetryDir();
+      const metricsFile = resolveMetricsFile();
+
+      const dirExists = await fs.access(telemetryDir).then(() => true).catch(() => false);
       if (!dirExists) {
-        await fs.mkdir(TELEMETRY_DIR, { recursive: true });
+        await fs.mkdir(telemetryDir, { recursive: true });
       }
 
       const metrics = this.getMetrics();
@@ -328,7 +367,21 @@ export class TelemetryManager {
         latencyTotalMs: this.latency.totalMs,
         latencyCount: this.latency.count,
       }, null, 2);
-      await fs.writeFile(METRICS_FILE, data, "utf-8");
+
+      // Atomic write: write to a unique .tmp sibling, then rename into place.
+      // rename() is atomic on POSIX (and best-effort on Windows NTFS), so any
+      // reader sees either the prior snapshot or the new one -- never a
+      // partially written file. The PID + random suffix keeps concurrent
+      // writers from clobbering each other's temp file before rename.
+      const tmpFile = `${metricsFile}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+      await fs.writeFile(tmpFile, data, "utf-8");
+      try {
+        await fs.rename(tmpFile, metricsFile);
+      } catch (renameErr) {
+        // Cleanup the orphan tmp file if rename failed; swallow cleanup errors.
+        await fs.unlink(tmpFile).catch(() => undefined);
+        throw renameErr;
+      }
     } catch (err: any) {
       console.error("[EVOKORE] Failed to flush telemetry metrics: " + (err?.message || err));
     }
@@ -339,10 +392,11 @@ export class TelemetryManager {
    */
   async loadFromDiskAsync(): Promise<void> {
     try {
-      const fileExists = await fs.access(METRICS_FILE).then(() => true).catch(() => false);
+      const metricsFile = resolveMetricsFile();
+      const fileExists = await fs.access(metricsFile).then(() => true).catch(() => false);
       if (!fileExists) return;
 
-      const raw = await fs.readFile(METRICS_FILE, "utf-8");
+      const raw = await fs.readFile(metricsFile, "utf-8");
       const data = JSON.parse(raw);
 
       if (typeof data.toolCallCount === "number") this.toolCallCount = data.toolCallCount;
@@ -474,14 +528,14 @@ export class TelemetryManager {
    * Get the path to the metrics file (for diagnostics/testing).
    */
   static getMetricsFilePath(): string {
-    return METRICS_FILE;
+    return resolveMetricsFile();
   }
 
   /**
    * Get the telemetry directory path (for diagnostics/testing).
    */
   static getTelemetryDir(): string {
-    return TELEMETRY_DIR;
+    return resolveTelemetryDir();
   }
 
   // ---- Private ----
