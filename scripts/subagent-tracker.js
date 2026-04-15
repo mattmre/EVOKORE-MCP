@@ -16,6 +16,17 @@ const {
 } = require('./session-continuity');
 const { pruneOldSessions } = require('./log-rotation');
 
+// Phase 0-D: emit a `subagent_tracked` event on every Task invocation.
+// Legacy writeSessionState stays because it persists the durable `subagents`
+// array, which is not modeled in the manifest schema yet.
+let appendEvent = () => {};
+try {
+  // eslint-disable-next-line global-require
+  ({ appendEvent } = require('../dist/SessionManifest.js'));
+} catch {
+  // Fail open.
+}
+
 let inputData = '';
 process.stdin.on('data', (chunk) => { inputData += chunk; });
 process.stdin.on('end', () => {
@@ -58,6 +69,20 @@ process.stdin.on('end', () => {
     };
 
     const nextAgents = existingAgents.concat([entry]);
+
+    try {
+      appendEvent(sessionId, {
+        type: 'subagent_tracked',
+        payload: {
+          subagent_id: subagentId,
+          subagent_type: subagentType,
+          description,
+          outcome
+        }
+      });
+    } catch {
+      // best effort
+    }
 
     try {
       writeSessionState(sessionId, {

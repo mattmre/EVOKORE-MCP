@@ -19,7 +19,9 @@ export type SessionEventType =
   | 'tool_invoked'
   | 'evidence_captured'
   | 'task_action'
-  | 'stop_check';
+  | 'stop_check'
+  | 'subagent_tracked'
+  | 'pre_compact';
 
 export interface SessionEvent<P = Record<string, unknown>> {
   schemaVersion: 1;
@@ -75,6 +77,20 @@ export interface StopCheckPayload {
   incompleteCount?: number;
 }
 
+export interface SubagentTrackedPayload {
+  subagent_id: string;
+  subagent_type?: string | null;
+  description?: string;
+  outcome: 'ok' | 'error';
+}
+
+export interface PreCompactPayload {
+  trigger?: string | null;
+  incompleteTasks?: number;
+  recentEvidence?: number;
+  lastToolName?: string | null;
+}
+
 /**
  * Folded manifest state, reconstructed by left-folding all events in a
  * session's JSONL file. The shape mirrors `buildBaseState()` in
@@ -103,6 +119,10 @@ export interface SessionManifestState {
   lastTaskAction?: string;
   lastStopCheckAt?: string;
   lastStopCheckResult?: string;
+  lastSubagentAt?: string;
+  lastSubagentId?: string;
+  activeSubagentCount?: number;
+  preCompactAt?: string;
   artifacts?: Record<string, string>;
   metrics?: {
     replayEntries?: number;

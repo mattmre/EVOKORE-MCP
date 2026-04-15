@@ -4,7 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
-const { readSessionState, writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
+const { readSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
 const { buildStatusSnapshot, renderStatusLine } = require('./status-runtime');
 
 // Phase 0-C: dual-write to append-only JSONL manifest alongside the legacy
@@ -112,7 +112,12 @@ process.stdin.on('end', () => {
     const payload = JSON.parse(input);
     const sessionId = sanitizeId(payload.session_id);
     const userMessage = payload.user_message || payload.tool_input?.user_message || '';
-    const hasExistingState = fs.existsSync(path.join(SESSIONS_DIR, `${sessionId}.json`));
+    // Phase 0-D: JSONL manifest is the canonical write path. readSessionState
+    // now folds the manifest first, falling back to legacy .json so the
+    // "has existing state" check works for both.
+    const manifestExists = fs.existsSync(path.join(SESSIONS_DIR, `${sessionId}.jsonl`));
+    const legacyExists = fs.existsSync(path.join(SESSIONS_DIR, `${sessionId}.json`));
+    const hasExistingState = manifestExists || legacyExists;
     const state = readSessionState(sessionId);
 
     if (!state || !hasExistingState) {
@@ -123,15 +128,6 @@ process.stdin.on('end', () => {
       appendEvent(sessionId, {
         type: 'session_initialized',
         payload: { workspaceRoot, canonicalRepoRoot, repoName }
-      });
-      writeSessionState(sessionId, {
-        workspaceRoot,
-        canonicalRepoRoot,
-        repoName,
-        purpose: null,
-        status: 'awaiting-purpose',
-        lastPromptAt: new Date().toISOString(),
-        lastActivityAt: new Date().toISOString()
       });
       writeHookEvent({
         hook: 'purpose-gate',
@@ -180,19 +176,6 @@ process.stdin.on('end', () => {
           purposeSetAt
         }
       });
-      writeSessionState(sessionId, {
-        workspaceRoot: process.cwd(),
-        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-        repoName: path.basename(process.cwd()),
-        purpose,
-        set_at: purposeSetAt,
-        purposeSetAt,
-        status: 'active',
-        lastPromptAt: purposeSetAt,
-        lastActivityAt: purposeSetAt,
-        mode: selectedMode,
-        modeSetAt: Date.now()
-      });
       writeHookEvent({
         hook: 'purpose-gate',
         event: 'purpose_recorded',
@@ -215,14 +198,6 @@ process.stdin.on('end', () => {
       appendEvent(sessionId, {
         type: 'purpose_reminder',
         payload: { lastPromptAt: reminderAt }
-      });
-      writeSessionState(sessionId, {
-        workspaceRoot: process.cwd(),
-        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-        repoName: path.basename(process.cwd()),
-        status: 'active',
-        lastPromptAt: new Date().toISOString(),
-        lastActivityAt: new Date().toISOString()
       });
       writeHookEvent({
         hook: 'purpose-gate',

@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { pruneOldSessions } = require('./log-rotation');
-const { writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
+const { SESSIONS_DIR } = require('./session-continuity');
 
 // Phase 0-C: dual-write to append-only JSONL manifest. Require is wrapped so
 // a missing dist build fails open to legacy writeSessionState.
@@ -75,15 +75,6 @@ process.stdin.on('end', () => {
         outcome: entry.outcome,
         output: entry.output
       }
-    });
-    writeSessionState(sessionId, {
-      workspaceRoot: process.cwd(),
-      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-      repoName: path.basename(process.cwd()),
-      status: 'active',
-      lastToolName: toolName,
-      lastReplayAt: entry.ts,
-      lastActivityAt: entry.ts
     });
     writeHookEvent({
       hook: 'session-replay',

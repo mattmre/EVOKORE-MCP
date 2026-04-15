@@ -19,6 +19,17 @@ const {
   SESSIONS_DIR
 } = require('./session-continuity');
 
+// Phase 0-D: emit a `pre_compact` event on every PreCompact trigger. Legacy
+// writeSessionState remains because it persists `preCompactSnapshot`, a rich
+// structured payload not modeled on the manifest yet.
+let appendEvent = () => {};
+try {
+  // eslint-disable-next-line global-require
+  ({ appendEvent } = require('../dist/SessionManifest.js'));
+} catch {
+  // Fail open.
+}
+
 function tailLines(filePath, maxLines) {
   try {
     if (!fs.existsSync(filePath)) return [];
@@ -108,6 +119,20 @@ process.stdin.on('end', () => {
       subagentCount,
       lastActivityAt: sessionState.lastActivityAt || null
     };
+
+    try {
+      appendEvent(sessionId, {
+        type: 'pre_compact',
+        payload: {
+          trigger,
+          incompleteTasks: incompleteTasks.length,
+          recentEvidence: recentEvidenceIds.length,
+          lastToolName
+        }
+      });
+    } catch {
+      // best effort
+    }
 
     try {
       writeSessionState(sessionId, {

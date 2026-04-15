@@ -91,6 +91,51 @@ function readState(sessionId: string): Record<string, unknown> | null {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
+// Phase 0-D: wave 1 hooks no longer dual-write the legacy `{sessionId}.json`
+// snapshot. Readers fold the JSONL manifest instead; use this helper in
+// tests that previously relied on the legacy .json file.
+function readFoldedState(
+  sessionId: string
+): Record<string, unknown> | null {
+  const p = manifestPath(sessionId);
+  if (!fs.existsSync(p)) return null;
+  const raw = fs.readFileSync(p, 'utf8').trim();
+  if (!raw) return null;
+  const state: Record<string, unknown> = { sessionId };
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let evt: Record<string, unknown>;
+    try {
+      evt = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    const payload = (evt.payload && typeof evt.payload === 'object'
+      ? (evt.payload as Record<string, unknown>)
+      : {});
+    switch (evt.type) {
+      case 'session_initialized':
+        state.status = 'awaiting-purpose';
+        break;
+      case 'purpose_recorded':
+        state.purpose = payload.purpose;
+        state.status = 'active';
+        break;
+      case 'tool_invoked':
+        state.lastToolName = payload.tool;
+        break;
+      case 'evidence_captured':
+        state.lastEvidenceType = payload.evidence_type;
+        state.lastEvidenceId = payload.evidence_id;
+        break;
+      default:
+        break;
+    }
+  }
+  return state;
+}
+
 beforeEach(() => {
   if (fs.existsSync(SESSIONS_DIR)) {
     for (const name of fs.readdirSync(SESSIONS_DIR)) {
@@ -120,7 +165,7 @@ describe('Wave 1 Phase 0-C — purpose-gate dual-write', () => {
     });
     expect(result.status).toBe(0);
 
-    const state = readState(sessionId);
+    const state = readFoldedState(sessionId);
     expect(state).not.toBeNull();
     expect(state!.status).toBe('awaiting-purpose');
 
@@ -151,7 +196,7 @@ describe('Wave 1 Phase 0-C — purpose-gate dual-write', () => {
     });
     expect(result.status).toBe(0);
 
-    const state = readState(sessionId);
+    const state = readFoldedState(sessionId);
     expect(state).not.toBeNull();
     expect(state!.purpose).toBe(purpose);
 
@@ -203,8 +248,9 @@ describe('Wave 1 Phase 0-C — session-replay dual-write', () => {
     });
     expect(result.status).toBe(0);
 
-    // Legacy snapshot still written.
-    const state = readState(sessionId);
+    // Phase 0-D: manifest is canonical — legacy snapshot no longer written
+    // by wave-1 hooks.
+    const state = readFoldedState(sessionId);
     expect(state).not.toBeNull();
     expect(state!.lastToolName).toBe('Bash');
 
@@ -250,7 +296,7 @@ describe('Wave 1 Phase 0-C — evidence-capture dual-write', () => {
     });
     expect(result.status).toBe(0);
 
-    const state = readState(sessionId);
+    const state = readFoldedState(sessionId);
     expect(state).not.toBeNull();
     expect(state!.lastEvidenceType).toBe('test-result');
 
@@ -306,22 +352,22 @@ describe('Wave 1 Phase 0-C — structural guards', () => {
     expect(source).toContain("type: 'session_initialized'");
     expect(source).toContain("type: 'purpose_recorded'");
     expect(source).toContain("type: 'purpose_reminder'");
-    // writeSessionState must remain for backward-compat reads during the
-    // 0-C/0-D migration window.
-    expect(source).toContain('writeSessionState(sessionId, {');
+    // Phase 0-D: the dual writeSessionState call has been removed; the
+    // JSONL manifest is now the canonical write path.
+    expect(source).not.toContain('writeSessionState(sessionId, {');
   });
 
   it('session-replay.js requires ../dist/SessionManifest.js and emits tool_invoked', () => {
     const source = fs.readFileSync(SESSION_REPLAY_SCRIPT, 'utf8');
     expect(source).toContain("require('../dist/SessionManifest.js')");
     expect(source).toContain("type: 'tool_invoked'");
-    expect(source).toContain('writeSessionState(sessionId, {');
+    expect(source).not.toContain('writeSessionState(sessionId, {');
   });
 
   it('evidence-capture.js requires ../dist/SessionManifest.js and emits evidence_captured', () => {
     const source = fs.readFileSync(EVIDENCE_CAPTURE_SCRIPT, 'utf8');
     expect(source).toContain("require('../dist/SessionManifest.js')");
     expect(source).toContain("type: 'evidence_captured'");
-    expect(source).toContain('writeSessionState(sessionId, {');
+    expect(source).not.toContain('writeSessionState(sessionId, {');
   });
 });

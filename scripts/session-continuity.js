@@ -81,16 +81,161 @@ function countTaskStats(tasksPath) {
   }
 }
 
+// Phase 0-D: prefer the append-only JSONL manifest when present so readers
+// transparently benefit from hooks that no longer dual-write the legacy
+// `{sessionId}.json` snapshot. Falls back to the legacy JSON file if the
+// manifest is missing or the dist module is unavailable.
+function foldManifestSync(manifestPath, sessionId) {
+  try {
+    if (!fs.existsSync(manifestPath)) return null;
+    const raw = fs.readFileSync(manifestPath, 'utf8');
+    if (!raw.trim()) return null;
+    const state = {
+      continuityVersion: CONTINUITY_VERSION,
+      sessionId: sanitizeId(sessionId)
+    };
+    const lines = raw.split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let evt;
+      try { evt = JSON.parse(trimmed); } catch { continue; }
+      if (!evt || typeof evt !== 'object') continue;
+
+      if (evt.type === '__snapshot__' && evt.payload && typeof evt.payload === 'object') {
+        Object.assign(state, evt.payload);
+        continue;
+      }
+
+      if (typeof evt.ts === 'string' && evt.ts) {
+        state.updatedAt = evt.ts;
+      }
+
+      const p = (evt.payload && typeof evt.payload === 'object') ? evt.payload : {};
+      switch (evt.type) {
+        case 'session_initialized':
+          if (!state.createdAt) { state.created = evt.ts; state.createdAt = evt.ts; }
+          if (p.workspaceRoot) state.workspaceRoot = p.workspaceRoot;
+          if (p.canonicalRepoRoot) state.canonicalRepoRoot = p.canonicalRepoRoot;
+          if (p.repoName) state.repoName = p.repoName;
+          state.status = 'awaiting-purpose';
+          if (state.purpose === undefined) state.purpose = null;
+          break;
+        case 'purpose_recorded':
+          state.purpose = p.purpose || null;
+          state.status = 'active';
+          state.lastPromptAt = evt.ts;
+          state.lastActivityAt = evt.ts;
+          if (p.purposeSetAt) state.purposeSetAt = p.purposeSetAt;
+          if (p.modeSetAt) state.set_at = p.modeSetAt;
+          if (p.mode) state.mode = p.mode;
+          break;
+        case 'purpose_reminder':
+          state.status = 'active';
+          state.lastPromptAt = evt.ts;
+          state.lastActivityAt = evt.ts;
+          break;
+        case 'tool_invoked':
+          state.lastToolName = p.tool;
+          state.lastReplayAt = evt.ts;
+          state.lastActivityAt = evt.ts;
+          break;
+        case 'evidence_captured':
+          state.lastEvidenceId = p.evidence_id;
+          state.lastEvidenceType = p.evidence_type;
+          state.lastToolName = p.tool || state.lastToolName;
+          state.lastEvidenceAt = evt.ts;
+          state.lastActivityAt = evt.ts;
+          break;
+        case 'task_action':
+          state.lastTaskAction = p.action;
+          state.lastActivityAt = evt.ts;
+          break;
+        case 'stop_check':
+          state.lastStopCheckAt = evt.ts;
+          state.lastStopCheckResult = p.result;
+          state.lastActivityAt = evt.ts;
+          break;
+        case 'subagent_tracked':
+          state.lastSubagentAt = evt.ts;
+          state.lastSubagentId = p.subagent_id;
+          state.activeSubagentCount =
+            (typeof state.activeSubagentCount === 'number' ? state.activeSubagentCount : 0) + 1;
+          state.lastActivityAt = evt.ts;
+          break;
+        case 'pre_compact':
+          state.preCompactAt = evt.ts;
+          state.lastActivityAt = evt.ts;
+          break;
+        default:
+          break;
+      }
+    }
+    return state;
+  } catch {
+    return null;
+  }
+}
+
 function readSessionState(sessionId) {
   ensureRuntimeDirs();
-  const { sessionStatePath } = getSessionPaths(sessionId);
+  const paths = getSessionPaths(sessionId);
+  const manifestFilePath = path.join(SESSIONS_DIR, `${paths.sessionId}.jsonl`);
 
-  if (!fs.existsSync(sessionStatePath)) {
+  // Prefer JSONL manifest (Phase 0-D canonical write path).
+  const manifestState = foldManifestSync(manifestFilePath, sessionId);
+  if (manifestState) {
+    // Enrich with legacy `.json` fields (e.g., `subagents`, `preCompactSnapshot`,
+    // `lastEditedFile`) that wave-2 hooks still write alongside the manifest.
+    if (fs.existsSync(paths.sessionStatePath)) {
+      try {
+        const legacy = JSON.parse(fs.readFileSync(paths.sessionStatePath, 'utf8'));
+        if (legacy && typeof legacy === 'object') {
+          // Manifest fields win; only copy keys the manifest did not produce.
+          for (const [key, value] of Object.entries(legacy)) {
+            if (!(key in manifestState)) {
+              manifestState[key] = value;
+            }
+          }
+        }
+      } catch {
+        // best effort
+      }
+    }
+    // Always layer in live-computed artifacts + metrics so readers that
+    // expect the legacy shape (status-runtime, session-continuity test,
+    // claude-memory) keep working without a `.json` snapshot on disk.
+    const taskStats = countTaskStats(paths.tasksPath);
+    manifestState.artifacts = Object.assign(
+      {
+        sessionStatePath: paths.sessionStatePath,
+        replayLogPath: paths.replayLogPath,
+        evidenceLogPath: paths.evidenceLogPath,
+        tasksPath: paths.tasksPath
+      },
+      manifestState.artifacts || {}
+    );
+    manifestState.metrics = Object.assign(
+      {
+        replayEntries: countJsonlEntries(paths.replayLogPath),
+        evidenceEntries: countJsonlEntries(paths.evidenceLogPath),
+        totalTasks: taskStats.totalTasks,
+        incompleteTasks: taskStats.incompleteTasks
+      },
+      manifestState.metrics || {}
+    );
+    // Ensure sessionId is the sanitized form, not the raw `sessionId` field
+    // from a snapshot payload that might have un-sanitized characters.
+    manifestState.sessionId = paths.sessionId;
+    return manifestState;
+  }
+
+  if (!fs.existsSync(paths.sessionStatePath)) {
     return null;
   }
 
   try {
-    return JSON.parse(fs.readFileSync(sessionStatePath, 'utf8'));
+    return JSON.parse(fs.readFileSync(paths.sessionStatePath, 'utf8'));
   } catch {
     return null;
   }
