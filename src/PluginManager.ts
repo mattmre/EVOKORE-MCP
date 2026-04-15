@@ -36,6 +36,20 @@ export interface PluginManifest {
   register(context: PluginContext): void | Promise<void>;
 }
 
+/**
+ * Optional `plugin.json` side-channel manifest. Loaded from the SAME directory
+ * as the plugin `.js` file. Backwards-compatible: plugins without `plugin.json`
+ * continue to load exactly as before.
+ */
+export interface PluginJsonManifest {
+  name: string;
+  version: string;
+  description: string;
+  tools?: string[];
+  permissions?: string[];
+  evokore_min_version?: string;
+}
+
 export interface LoadedPlugin {
   name: string;
   version: string;
@@ -43,6 +57,85 @@ export interface LoadedPlugin {
   tools: PluginTool[];
   resources: PluginResource[];
   loadedAt: number;
+  manifest?: PluginJsonManifest;
+}
+
+function compareSemver(a: string, b: string): number {
+  const parse = (v: string) => v.split(".").map(n => parseInt(n, 10) || 0);
+  const [a1, a2, a3] = parse(a);
+  const [b1, b2, b3] = parse(b);
+  if (a1 !== b1) return a1 - b1;
+  if (a2 !== b2) return a2 - b2;
+  return a3 - b3;
+}
+
+function readEvokoreVersion(): string {
+  try {
+    // dist/ layout: package.json lives at ../package.json relative to __dirname
+    const pkgPath = path.resolve(__dirname, "../package.json");
+    const pkg = JSON.parse(fsSync.readFileSync(pkgPath, "utf8"));
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+
+function loadPluginJsonManifest(pluginFilePath: string): { manifest?: PluginJsonManifest; skipReason?: string } {
+  const jsonPath = path.join(path.dirname(pluginFilePath), "plugin.json");
+  if (!fsSync.existsSync(jsonPath)) {
+    return {};
+  }
+
+  let raw: string;
+  try {
+    raw = fsSync.readFileSync(jsonPath, "utf8");
+  } catch (err: any) {
+    console.error(`[EVOKORE] Failed to read plugin.json for ${path.basename(pluginFilePath)}: ${err?.message || err}`);
+    return {};
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err: any) {
+    console.error(`[EVOKORE] Invalid JSON in plugin.json for ${path.basename(pluginFilePath)}: ${err?.message || err}`);
+    return {};
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    console.error(`[EVOKORE] plugin.json for ${path.basename(pluginFilePath)} must be an object`);
+    return {};
+  }
+
+  if (!parsed.name || typeof parsed.name !== "string") {
+    console.error(`[EVOKORE] plugin.json for ${path.basename(pluginFilePath)} is missing required 'name' field; ignoring manifest`);
+    return {};
+  }
+
+  if (!parsed.version || typeof parsed.version !== "string") {
+    console.error(`[EVOKORE] plugin.json for ${path.basename(pluginFilePath)} is missing required 'version' field; ignoring manifest`);
+    return {};
+  }
+
+  if (typeof parsed.evokore_min_version === "string" && parsed.evokore_min_version.length > 0) {
+    const current = readEvokoreVersion();
+    if (compareSemver(current, parsed.evokore_min_version) < 0) {
+      const msg = `[EVOKORE] Plugin ${parsed.name} requires evokore >= ${parsed.evokore_min_version}, current is ${current}`;
+      console.error(msg);
+      return { skipReason: `evokore_min_version ${parsed.evokore_min_version} not satisfied (current ${current})` };
+    }
+  }
+
+  const manifest: PluginJsonManifest = {
+    name: parsed.name,
+    version: parsed.version,
+    description: typeof parsed.description === "string" ? parsed.description : "",
+    ...(Array.isArray(parsed.tools) ? { tools: parsed.tools.filter((t: any) => typeof t === "string") } : {}),
+    ...(Array.isArray(parsed.permissions) ? { permissions: parsed.permissions.filter((p: any) => typeof p === "string") } : {}),
+    ...(typeof parsed.evokore_min_version === "string" ? { evokore_min_version: parsed.evokore_min_version } : {})
+  };
+
+  return { manifest };
 }
 
 export interface PluginLoadResult {
@@ -127,7 +220,12 @@ export class PluginManager {
     for (const file of jsFiles) {
       const filePath = path.join(this.pluginsDir, file);
       try {
-        await this.loadSinglePlugin(filePath);
+        const outcome = await this.loadSinglePlugin(filePath);
+        if (outcome === "skipped") {
+          // Plugin was intentionally skipped (e.g., evokore_min_version too new).
+          // Do not count as loaded OR failed — warning was already logged.
+          continue;
+        }
         result.loaded++;
 
         // Emit plugin_loaded event for the just-loaded plugin
@@ -177,7 +275,15 @@ export class PluginManager {
     return result;
   }
 
-  private async loadSinglePlugin(filePath: string): Promise<void> {
+  private async loadSinglePlugin(filePath: string): Promise<"loaded" | "skipped"> {
+    // Side-channel: optional plugin.json manifest in the SAME directory as the
+    // plugin .js file. If present and incompatible (e.g., evokore_min_version
+    // not satisfied), SKIP the plugin without counting it as a failure.
+    const { manifest: jsonManifest, skipReason } = loadPluginJsonManifest(filePath);
+    if (skipReason) {
+      return "skipped";
+    }
+
     // Transitively invalidate require cache for hot-reload
     const resolvedPath = require.resolve(filePath);
     // Always invalidate the entry file itself (path format may differ from pluginsDir)
@@ -274,8 +380,11 @@ export class PluginManager {
       filePath,
       tools,
       resources,
-      loadedAt: Date.now()
+      loadedAt: Date.now(),
+      ...(jsonManifest ? { manifest: jsonManifest } : {})
     });
+
+    return "loaded";
   }
 
   /**
@@ -287,7 +396,7 @@ export class PluginManager {
     const tools: Tool[] = [
       {
         name: "reload_plugins",
-        description: "Reload all plugins from the plugins directory. Use this after adding, removing, or modifying plugin files during a live session.",
+        description: "Reload all plugins from the plugins directory. Use this after adding, removing, or modifying plugin files during a live session. Plugins may optionally ship a `plugin.json` side-channel manifest (name, version, description, tools, permissions, evokore_min_version); plugins without a manifest continue to load unchanged.",
         inputSchema: {
           type: "object" as const,
           properties: {},
@@ -400,15 +509,27 @@ export class PluginManager {
   }
 
   /**
-   * Get a summary of loaded plugins for diagnostics.
+   * Get a summary of loaded plugins for diagnostics. If a plugin ships a
+   * `plugin.json` side-channel manifest, it is included here as `manifest`.
    */
-  getLoadedPlugins(): Array<{ name: string; version: string; toolCount: number; resourceCount: number }> {
+  getLoadedPlugins(): Array<{ name: string; version: string; toolCount: number; resourceCount: number; filePath: string; manifest?: PluginJsonManifest }> {
     return Array.from(this.plugins.values()).map(p => ({
       name: p.name,
       version: p.version,
       toolCount: p.tools.length,
-      resourceCount: p.resources.length
+      resourceCount: p.resources.length,
+      filePath: p.filePath,
+      ...(p.manifest ? { manifest: p.manifest } : {})
     }));
+  }
+
+  /**
+   * Return the `plugin.json` manifest for a specific plugin, or undefined if
+   * no manifest was loaded (either the file did not exist or was invalid).
+   */
+  getPluginManifest(pluginName: string): PluginJsonManifest | undefined {
+    const plugin = this.plugins.get(pluginName);
+    return plugin?.manifest;
   }
 
   getPluginCount(): number {
