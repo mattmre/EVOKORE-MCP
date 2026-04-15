@@ -74,6 +74,8 @@
 - **Damage Control .env.example False Positive:** Damage-control blocks Bash commands containing `.env` as a path substring (matches `.env.example`). When needing to `git add .env.example`, use `git add -A` or stage other files individually without typing `.env` in the command string.
 - **PR Rebase Order for Shared Fixes:** If PR A fixes tests that PR B also needs (e.g., `execFileSync` → `execFileAsync` rename, `.env.example` additions), merge PR A first, then rebase PR B onto the updated main. Do not try to fix the same issue in both PRs independently — the duplication creates conflicts.
 - **VoiceSidecar Playback Queue:** Multiple Claude Code sessions firing the Stop hook simultaneously cause overlapping audio. Fix: serialize playback via a `playbackQueue` + `drainPlaybackQueue()` pattern in `VoiceSidecar.ts`. The `finalize()` method enqueues instead of playing inline.
+- **Progressive Disclosure for Skill Authoring:** When writing EVOKORE SKILLS, use progressive disclosure: surface the trigger condition and 2-3 sentence summary first, then detailed sections. A reader should be able to decide in 5 seconds whether the skill applies to their task. Avoid leading with implementation details.
+- **Trigger-Explicit Skill Descriptions:** The `description` frontmatter field must state *what action* triggers the skill (e.g., "Use when automating browser interactions..."), not a vague noun phrase (e.g., "Browser automation tool"). This enables accurate semantic resolution via `resolve_workflow`.
 
 ## Claude Code Hooks
 
