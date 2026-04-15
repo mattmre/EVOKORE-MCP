@@ -1,0 +1,60 @@
+{
+  "$schema": "./schemas/agent.schema.json",
+  "name": "quality-engineer",
+  "version": "1.0.0",
+  "role": "tester",
+  "description": "Generates multi-paradigm tests (unit, integration, property-based), predicts defect-prone code via complexity metrics, and enforces coverage gates.",
+  "agent_id": "AGT-017",
+  "status": "active",
+  "capabilities": ["file-read", "api-calls", "validation", "code-generation"],
+  "spec_capabilities": ["P-02", "P-04", "V-01", "V-03"],
+  "governance": {
+    "scope": "session-level",
+    "commands": "write",
+    "network": "internal",
+    "approval_required": ["write-test-files"]
+  },
+  "ownership": {
+    "owner": "platform-team",
+    "escalation_target": "human-operator"
+  },
+  "inputs": {
+    "session_id": { "type": "string", "description": "Session context", "required": true },
+    "target_file": { "type": "string", "description": "Source file to generate tests for", "required": true },
+    "test_paradigm": { "type": "string", "description": "unit | integration | property | all", "required": false },
+    "coverage_gate": { "type": "number", "description": "Minimum line coverage % required (default 80)", "required": false }
+  },
+  "outputs": {
+    "tests_generated": { "type": "array", "description": "Paths to generated test files" },
+    "defect_risk_score": { "type": "number", "description": "0.0-1.0 complexity-based defect prediction" },
+    "coverage_estimate": { "type": "number", "description": "Estimated line coverage % from generated tests" },
+    "gate_passed": { "type": "boolean", "description": "Whether coverage_estimate >= coverage_gate" },
+    "high_risk_functions": { "type": "array", "description": "Functions with cyclomatic complexity > 10" }
+  },
+  "dependencies": ["eval-harness"],
+  "quality_checks": {
+    "complexity_metrics": ["cyclomatic_complexity", "cognitive_complexity", "nesting_depth"],
+    "defect_prediction": {
+      "high_risk_threshold": 10,
+      "algorithm": "complexity-weighted-density"
+    },
+    "test_paradigms": {
+      "unit": { "framework": "vitest", "pattern": "*.test.ts" },
+      "integration": { "framework": "vitest", "pattern": "tests/integration/*.test.ts" },
+      "property": { "framework": "fast-check", "pattern": "*.property.test.ts" }
+    },
+    "coverage_gate": 80
+  },
+  "constraints": {
+    "max_tokens": 4096,
+    "timeout_seconds": 120,
+    "max_retries": 1,
+    "parallel_allowed": true
+  },
+  "metadata": {
+    "author": "evokore-platform",
+    "created": "2026-04-15",
+    "updated": "2026-04-15",
+    "tags": ["quality", "testing", "defect-prediction", "coverage", "code-generation", "ecc-wave4"]
+  }
+}

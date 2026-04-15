@@ -1,0 +1,61 @@
+{
+  "$schema": "./schemas/agent.schema.json",
+  "name": "performance-engineer",
+  "version": "1.0.0",
+  "role": "analyst",
+  "description": "Runs benchmarks, diffs performance regressions against baseline, and enforces token/latency budgets. Surfaces degradation before code reaches main.",
+  "agent_id": "AGT-015",
+  "status": "active",
+  "capabilities": ["file-read", "api-calls", "validation", "benchmarking"],
+  "spec_capabilities": ["P-03", "V-03", "V-05"],
+  "governance": {
+    "scope": "session-level",
+    "commands": "read-only",
+    "network": "internal",
+    "approval_required": []
+  },
+  "ownership": {
+    "owner": "platform-team",
+    "escalation_target": "human-operator"
+  },
+  "inputs": {
+    "session_id": { "type": "string", "description": "Session context", "required": true },
+    "benchmark_target": { "type": "string", "description": "Function or file to benchmark", "required": false },
+    "baseline_path": { "type": "string", "description": "Path to baseline benchmark JSON for regression diff", "required": false },
+    "budget": {
+      "type": "object",
+      "description": "Optional budget constraints: { max_latency_ms, max_tokens, max_memory_mb }",
+      "required": false
+    }
+  },
+  "outputs": {
+    "benchmark_result": { "type": "object", "description": "{ p50_ms, p95_ms, p99_ms, throughput_rps, memory_mb }" },
+    "regression_detected": { "type": "boolean", "description": "True if any metric degrades >10% vs baseline" },
+    "budget_exceeded": { "type": "boolean", "description": "True if any metric exceeds the requested budget" },
+    "diff": { "type": "object", "description": "Delta vs baseline per metric" },
+    "recommendation": { "type": "string", "description": "pass | warn | fail" }
+  },
+  "dependencies": ["TelemetryIndex"],
+  "performance_budgets": {
+    "default": {
+      "resolve_workflow_p50_ms": 200,
+      "resolve_workflow_p99_ms": 1000,
+      "skill_load_ms": 500,
+      "token_overhead_per_call": 200
+    },
+    "regression_threshold_pct": 10,
+    "baseline_source": "~/.evokore/baselines/performance-baseline.json"
+  },
+  "constraints": {
+    "max_tokens": 2048,
+    "timeout_seconds": 60,
+    "max_retries": 1,
+    "parallel_allowed": true
+  },
+  "metadata": {
+    "author": "evokore-platform",
+    "created": "2026-04-15",
+    "updated": "2026-04-15",
+    "tags": ["performance", "benchmarking", "regression", "latency", "ecc-wave4"]
+  }
+}
