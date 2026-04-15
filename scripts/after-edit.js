@@ -18,6 +18,18 @@ const {
 } = require('./session-continuity');
 const { pruneOldSessions } = require('./log-rotation');
 
+// Phase 0-D: emit an `evidence_captured` event (type: edit-trace) onto the
+// append-only JSONL manifest alongside the legacy writeSessionState call.
+// Legacy writes remain because they persist `lastEditedFile`/`lastEditAt`,
+// which are not currently modeled in the manifest schema.
+let appendEvent = () => {};
+try {
+  // eslint-disable-next-line global-require
+  ({ appendEvent } = require('../dist/SessionManifest.js'));
+} catch {
+  // Fail open.
+}
+
 const WATCHED_TOOLS = new Set(['Edit', 'Write', 'MultiEdit']);
 
 let inputData = '';
@@ -69,6 +81,21 @@ process.stdin.on('end', () => {
       fs.appendFileSync(paths.evidenceLogPath, JSON.stringify(entry) + '\n', 'utf8');
     } catch {
       // best effort — never block the tool call
+    }
+
+    try {
+      appendEvent(sessionId, {
+        type: 'evidence_captured',
+        payload: {
+          evidence_id: evidenceId,
+          evidence_type: 'edit-trace',
+          tool: toolName,
+          summary: filePath,
+          passed: !isError
+        }
+      });
+    } catch {
+      // best effort
     }
 
     try {

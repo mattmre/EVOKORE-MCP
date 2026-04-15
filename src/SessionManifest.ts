@@ -160,6 +160,7 @@ function foldEvent(state: SessionManifestState, evt: SessionEvent): void {
       if (p.canonicalRepoRoot) state.canonicalRepoRoot = p.canonicalRepoRoot;
       if (p.repoName) state.repoName = p.repoName;
       state.status = "awaiting-purpose";
+      if (state.purpose === undefined) state.purpose = null;
       break;
     }
     case "purpose_recorded": {
@@ -213,6 +214,26 @@ function foldEvent(state: SessionManifestState, evt: SessionEvent): void {
       const p = (evt.payload ?? {}) as { result?: string };
       state.lastStopCheckAt = evt.ts;
       state.lastStopCheckResult = p.result;
+      state.lastActivityAt = evt.ts;
+      break;
+    }
+    case "subagent_tracked": {
+      const p = (evt.payload ?? {}) as {
+        subagent_id?: string;
+        subagent_type?: string | null;
+      };
+      state.lastSubagentAt = evt.ts;
+      state.lastSubagentId = p.subagent_id;
+      const prev =
+        typeof state.activeSubagentCount === "number"
+          ? state.activeSubagentCount
+          : 0;
+      state.activeSubagentCount = prev + 1;
+      state.lastActivityAt = evt.ts;
+      break;
+    }
+    case "pre_compact": {
+      state.preCompactAt = evt.ts;
       state.lastActivityAt = evt.ts;
       break;
     }

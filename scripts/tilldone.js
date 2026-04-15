@@ -4,7 +4,25 @@
 const fs = require('fs');
 const path = require('path');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
-const { writeSessionState, resolveCanonicalRepoRoot, SESSIONS_DIR } = require('./session-continuity');
+const { SESSIONS_DIR } = require('./session-continuity');
+
+// Phase 0-D: appendEvent is the canonical write path. compactIfNeeded rolls
+// the JSONL manifest into a `__snapshot__` line when it exceeds the threshold.
+// Require is wrapped so a missing dist build fails open without crashing.
+let appendEvent = () => {};
+let compactIfNeeded = async () => false;
+try {
+  // eslint-disable-next-line global-require
+  const manifest = require('../dist/SessionManifest.js');
+  if (manifest && typeof manifest.appendEvent === 'function') {
+    appendEvent = manifest.appendEvent;
+  }
+  if (manifest && typeof manifest.compactIfNeeded === 'function') {
+    compactIfNeeded = manifest.compactIfNeeded;
+  }
+} catch {
+  // Fail open — CLI and hook still work, just without manifest events.
+}
 
 const RESET = '\x1b[0m';
 const C = {
@@ -112,13 +130,9 @@ if (process.argv.length > 2) {
     const tasks = loadTasks(sessionId);
     tasks.push({ text, done: false, added: new Date().toISOString() });
     saveTasks(sessionId, tasks);
-    writeSessionState(sessionId, {
-      workspaceRoot: process.cwd(),
-      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-      repoName: path.basename(process.cwd()),
-      status: 'active',
-      lastTaskAction: 'add',
-      lastActivityAt: new Date().toISOString()
+    appendEvent(sessionId, {
+      type: 'task_action',
+      payload: { action: 'add', taskIndex: tasks.length - 1, taskText: text }
     });
     emitCli('cli_action', { action: 'add', session_id: sessionId });
     console.log(`${C.EMERALD}Added:${RESET} ${text}`);
@@ -133,13 +147,13 @@ if (process.argv.length > 2) {
     }
     tasks[num - 1].done = !tasks[num - 1].done;
     saveTasks(sessionId, tasks);
-    writeSessionState(sessionId, {
-      workspaceRoot: process.cwd(),
-      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-      repoName: path.basename(process.cwd()),
-      status: 'active',
-      lastTaskAction: 'toggle',
-      lastActivityAt: new Date().toISOString()
+    appendEvent(sessionId, {
+      type: 'task_action',
+      payload: {
+        action: 'toggle',
+        taskIndex: num - 1,
+        taskText: tasks[num - 1].text
+      }
     });
     emitCli('cli_action', { action: 'toggle', session_id: sessionId });
     formatTaskList(tasks, false);
@@ -153,37 +167,29 @@ if (process.argv.length > 2) {
     }
     tasks[num - 1].done = true;
     saveTasks(sessionId, tasks);
-    writeSessionState(sessionId, {
-      workspaceRoot: process.cwd(),
-      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-      repoName: path.basename(process.cwd()),
-      status: 'active',
-      lastTaskAction: 'done',
-      lastActivityAt: new Date().toISOString()
+    appendEvent(sessionId, {
+      type: 'task_action',
+      payload: {
+        action: 'done',
+        taskIndex: num - 1,
+        taskText: tasks[num - 1].text
+      }
     });
     emitCli('cli_action', { action: 'done', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--list')) {
     const tasks = loadTasks(sessionId);
-    writeSessionState(sessionId, {
-      workspaceRoot: process.cwd(),
-      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-      repoName: path.basename(process.cwd()),
-      status: 'active',
-      lastTaskAction: 'list',
-      lastActivityAt: new Date().toISOString()
+    appendEvent(sessionId, {
+      type: 'task_action',
+      payload: { action: 'list' }
     });
     emitCli('cli_action', { action: 'list', session_id: sessionId });
     formatTaskList(tasks, false);
   } else if (hasFlag('--clear')) {
     saveTasks(sessionId, []);
-    writeSessionState(sessionId, {
-      workspaceRoot: process.cwd(),
-      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-      repoName: path.basename(process.cwd()),
-      status: 'active',
-      lastTaskAction: 'clear',
-      lastActivityAt: new Date().toISOString()
+    appendEvent(sessionId, {
+      type: 'task_action',
+      payload: { action: 'clear' }
     });
     emitCli('cli_action', { action: 'clear', session_id: sessionId });
     console.log(`${C.ORANGE}Tasks cleared for session ${sessionId}${RESET}`);
@@ -199,7 +205,7 @@ if (process.argv.length > 2) {
 // --- Hook mode (stdin) ---
 let input = '';
 process.stdin.on('data', (chunk) => input += chunk);
-process.stdin.on('end', () => {
+process.stdin.on('end', async () => {
   try {
     const payload = JSON.parse(input);
     const sessionId = sanitizeId(payload.session_id);
@@ -208,14 +214,9 @@ process.stdin.on('end', () => {
     const incomplete = tasks.filter(t => !t.done);
 
     if (incomplete.length > 0) {
-      writeSessionState(sessionId, {
-        workspaceRoot: process.cwd(),
-        canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-        repoName: path.basename(process.cwd()),
-        status: 'active',
-        lastStopCheckAt: new Date().toISOString(),
-        lastStopCheckResult: 'blocked',
-        lastActivityAt: new Date().toISOString()
+      appendEvent(sessionId, {
+        type: 'stop_check',
+        payload: { result: 'blocked', incompleteCount: incomplete.length }
       });
       writeHookEvent({
         hook: 'tilldone',
@@ -224,6 +225,8 @@ process.stdin.on('end', () => {
         session_id: sessionId,
         incomplete_count: incomplete.length
       });
+      // Compaction opportunity on every Stop boundary (Phase 0-D).
+      try { await compactIfNeeded(sessionId); } catch { /* best effort */ }
       process.stderr.write(`\n${C.ROSE}⚠ TillDone: ${incomplete.length} incomplete task(s) remain!${RESET}\n`);
       formatTaskList(tasks, true);
       process.stderr.write(`${C.ORANGE}Complete all tasks before ending the session, or run:${RESET}\n`);
@@ -231,14 +234,9 @@ process.stdin.on('end', () => {
       process.exit(2);
     }
 
-    writeSessionState(sessionId, {
-      workspaceRoot: process.cwd(),
-      canonicalRepoRoot: resolveCanonicalRepoRoot(process.cwd()),
-      repoName: path.basename(process.cwd()),
-      status: 'active',
-      lastStopCheckAt: new Date().toISOString(),
-      lastStopCheckResult: 'clear',
-      lastActivityAt: new Date().toISOString()
+    appendEvent(sessionId, {
+      type: 'stop_check',
+      payload: { result: 'clear', incompleteCount: 0 }
     });
     writeHookEvent({
       hook: 'tilldone',
@@ -293,6 +291,9 @@ process.stdin.on('end', () => {
         });
       }
     }
+
+    // Phase 0-D: compact the JSONL manifest on Stop boundary.
+    try { await compactIfNeeded(sessionId); } catch { /* best effort */ }
 
     process.exit(0);
   } catch (error) {
