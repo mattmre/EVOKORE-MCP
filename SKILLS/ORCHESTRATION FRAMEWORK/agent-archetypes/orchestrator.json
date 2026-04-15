@@ -5,12 +5,19 @@
   "role": "orchestrator",
   "description": "Top-level orchestrator that decomposes tasks, delegates to specialist agents, and assembles final results.",
   "agent_id": "AGT-001",
+  "domain": "orchestration",
   "status": "active",
   "capabilities": [
     "orchestration",
     "api-calls"
   ],
-  "spec_capabilities": ["P-01", "P-02", "P-03", "P-05", "V-05"],
+  "spec_capabilities": [
+    "P-01",
+    "P-02",
+    "P-03",
+    "P-05",
+    "V-05"
+  ],
   "governance": {
     "scope": "full-system",
     "commands": "all",
@@ -59,6 +66,9 @@
     "author": "agent-33",
     "created": "2025-01-01",
     "updated": "2025-01-30",
-    "tags": ["core", "orchestration"]
+    "tags": [
+      "core",
+      "orchestration"
+    ]
   }
 }

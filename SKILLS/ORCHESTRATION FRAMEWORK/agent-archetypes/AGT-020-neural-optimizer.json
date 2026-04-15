@@ -1,0 +1,72 @@
+{
+  "$schema": "./schemas/agent.schema.json",
+  "name": "neural-optimizer",
+  "version": "1.0.0",
+  "role": "optimizer",
+  "description": "Extracts session patterns via the ECC learning loop, retrieves high-confidence instincts using MMR-inspired scoring, and injects them into MEMORY.md for future session context.",
+  "agent_id": "AGT-020",
+  "status": "active",
+  "capabilities": ["file-read", "api-calls"],
+  "spec_capabilities": ["P-03", "P-04", "V-04"],
+  "domain": "learning",
+  "governance": {
+    "scope": "cross-session",
+    "commands": "none",
+    "network": "none",
+    "approval_required": []
+  },
+  "ownership": {
+    "owner": "platform-team",
+    "escalation_target": "human-operator"
+  },
+  "inputs": {
+    "sessions_dir": { "type": "string", "description": "Path to ~/.evokore/sessions/ directory", "required": false },
+    "min_sessions": { "type": "number", "description": "Minimum sessions required before pattern extraction (default 5)", "required": false },
+    "injection_path": { "type": "string", "description": "Path to MEMORY.md for pattern injection (default: ~/.claude/projects/.../memory/patterns.md)", "required": false }
+  },
+  "outputs": {
+    "patterns_extracted": { "type": "number", "description": "Count of patterns extracted across sessions" },
+    "patterns_active": { "type": "number", "description": "Count of patterns in active state (confidence >= 0.70)" },
+    "precision": { "type": "number", "description": "Fraction of extracted patterns that are actionable" },
+    "decision_gate": { "type": "string", "description": "PROCEED | ABANDON based on precision >= 0.70 threshold" },
+    "injected": { "type": "boolean", "description": "Whether patterns were written to MEMORY.md" }
+  },
+  "dependencies": ["eval-harness", "pattern-extractor"],
+  "learning_loop": {
+    "eval_harness": "scripts/eval-harness.js",
+    "pattern_extractor": "scripts/pattern-extractor.js",
+    "patterns_store": "~/.evokore/patterns/patterns.jsonl",
+    "patterns_index": "~/.evokore/patterns/index.json",
+    "memory_injection": "~/.claude/projects/.../memory/patterns.md",
+    "state_machine": {
+      "candidate": "confidence < 0.70 OR relevant_sessions < 3",
+      "active": "confidence >= 0.70 AND relevant_sessions >= 3 AND evidence_count >= 10",
+      "stale": "not activated in 30 days",
+      "retired": "not activated in 90 days"
+    },
+    "retrieval": {
+      "algorithm": "mmr-inspired",
+      "relevance_weight": 0.70,
+      "diversity_weight": 0.30,
+      "top_k": 15,
+      "max_tokens_per_instinct": 200
+    },
+    "precision_gate": {
+      "threshold": 0.70,
+      "action_pass": "PROCEED",
+      "action_fail": "ABANDON"
+    }
+  },
+  "constraints": {
+    "max_tokens": 2048,
+    "timeout_seconds": 120,
+    "max_retries": 1,
+    "parallel_allowed": false
+  },
+  "metadata": {
+    "author": "evokore-platform",
+    "created": "2026-04-15",
+    "updated": "2026-04-15",
+    "tags": ["learning-loop", "pattern-extraction", "memory-injection", "ecc-phase4", "ecc-wave4"]
+  }
+}

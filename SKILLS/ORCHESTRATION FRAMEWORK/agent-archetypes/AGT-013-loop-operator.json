@@ -5,14 +5,27 @@
   "role": "orchestrator",
   "description": "Meta-agent that monitors running agents for degenerate iteration patterns and intervenes with change-approach, escalation, or termination when loops are detected.",
   "agent_id": "AGT-013",
+  "domain": "orchestration",
   "status": "active",
-  "capabilities": ["orchestration", "file-read", "api-calls", "validation"],
-  "spec_capabilities": ["P-03", "P-04", "V-03", "V-05"],
+  "capabilities": [
+    "orchestration",
+    "file-read",
+    "api-calls",
+    "validation"
+  ],
+  "spec_capabilities": [
+    "P-03",
+    "P-04",
+    "V-03",
+    "V-05"
+  ],
   "governance": {
     "scope": "full-system",
     "commands": "none",
     "network": "internal",
-    "approval_required": ["terminate"]
+    "approval_required": [
+      "terminate"
+    ]
   },
   "ownership": {
     "owner": "platform-team",
@@ -64,13 +77,18 @@
         "id": "repeated-error",
         "description": "Same error description repeated more than error_threshold times in recent history",
         "trigger": "error_count > error_threshold",
-        "escalation_ladder": ["change-approach", "terminate"]
+        "escalation_ladder": [
+          "change-approach",
+          "terminate"
+        ]
       },
       {
         "id": "stalled",
         "description": "All recent agent calls within stall_window_ms returned errors with no successful completion",
         "trigger": "all_recent_errors AND count >= 2",
-        "escalation_ladder": ["escalate"]
+        "escalation_ladder": [
+          "escalate"
+        ]
       }
     ],
     "lookback_count": 20,
@@ -95,6 +113,12 @@
     "author": "evokore-platform",
     "created": "2026-04-11",
     "updated": "2026-04-11",
-    "tags": ["meta-agent", "monitoring", "loop-detection", "orchestration", "ecc-phase3"]
+    "tags": [
+      "meta-agent",
+      "monitoring",
+      "loop-detection",
+      "orchestration",
+      "ecc-phase3"
+    ]
   }
 }

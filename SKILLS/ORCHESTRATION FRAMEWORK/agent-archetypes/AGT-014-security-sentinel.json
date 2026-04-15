@@ -5,32 +5,75 @@
   "role": "enforcer",
   "description": "Detects prompt injection attacks, monitors for behavioral anomalies, and scans code for CVEs. Designed for <10ms latency on in-session pattern matching.",
   "agent_id": "AGT-014",
+  "domain": "security",
   "status": "active",
-  "capabilities": ["file-read", "api-calls", "validation", "threat-detection"],
-  "spec_capabilities": ["P-02", "P-04", "V-02", "V-04"],
+  "capabilities": [
+    "file-read",
+    "api-calls",
+    "validation",
+    "threat-detection"
+  ],
+  "spec_capabilities": [
+    "P-02",
+    "P-04",
+    "V-02",
+    "V-04"
+  ],
   "governance": {
     "scope": "full-system",
     "commands": "read-only",
     "network": "internal",
-    "approval_required": ["block-session", "quarantine-agent"]
+    "approval_required": [
+      "block-session",
+      "quarantine-agent"
+    ]
   },
   "ownership": {
     "owner": "platform-team",
     "escalation_target": "human-operator"
   },
   "inputs": {
-    "session_id": { "type": "string", "description": "Session to monitor", "required": true },
-    "check_type": { "type": "string", "description": "Type of check: prompt_injection | cve_scan | behavioral_anomaly | all", "required": false },
-    "payload": { "type": "string", "description": "Raw prompt or tool input to analyze for injection", "required": false }
+    "session_id": {
+      "type": "string",
+      "description": "Session to monitor",
+      "required": true
+    },
+    "check_type": {
+      "type": "string",
+      "description": "Type of check: prompt_injection | cve_scan | behavioral_anomaly | all",
+      "required": false
+    },
+    "payload": {
+      "type": "string",
+      "description": "Raw prompt or tool input to analyze for injection",
+      "required": false
+    }
   },
   "outputs": {
-    "threat_detected": { "type": "boolean", "description": "Whether a threat was detected" },
-    "threat_type": { "type": "string", "description": "prompt_injection | cve | behavioral_anomaly | none" },
-    "confidence": { "type": "number", "description": "Detection confidence 0.0–1.0" },
-    "evidence": { "type": "array", "description": "Array of pattern matches or anomaly indicators" },
-    "recommendation": { "type": "string", "description": "block | warn | allow | escalate" }
+    "threat_detected": {
+      "type": "boolean",
+      "description": "Whether a threat was detected"
+    },
+    "threat_type": {
+      "type": "string",
+      "description": "prompt_injection | cve | behavioral_anomaly | none"
+    },
+    "confidence": {
+      "type": "number",
+      "description": "Detection confidence 0.0–1.0"
+    },
+    "evidence": {
+      "type": "array",
+      "description": "Array of pattern matches or anomaly indicators"
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "block | warn | allow | escalate"
+    }
   },
-  "dependencies": ["damage-control"],
+  "dependencies": [
+    "damage-control"
+  ],
   "security_checks": {
     "prompt_injection": {
       "patterns": [
@@ -60,7 +103,13 @@
       "stall_window_ms": 300000
     },
     "cve_scan": {
-      "triggers": ["npm install", "pip install", "cargo add", "package.json", "requirements.txt"],
+      "triggers": [
+        "npm install",
+        "pip install",
+        "cargo add",
+        "package.json",
+        "requirements.txt"
+      ],
       "severity_threshold": "HIGH",
       "scan_tool": "npm audit"
     }
@@ -75,6 +124,13 @@
     "author": "evokore-platform",
     "created": "2026-04-15",
     "updated": "2026-04-15",
-    "tags": ["security", "threat-detection", "prompt-injection", "cve", "behavioral-anomaly", "ecc-wave4"]
+    "tags": [
+      "security",
+      "threat-detection",
+      "prompt-injection",
+      "cve",
+      "behavioral-anomaly",
+      "ecc-wave4"
+    ]
   }
 }

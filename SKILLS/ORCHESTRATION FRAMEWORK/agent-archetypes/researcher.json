@@ -5,12 +5,19 @@
   "role": "researcher",
   "description": "Deep research agent that iteratively searches the web, reads promising sources, accumulates knowledge, and synthesizes comprehensive answers.",
   "agent_id": "AGT-006",
+  "domain": "research",
   "status": "active",
   "capabilities": [
     "api-calls",
     "research"
   ],
-  "spec_capabilities": ["X-01", "X-02", "X-03", "X-04", "X-05"],
+  "spec_capabilities": [
+    "X-01",
+    "X-02",
+    "X-03",
+    "X-04",
+    "X-05"
+  ],
   "governance": {
     "scope": "read-only",
     "commands": "none",
@@ -66,6 +73,10 @@
     "author": "agent-33",
     "created": "2025-01-01",
     "updated": "2026-01-30",
-    "tags": ["research", "search", "deep-research"]
+    "tags": [
+      "research",
+      "search",
+      "deep-research"
+    ]
   }
 }

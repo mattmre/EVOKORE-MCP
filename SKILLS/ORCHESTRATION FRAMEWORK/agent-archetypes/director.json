@@ -5,17 +5,26 @@
   "role": "director",
   "description": "Strategic director that translates high-level objectives into actionable plans, coordinates multi-agent workflows, and ensures alignment with project goals.",
   "agent_id": "AGT-002",
+  "domain": "orchestration",
   "status": "active",
   "capabilities": [
     "orchestration",
     "api-calls"
   ],
-  "spec_capabilities": ["P-01", "P-02", "P-03", "P-04", "P-05"],
+  "spec_capabilities": [
+    "P-01",
+    "P-02",
+    "P-03",
+    "P-04",
+    "P-05"
+  ],
   "governance": {
     "scope": "project-level",
     "commands": "none",
     "network": "internal",
-    "approval_required": ["scope-change"]
+    "approval_required": [
+      "scope-change"
+    ]
   },
   "ownership": {
     "owner": "platform-team",
@@ -65,6 +74,10 @@
     "author": "agent-33",
     "created": "2025-01-01",
     "updated": "2026-01-30",
-    "tags": ["core", "planning", "director"]
+    "tags": [
+      "core",
+      "planning",
+      "director"
+    ]
   }
 }

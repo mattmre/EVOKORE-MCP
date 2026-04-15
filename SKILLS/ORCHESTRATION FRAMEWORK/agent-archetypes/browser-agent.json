@@ -5,6 +5,7 @@
   "role": "worker",
   "description": "Autonomous browser agent that decomposes web tasks into steps, navigates pages, interacts with elements, and extracts results using a planner/navigator pattern.",
   "status": "active",
+  "domain": "browser",
   "capabilities": [
     "api-calls"
   ],
@@ -69,6 +70,10 @@
     "author": "agent-33",
     "created": "2025-01-01",
     "updated": "2026-01-30",
-    "tags": ["browser", "automation", "scraping"]
+    "tags": [
+      "browser",
+      "automation",
+      "scraping"
+    ]
   }
 }
