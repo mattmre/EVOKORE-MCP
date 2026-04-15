@@ -45,7 +45,9 @@
     "bench": "node scripts/benchmark.js",
     "docs:api": "typedoc",
     "worktree:cleanup": "node scripts/worktree-cleanup.js --dry-run",
-    "worktree:cleanup:apply": "node scripts/worktree-cleanup.js --apply"
+    "worktree:cleanup:apply": "node scripts/worktree-cleanup.js --apply",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
+    "changelog:full": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0"
   },
   "keywords": [
     "mcp",
@@ -80,9 +82,12 @@
     "ioredis": "^5.4.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^25.3.0",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.0",
+    "conventional-changelog-cli": "^5.0.0",
     "tsx": "^4.21.0",
     "typedoc": "^0.28.17",
     "typescript": "^5.9.3",
