@@ -34,6 +34,7 @@ import { TelemetryManager } from "./TelemetryManager";
 import { TelemetryExporter } from "./TelemetryExporter";
 import { NavigationAnchorManager } from "./NavigationAnchorManager";
 import { SessionAnalyticsManager } from "./SessionAnalyticsManager";
+import { WorkerManager } from "./WorkerManager";
 import { ClaimsManager } from "./ClaimsManager";
 import { MemoryManager } from "./MemoryManager";
 import { RegistryManager } from "./RegistryManager";
@@ -68,6 +69,7 @@ export class EvokoreMCPServer {
   private telemetryExporter: TelemetryExporter;
   private navAnchorManager: NavigationAnchorManager;
   private sessionAnalyticsManager: SessionAnalyticsManager;
+  private workerManager: WorkerManager;
   private claimsManager: ClaimsManager;
   private memoryManager: MemoryManager;
   private registryManager: RegistryManager;
@@ -104,6 +106,7 @@ export class EvokoreMCPServer {
     this.telemetryManager = new TelemetryManager();
     this.navAnchorManager = new NavigationAnchorManager();
     this.sessionAnalyticsManager = new SessionAnalyticsManager();
+    this.workerManager = new WorkerManager();
     this.claimsManager = new ClaimsManager();
     this.memoryManager = new MemoryManager();
     this.telemetryExporter = new TelemetryExporter(this.telemetryManager, {
@@ -164,6 +167,7 @@ export class EvokoreMCPServer {
       ...this.telemetryManager.getTools(),
       ...this.navAnchorManager.getTools(),
       ...this.sessionAnalyticsManager.getTools(),
+      ...this.workerManager.getTools(),
       ...this.claimsManager.getTools(),
       ...this.memoryManager.getTools(),
     ];
@@ -642,6 +646,8 @@ export class EvokoreMCPServer {
         source = "builtin";
       } else if (this.sessionAnalyticsManager.isSessionAnalyticsTool(toolName)) {
         source = "builtin";
+      } else if (this.workerManager.isWorkerTool(toolName)) {
+        source = "builtin";
       } else if (this.claimsManager.isClaimTool(toolName)) {
         source = "builtin";
       } else if (this.memoryManager.isMemoryTool(toolName)) {
@@ -725,6 +731,8 @@ export class EvokoreMCPServer {
           result = (await this.navAnchorManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (this.sessionAnalyticsManager.isSessionAnalyticsTool(toolName)) {
           result = (await this.sessionAnalyticsManager.handleToolCall(toolName, args)) as CallToolResult;
+        } else if (this.workerManager.isWorkerTool(toolName)) {
+          result = (await this.workerManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (this.claimsManager.isClaimTool(toolName)) {
           result = (await this.claimsManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (this.memoryManager.isMemoryTool(toolName)) {

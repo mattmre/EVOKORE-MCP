@@ -68,6 +68,78 @@ function saveTasks(sessionId, tasks) {
   fs.writeFileSync(tasksPath(sessionId), JSON.stringify(tasks, null, 2));
 }
 
+// --- Wave 2 Phase 2.5-C: dependency graph ---
+//
+// Task schema (additive, all new fields optional):
+//   { text, done, added,
+//     depends_on?: string[],   // task texts (substring) OR task indices ("1","2")
+//     blocked_by?: string[],   // derived: subset of depends_on still incomplete
+//     domain?: string }        // optional grouping tag
+//
+// Old tasks without these fields are returned untouched by recomputeBlocked()
+// and treated as unblocked.
+function findTaskByRef(tasks, ref) {
+  if (ref == null) return -1;
+  const refStr = String(ref).trim();
+  if (refStr.length === 0) return -1;
+  // Numeric reference => 1-based index
+  if (/^\d+$/.test(refStr)) {
+    const idx = parseInt(refStr, 10) - 1;
+    if (idx >= 0 && idx < tasks.length) return idx;
+    return -1;
+  }
+  // Otherwise: case-insensitive substring match against task text
+  const lower = refStr.toLowerCase();
+  for (let i = 0; i < tasks.length; i++) {
+    if (String(tasks[i].text || '').toLowerCase().includes(lower)) return i;
+  }
+  return -1;
+}
+
+function recomputeBlocked(tasks) {
+  const newlyUnblocked = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    if (!Array.isArray(t.depends_on) || t.depends_on.length === 0) {
+      // No deps -- ensure blocked_by stays empty for consistency.
+      if (Array.isArray(t.blocked_by) && t.blocked_by.length > 0) {
+        const prev = t.blocked_by.slice();
+        t.blocked_by = [];
+        if (!t.done) newlyUnblocked.push({ index: i, text: t.text, previouslyBlockedBy: prev });
+      }
+      continue;
+    }
+    const stillBlocked = [];
+    for (const ref of t.depends_on) {
+      const depIdx = findTaskByRef(tasks, ref);
+      if (depIdx === -1) {
+        // Unknown ref -- treat as still blocking so we surface the issue.
+        stillBlocked.push(ref);
+      } else if (!tasks[depIdx].done) {
+        stillBlocked.push(ref);
+      }
+    }
+    const wasBlocked = Array.isArray(t.blocked_by) && t.blocked_by.length > 0;
+    t.blocked_by = stillBlocked;
+    const isNowUnblocked = stillBlocked.length === 0;
+    if (wasBlocked && isNowUnblocked && !t.done) {
+      newlyUnblocked.push({ index: i, text: t.text, domain: t.domain || null });
+    }
+  }
+  return newlyUnblocked;
+}
+
+function groupByDomain(tasks) {
+  const groups = new Map();
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    const key = t.domain || '__none__';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ index: i, task: t });
+  }
+  return groups;
+}
+
 function formatTaskList(tasks, useStderr) {
   const write = useStderr ? process.stderr.write.bind(process.stderr) : process.stdout.write.bind(process.stdout);
   if (tasks.length === 0) {
@@ -81,11 +153,39 @@ function formatTaskList(tasks, useStderr) {
   write(`${C.DIM}${'─'.repeat(50)}${RESET}\n`);
 
   tasks.forEach((t, i) => {
-    const icon = t.done ? `${C.EMERALD}✓${RESET}` : `${C.ROSE}○${RESET}`;
+    const blocked = !t.done && Array.isArray(t.blocked_by) && t.blocked_by.length > 0;
+    const icon = t.done
+      ? `${C.EMERALD}✓${RESET}`
+      : blocked ? `${C.ORANGE}⊘${RESET}` : `${C.ROSE}○${RESET}`;
     const text = t.done ? `${C.DIM}${t.text}${RESET}` : `${C.SLATE}${t.text}${RESET}`;
-    write(`  ${icon} ${C.DIM}${String(i + 1).padStart(2)}.${RESET} ${text}\n`);
+    const domainTag = t.domain ? ` ${C.DIM}[${t.domain}]${RESET}` : '';
+    const blockedTag = blocked ? ` ${C.ORANGE}(blocked by: ${t.blocked_by.join(', ')})${RESET}` : '';
+    write(`  ${icon} ${C.DIM}${String(i + 1).padStart(2)}.${RESET} ${text}${domainTag}${blockedTag}\n`);
   });
   write(`${C.DIM}${'─'.repeat(50)}${RESET}\n\n`);
+}
+
+// Expose helpers for tests and for purpose-gate's auto-inject path. The
+// CLI/hook entrypoints below only run on direct invocation (so test files
+// that `require('./tilldone.js')` get the helpers without consuming stdin
+// or triggering the CLI flag parser).
+module.exports = {
+  loadTasks,
+  saveTasks,
+  recomputeBlocked,
+  groupByDomain,
+  findTaskByRef,
+  tasksPath,
+};
+
+const tilldoneMainFilename = (require.main && require.main.filename) ? require.main.filename : '';
+const tilldoneMainBase = path.basename(tilldoneMainFilename);
+const isTilldoneDirectInvocation =
+  require.main === module ||
+  (tilldoneMainBase === 'tilldone.js' && path.basename(path.dirname(tilldoneMainFilename)) === 'hooks');
+
+if (!isTilldoneDirectInvocation) {
+  return;
 }
 
 // --- CLI mode ---
@@ -128,7 +228,15 @@ if (process.argv.length > 2) {
       process.exit(1);
     }
     const tasks = loadTasks(sessionId);
-    tasks.push({ text, done: false, added: new Date().toISOString() });
+    const newTask = { text, done: false, added: new Date().toISOString() };
+    const dependsOnRaw = getArg('--depends-on');
+    if (dependsOnRaw) {
+      newTask.depends_on = String(dependsOnRaw).split(',').map(s => s.trim()).filter(s => s.length > 0);
+    }
+    const domain = getArg('--domain');
+    if (domain) newTask.domain = String(domain).trim();
+    tasks.push(newTask);
+    recomputeBlocked(tasks);
     saveTasks(sessionId, tasks);
     appendEvent(sessionId, {
       type: 'task_action',
@@ -146,17 +254,22 @@ if (process.argv.length > 2) {
       process.exit(1);
     }
     tasks[num - 1].done = !tasks[num - 1].done;
+    const unblocked = recomputeBlocked(tasks);
     saveTasks(sessionId, tasks);
     appendEvent(sessionId, {
       type: 'task_action',
       payload: {
         action: 'toggle',
         taskIndex: num - 1,
-        taskText: tasks[num - 1].text
+        taskText: tasks[num - 1].text,
+        newlyUnblocked: unblocked
       }
     });
     emitCli('cli_action', { action: 'toggle', session_id: sessionId });
     formatTaskList(tasks, false);
+    if (unblocked.length > 0) {
+      console.log(`${C.EMERALD}Unblocked ${unblocked.length} task(s):${RESET} ${unblocked.map(u => u.text).join(', ')}`);
+    }
   } else if (hasFlag('--done')) {
     const num = parseInt(getArg('--done'), 10);
     const tasks = loadTasks(sessionId);
@@ -166,19 +279,25 @@ if (process.argv.length > 2) {
       process.exit(1);
     }
     tasks[num - 1].done = true;
+    const unblocked = recomputeBlocked(tasks);
     saveTasks(sessionId, tasks);
     appendEvent(sessionId, {
       type: 'task_action',
       payload: {
         action: 'done',
         taskIndex: num - 1,
-        taskText: tasks[num - 1].text
+        taskText: tasks[num - 1].text,
+        newlyUnblocked: unblocked
       }
     });
     emitCli('cli_action', { action: 'done', session_id: sessionId });
     formatTaskList(tasks, false);
+    if (unblocked.length > 0) {
+      console.log(`${C.EMERALD}Unblocked ${unblocked.length} task(s):${RESET} ${unblocked.map(u => u.text).join(', ')}`);
+    }
   } else if (hasFlag('--list')) {
     const tasks = loadTasks(sessionId);
+    recomputeBlocked(tasks);
     appendEvent(sessionId, {
       type: 'task_action',
       payload: { action: 'list' }
@@ -210,25 +329,50 @@ process.stdin.on('end', async () => {
     const payload = JSON.parse(input);
     const sessionId = sanitizeId(payload.session_id);
     const tasks = loadTasks(sessionId);
+    // Recompute blocked_by so Stop hook surfaces fresh dependency status.
+    recomputeBlocked(tasks);
 
     const incomplete = tasks.filter(t => !t.done);
 
     if (incomplete.length > 0) {
+      const hasDomains = incomplete.some(t => !!t.domain);
+      const blocked = incomplete.filter(t => Array.isArray(t.blocked_by) && t.blocked_by.length > 0);
+      const ready = incomplete.filter(t => !Array.isArray(t.blocked_by) || t.blocked_by.length === 0);
+
       appendEvent(sessionId, {
         type: 'stop_check',
-        payload: { result: 'blocked', incompleteCount: incomplete.length }
+        payload: {
+          result: 'blocked',
+          incompleteCount: incomplete.length,
+          blockedCount: blocked.length,
+          readyCount: ready.length,
+          hasDomains
+        }
       });
       writeHookEvent({
         hook: 'tilldone',
         mode: 'hook',
         event: 'hook_mode_block',
         session_id: sessionId,
-        incomplete_count: incomplete.length
+        incomplete_count: incomplete.length,
+        blocked_count: blocked.length,
+        ready_count: ready.length
       });
       // Compaction opportunity on every Stop boundary (Phase 0-D).
       try { await compactIfNeeded(sessionId); } catch { /* best effort */ }
       process.stderr.write(`\n${C.ROSE}⚠ TillDone: ${incomplete.length} incomplete task(s) remain!${RESET}\n`);
+      if (blocked.length > 0) {
+        process.stderr.write(`${C.SLATE}  ${ready.length} ready, ${blocked.length} blocked by deps${RESET}\n`);
+      }
       formatTaskList(tasks, true);
+      if (hasDomains) {
+        const groups = groupByDomain(incomplete);
+        process.stderr.write(`${C.BLUE}  Grouped by domain:${RESET}\n`);
+        for (const [domain, items] of groups.entries()) {
+          const label = domain === '__none__' ? '(no domain)' : domain;
+          process.stderr.write(`${C.SLATE}  ${label}:${RESET} ${items.length} task(s)\n`);
+        }
+      }
       process.stderr.write(`${C.ORANGE}Complete all tasks before ending the session, or run:${RESET}\n`);
       process.stderr.write(`${C.SLATE}  node scripts/tilldone.js --clear --session ${sessionId}${RESET}\n\n`);
       process.exit(2);
