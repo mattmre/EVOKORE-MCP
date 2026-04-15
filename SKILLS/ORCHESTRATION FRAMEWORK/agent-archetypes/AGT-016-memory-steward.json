@@ -1,0 +1,66 @@
+{
+  "$schema": "./schemas/agent.schema.json",
+  "name": "memory-steward",
+  "version": "1.0.0",
+  "role": "steward",
+  "description": "Consolidates knowledge across sessions, detects memory contradictions, enforces TTL policies, and prunes expired entries from ~/.evokore/memory/.",
+  "agent_id": "AGT-016",
+  "status": "active",
+  "capabilities": ["file-read", "api-calls"],
+  "spec_capabilities": ["P-04", "V-04"],
+  "governance": {
+    "scope": "session-level",
+    "commands": "none",
+    "network": "none",
+    "approval_required": ["bulk-delete"]
+  },
+  "ownership": {
+    "owner": "platform-team",
+    "escalation_target": "human-operator"
+  },
+  "inputs": {
+    "session_id": { "type": "string", "description": "Session to steward memory for", "required": true },
+    "action": { "type": "string", "description": "consolidate | detect-contradictions | prune | report", "required": true },
+    "dry_run": { "type": "boolean", "description": "Preview changes without writing", "required": false }
+  },
+  "outputs": {
+    "entries_pruned": { "type": "number", "description": "Count of TTL-expired entries removed" },
+    "contradictions": { "type": "array", "description": "Pairs of conflicting memory entries" },
+    "consolidated": { "type": "number", "description": "Entries merged during consolidation" },
+    "memory_health": { "type": "object", "description": "{ total, expired, by_type, oldest_entry_days }" }
+  },
+  "dependencies": ["MemoryManager"],
+  "memory_policies": {
+    "ttl_enforcement": {
+      "check_interval_ms": 3600000,
+      "grace_period_ms": 300000
+    },
+    "contradiction_detection": {
+      "algorithm": "keyword-overlap",
+      "conflict_threshold": 0.8,
+      "types_to_check": ["knowledge", "decision"]
+    },
+    "consolidation": {
+      "merge_threshold_similarity": 0.9,
+      "target_types": ["knowledge", "context"],
+      "max_merge_batch": 50
+    },
+    "prune_criteria": {
+      "hit_rate_min": 0.05,
+      "session_min": 5,
+      "confidence_min": 0.40
+    }
+  },
+  "constraints": {
+    "max_tokens": 1024,
+    "timeout_seconds": 30,
+    "max_retries": 1,
+    "parallel_allowed": false
+  },
+  "metadata": {
+    "author": "evokore-platform",
+    "created": "2026-04-15",
+    "updated": "2026-04-15",
+    "tags": ["memory", "consolidation", "ttl", "contradiction-detection", "ecc-wave4"]
+  }
+}
