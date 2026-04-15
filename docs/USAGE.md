@@ -34,6 +34,44 @@ Add the following to your `claude_desktop_config.json`:
 3. Add a new server. Name it `evokore-mcp`.
 4. Command: `node /absolute/path/to/EVOKORE-MCP/dist/index.js`.
 
+### Multi-IDE Setup (Cursor, Windsurf, Continue)
+
+EVOKORE-MCP ships template-based configs for third-party IDEs under `configs/cross-ide/`. The same `evokore-mcp` server binary is wired into each IDE — only the config file location and schema differ.
+
+Use the `--target` flag on `scripts/sync-configs.js` to generate and install the IDE-specific config automatically:
+
+```bash
+# Cursor  → ~/.cursor/mcp.json
+node scripts/sync-configs.js --target cursor --dry-run
+node scripts/sync-configs.js --target cursor --apply
+
+# Windsurf (Codeium) → ~/.codeium/windsurf/mcp_config.json
+node scripts/sync-configs.js --target windsurf --dry-run
+node scripts/sync-configs.js --target windsurf --apply
+
+# Continue (VS Code / JetBrains extension) → ~/.continue/config.json
+node scripts/sync-configs.js --target continue --dry-run
+node scripts/sync-configs.js --target continue --apply
+```
+
+**How it works:**
+
+- The script reads the template at `configs/cross-ide/<target>.json`.
+- `${EVOKORE_INSTALL_DIR}` is substituted with the canonical git root (same resolution as the Claude sync path).
+- For Cursor and Windsurf, the `mcpServers.evokore-mcp` entry is merged into any existing config (other servers are preserved).
+- For Continue, the entry is appended to the `mcpServers` array (any prior `evokore-mcp` entry is replaced, not duplicated).
+- `--dry-run` prints the resolved config and the target path without touching disk. `--apply` writes the file (creating parent directories as needed).
+
+**Config file locations at a glance:**
+
+| IDE | Config file | Schema |
+|---|---|---|
+| Cursor | `~/.cursor/mcp.json` | `mcpServers` object, keyed by server name |
+| Windsurf | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` object, keyed by server name |
+| Continue | `~/.continue/config.json` | `mcpServers` array of named entries |
+
+Unknown targets exit with a non-zero status and print the supported list.
+
 ## 2. Using the Built-In Tools
 
 Once connected, your AI assistant will automatically have access to the following tools:

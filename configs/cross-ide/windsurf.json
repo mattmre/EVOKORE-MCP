@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "evokore-mcp": {
+      "command": "node",
+      "args": ["${EVOKORE_INSTALL_DIR}/dist/index.js"],
+      "env": {
+        "EVOKORE_MCP_CONFIG_PATH": "${EVOKORE_INSTALL_DIR}/mcp.config.json"
+      }
+    }
+  }
+}
