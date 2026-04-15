@@ -308,13 +308,20 @@ describe('TelemetryManager', () => {
 
   describe('local storage read/write', () => {
     let tmpDir: string;
-    let originalMetricsFile: string;
+    let originalTelemetryDir: string | undefined;
 
     beforeEach(async () => {
       tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'evokore-telemetry-test-'));
+      originalTelemetryDir = process.env.EVOKORE_TELEMETRY_DIR;
+      process.env.EVOKORE_TELEMETRY_DIR = tmpDir;
     });
 
     afterEach(async () => {
+      if (originalTelemetryDir !== undefined) {
+        process.env.EVOKORE_TELEMETRY_DIR = originalTelemetryDir;
+      } else {
+        delete process.env.EVOKORE_TELEMETRY_DIR;
+      }
       await fsp.rm(tmpDir, { recursive: true, force: true });
     });
 
@@ -371,18 +378,32 @@ describe('TelemetryManager', () => {
     });
 
     it('getMetricsFilePath returns expected path', () => {
-      const { TelemetryManager } = require(telemetryManagerJsPath);
-      const metricsPath = TelemetryManager.getMetricsFilePath();
-      expect(metricsPath).toContain('.evokore');
-      expect(metricsPath).toContain('telemetry');
-      expect(metricsPath).toContain('metrics.json');
+      // Temporarily clear override so we exercise the default home-relative path.
+      const prev = process.env.EVOKORE_TELEMETRY_DIR;
+      delete process.env.EVOKORE_TELEMETRY_DIR;
+      try {
+        const { TelemetryManager } = require(telemetryManagerJsPath);
+        const metricsPath = TelemetryManager.getMetricsFilePath();
+        expect(metricsPath).toContain('.evokore');
+        expect(metricsPath).toContain('telemetry');
+        expect(metricsPath).toContain('metrics.json');
+      } finally {
+        if (prev !== undefined) process.env.EVOKORE_TELEMETRY_DIR = prev;
+      }
     });
 
     it('getTelemetryDir returns expected directory', () => {
-      const { TelemetryManager } = require(telemetryManagerJsPath);
-      const dir = TelemetryManager.getTelemetryDir();
-      expect(dir).toContain('.evokore');
-      expect(dir).toContain('telemetry');
+      // Temporarily clear override so we exercise the default home-relative path.
+      const prev = process.env.EVOKORE_TELEMETRY_DIR;
+      delete process.env.EVOKORE_TELEMETRY_DIR;
+      try {
+        const { TelemetryManager } = require(telemetryManagerJsPath);
+        const dir = TelemetryManager.getTelemetryDir();
+        expect(dir).toContain('.evokore');
+        expect(dir).toContain('telemetry');
+      } finally {
+        if (prev !== undefined) process.env.EVOKORE_TELEMETRY_DIR = prev;
+      }
     });
   });
 
