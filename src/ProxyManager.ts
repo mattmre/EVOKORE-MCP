@@ -1,3 +1,4 @@
+// @AI:NAV[SEC:imports] Import declarations
 import fs from "fs/promises";
 import path from "path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -7,17 +8,21 @@ import { Tool, CallToolRequestSchema, McpError, ErrorCode } from "@modelcontextp
 import { SecurityManager } from "./SecurityManager";
 import { WebhookManager } from "./WebhookManager";
 import { resolveCommandForPlatform } from "./utils/resolveCommandForPlatform";
+// @AI:NAV[END:imports]
 
 const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const ENV_PLACEHOLDER_REGEX = /\$\{(\w+)\}/g;
 const DEFAULT_CHILD_SERVER_BOOT_TIMEOUT_MS = 15000;
 const DEFAULT_PROXY_REQUEST_TIMEOUT_MS = 60000;
 
+// @AI:NAV[SEC:interface-ratelimitconfig] interface RateLimitConfig
 interface RateLimitConfig {
   requestsPerMinute?: number;       // per-server limit
   toolLimits?: Record<string, number>;  // per-tool overrides (requests per minute)
 }
+// @AI:NAV[END:interface-ratelimitconfig]
 
+// @AI:NAV[SEC:interface-serverconfig] interface ServerConfig
 interface ServerConfig {
   command?: string;
   args?: string[];
@@ -28,7 +33,9 @@ interface ServerConfig {
   disabled?: boolean;
   rateLimit?: RateLimitConfig;
 }
+// @AI:NAV[END:interface-serverconfig]
 
+// @AI:NAV[SEC:interface-serverstate] interface ServerState
 export interface ServerState {
   id: string;
   status: 'booting' | 'connected' | 'error' | 'disconnected';
@@ -37,7 +44,9 @@ export interface ServerState {
   lastPing: number;
   registeredToolCount: number;
 }
+// @AI:NAV[END:interface-serverstate]
 
+// @AI:NAV[SEC:class-tokenbucket] class TokenBucket
 export class TokenBucket {
   private tokens: number;
   private lastRefill: number;
@@ -81,7 +90,9 @@ export class TokenBucket {
     this.lastRefill = now;
   }
 }
+// @AI:NAV[END:class-tokenbucket]
 
+// @AI:NAV[SEC:class-proxymanager] class ProxyManager
 export class ProxyManager {
   private clients: Map<string, Client> = new Map();
   private transports: Map<string, StdioClientTransport | StreamableHTTPClientTransport> = new Map();
@@ -522,6 +533,7 @@ export class ProxyManager {
         );
       }
     } catch (e: any) {
+// @AI:NAV[END:class-proxymanager]
       console.error(`[EVOKORE] Failed to boot child server '${serverId}': ${e.message}`);
       if (transport) {
         try {

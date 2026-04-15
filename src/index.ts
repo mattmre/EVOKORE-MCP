@@ -1,6 +1,8 @@
+// @AI:NAV[SEC:imports] Import declarations
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
+// @AI:NAV[END:imports]
   CallToolRequestSchema,
   CallToolResult,
   ListPromptsRequestSchema,
@@ -45,11 +47,14 @@ const DEFAULT_SESSION_ID = "__stdio_default_session__";
 
 const SERVER_VERSION = "3.1.0";
 
+// @AI:NAV[SEC:interface-evokoremcpserveroptions] interface EvokoreMCPServerOptions
 export interface EvokoreMCPServerOptions {
   /** When true, SessionIsolation uses FileSessionStore for persistence. */
   httpMode?: boolean;
 }
+// @AI:NAV[END:interface-evokoremcpserveroptions]
 
+// @AI:NAV[SEC:class-evokoremcpserver] class EvokoreMCPServer
 export class EvokoreMCPServer {
   private server: Server;
   private skillManager: SkillManager;
@@ -925,6 +930,7 @@ export class EvokoreMCPServer {
     return httpServer;
   }
 }
+// @AI:NAV[END:class-evokoremcpserver]
 
 if (require.main === module) {
   const isHttpMode = process.env.EVOKORE_HTTP_MODE === "true" || process.argv.includes("--http");

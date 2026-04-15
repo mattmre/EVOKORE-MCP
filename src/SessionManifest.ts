@@ -19,12 +19,14 @@
  *     compatibility during the Phase 0-C / 0-D migration window.
  */
 
+// @AI:NAV[SEC:imports] Import declarations
 import * as fs from "node:fs";
 import * as readline from "node:readline";
 import * as os from "node:os";
 import * as path from "node:path";
 
 import {
+// @AI:NAV[END:imports]
   SCHEMA_VERSION,
   SessionEvent,
   SessionEventType,
@@ -34,29 +36,41 @@ import {
 const SNAPSHOT_TYPE = "__snapshot__";
 const DEFAULT_COMPACT_THRESHOLD_BYTES = 1_000_000; // 1 MB
 
+// @AI:NAV[SEC:function-resolveevokorehome] function resolveEvokoreHome
 function resolveEvokoreHome(): string {
   return process.env.EVOKORE_HOME ?? path.join(os.homedir(), ".evokore");
 }
+// @AI:NAV[END:function-resolveevokorehome]
 
+// @AI:NAV[SEC:function-resolvesessionsdir] function resolveSessionsDir
 function resolveSessionsDir(): string {
   return path.join(resolveEvokoreHome(), "sessions");
 }
+// @AI:NAV[END:function-resolvesessionsdir]
 
+// @AI:NAV[SEC:function-ensuresessionsdir] function ensureSessionsDir
 function ensureSessionsDir(): void {
   fs.mkdirSync(resolveSessionsDir(), { recursive: true });
 }
+// @AI:NAV[END:function-ensuresessionsdir]
 
+// @AI:NAV[SEC:function-sanitizesessionid] function sanitizeSessionId
 function sanitizeSessionId(sessionId: string): string {
   return String(sessionId).replace(/[^a-zA-Z0-9_-]/g, "_");
 }
+// @AI:NAV[END:function-sanitizesessionid]
 
+// @AI:NAV[SEC:function-getmanifestpath] function getManifestPath
 export function getManifestPath(sessionId: string): string {
   return path.join(resolveSessionsDir(), `${sanitizeSessionId(sessionId)}.jsonl`);
 }
+// @AI:NAV[END:function-getmanifestpath]
 
+// @AI:NAV[SEC:function-getlegacysnapshotpath] function getLegacySnapshotPath
 export function getLegacySnapshotPath(sessionId: string): string {
   return path.join(resolveSessionsDir(), `${sanitizeSessionId(sessionId)}.json`);
 }
+// @AI:NAV[END:function-getlegacysnapshotpath]
 
 /**
  * Append one event to the session manifest. Never throws.
@@ -64,6 +78,7 @@ export function getLegacySnapshotPath(sessionId: string): string {
  * The caller supplies only `type` and `payload`; this function stamps
  * `schemaVersion`, `ts`, and `sessionId` before serializing.
  */
+// @AI:NAV[SEC:function-appendevent] function appendEvent
 export function appendEvent(
   sessionId: string,
   event: Omit<SessionEvent, "schemaVersion" | "ts" | "sessionId">,
@@ -86,11 +101,13 @@ export function appendEvent(
     // Swallow — hooks must never crash Claude Code.
   }
 }
+// @AI:NAV[END:function-appendevent]
 
 /**
  * Read the full session manifest and return the folded state, or `null`
  * if no manifest exists for this session.
  */
+// @AI:NAV[SEC:async-function-readmanifest] async function readManifest
 export async function readManifest(
   sessionId: string,
 ): Promise<SessionManifestState | null> {
@@ -128,7 +145,9 @@ export async function readManifest(
     });
   });
 }
+// @AI:NAV[END:async-function-readmanifest]
 
+// @AI:NAV[SEC:function-foldevent] function foldEvent
 function foldEvent(state: SessionManifestState, evt: SessionEvent): void {
   if (!evt || typeof evt !== "object") return;
 
@@ -242,6 +261,7 @@ function foldEvent(state: SessionManifestState, evt: SessionEvent): void {
       break;
   }
 }
+// @AI:NAV[END:function-foldevent]
 
 /**
  * Compact the JSONL manifest to a single `__snapshot__` line when it
@@ -250,6 +270,7 @@ function foldEvent(state: SessionManifestState, evt: SessionEvent): void {
  * Also writes a legacy `{sessionId}.json` pretty-printed snapshot for
  * reader compatibility during the hook migration window.
  */
+// @AI:NAV[SEC:async-function-compactifneeded] async function compactIfNeeded
 export async function compactIfNeeded(
   sessionId: string,
   opts?: { maxBytes?: number },
@@ -288,3 +309,4 @@ export async function compactIfNeeded(
     return false;
   }
 }
+// @AI:NAV[END:async-function-compactifneeded]

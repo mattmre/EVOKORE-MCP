@@ -1,3 +1,4 @@
+// @AI:NAV[SEC:imports] Import declarations
 import fs from "fs/promises";
 import fsSync from "fs";
 import path from "path";
@@ -11,6 +12,7 @@ import { RegistryManager, RegistryEntry, RegistryIndex } from "./RegistryManager
 import { execFile } from "child_process";
 import { promisify } from "util";
 import {
+// @AI:NAV[END:imports]
   createSandbox,
   normalizeSandboxLanguage,
   type SandboxLanguage,
@@ -30,17 +32,22 @@ const SKIP_DIRS = new Set([
 
 const MAX_DEPTH = 5;
 
+// @AI:NAV[SEC:interface-skillexecutioncontext] interface SkillExecutionContext
 export interface SkillExecutionContext {
   sessionId: string;
   role: string | null;
   metadata: Map<string, unknown>;
 }
+// @AI:NAV[END:interface-skillexecutioncontext]
 
+// @AI:NAV[SEC:interface-skilldependency] interface SkillDependency
 export interface SkillDependency {
   name: string;
   minVersion?: string;
 }
+// @AI:NAV[END:interface-skilldependency]
 
+// @AI:NAV[SEC:interface-skillmetadata] interface SkillMetadata
 export interface SkillMetadata {
   name: string;
   description: string;
@@ -60,7 +67,9 @@ export interface SkillMetadata {
   requires?: SkillDependency[];
   conflicts?: string[];
 }
+// @AI:NAV[END:interface-skillmetadata]
 
+// @AI:NAV[SEC:interface-skillindexstats] interface SkillIndexStats
 export interface SkillIndexStats {
   totalSkills: number;
   categories: string[];
@@ -68,7 +77,9 @@ export interface SkillIndexStats {
   fuseIndexSizeKb: number;
   lastSearchMs: number;
 }
+// @AI:NAV[END:interface-skillindexstats]
 
+// @AI:NAV[SEC:interface-skillrefreshresult] interface SkillRefreshResult
 export interface SkillRefreshResult {
   added: number;
   removed: number;
@@ -76,13 +87,17 @@ export interface SkillRefreshResult {
   total: number;
   refreshTimeMs: number;
 }
+// @AI:NAV[END:interface-skillrefreshresult]
 
+// @AI:NAV[SEC:interface-skillregistry] interface SkillRegistry
 export interface SkillRegistry {
   name: string;
   baseUrl: string;
   index: string;
 }
+// @AI:NAV[END:interface-skillregistry]
 
+// @AI:NAV[SEC:interface-registryskillentry] interface RegistrySkillEntry
 export interface RegistrySkillEntry {
   name: string;
   description: string;
@@ -93,25 +108,31 @@ export interface RegistrySkillEntry {
   tags?: string[];
   checksum?: string;
 }
+// @AI:NAV[END:interface-registryskillentry]
 
+// @AI:NAV[SEC:interface-fetchskillresult] interface FetchSkillResult
 export interface FetchSkillResult {
   name: string;
   path: string;
   isNew: boolean;
   checksumVerified?: boolean;
 }
+// @AI:NAV[END:interface-fetchskillresult]
 
+// @AI:NAV[SEC:interface-skillsearchmatch] interface SkillSearchMatch
 interface SkillSearchMatch {
   skill: SkillMetadata;
   score: number;
   reasons: string[];
 }
+// @AI:NAV[END:interface-skillsearchmatch]
 
 const SEARCH_STOP_WORDS = new Set([
   "a", "an", "and", "as", "at", "by", "for", "from", "i", "in", "into", "it",
   "me", "my", "new", "of", "on", "or", "please", "the", "to", "up", "we", "with"
 ]);
 
+// @AI:NAV[SEC:class-skillmanager] class SkillManager
 export class SkillManager {
   private skillsCache: Map<string, SkillMetadata> = new Map();
   private fuseIndex: Fuse<SkillMetadata> | null = null;
@@ -1743,3 +1764,4 @@ export class SkillManager {
       };
   }
 }
+// @AI:NAV[END:class-skillmanager]

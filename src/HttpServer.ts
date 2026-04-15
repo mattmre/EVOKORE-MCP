@@ -1,3 +1,4 @@
+// @AI:NAV[SEC:imports] Import declarations
 import http from "http";
 import { URL } from "url";
 import { randomUUID } from "crypto";
@@ -10,6 +11,7 @@ import { WebhookManager } from "./WebhookManager";
 import { AuditLog } from "./AuditLog";
 import { TelemetryManager } from "./TelemetryManager";
 import {
+// @AI:NAV[END:imports]
   authenticateRequest,
   sendUnauthorizedResponse,
   isPublicPath,
@@ -19,6 +21,7 @@ import {
 const DEFAULT_HTTP_PORT = 3100;
 const DEFAULT_HTTP_HOST = "127.0.0.1";
 
+// @AI:NAV[SEC:interface-httpserveroptions] interface HttpServerOptions
 export interface HttpServerOptions {
   port?: number;
   host?: string;
@@ -29,6 +32,7 @@ export interface HttpServerOptions {
   auditLog?: AuditLog;
   telemetryManager?: TelemetryManager;
 }
+// @AI:NAV[END:interface-httpserveroptions]
 
 /**
  * Wraps an MCP Server instance behind a Node.js HTTP server using
@@ -38,6 +42,7 @@ export interface HttpServerOptions {
  * clients can connect concurrently. A lightweight /health endpoint
  * is provided for load-balancer probes.
  */
+// @AI:NAV[SEC:class-httpserver] class HttpServer
 export class HttpServer {
   private httpServer: http.Server | null = null;
   private mcpServer: Server;
@@ -645,3 +650,4 @@ export class HttpServer {
     await transport.handleRequest(req, res);
   }
 }
+// @AI:NAV[END:class-httpserver]
