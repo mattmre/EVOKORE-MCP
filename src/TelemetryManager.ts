@@ -68,6 +68,22 @@ export class TelemetryManager {
   private startTime: string;
   private flushInterval: ReturnType<typeof setInterval> | null = null;
   private flushIntervalMs: number;
+  /**
+   * Serializes concurrent flushToDiskAsync calls.
+   *
+   * Without this, two overlapping fs.writeFile calls to METRICS_FILE can
+   * interleave on POSIX filesystems: the later open(O_TRUNC) resets the file
+   * to zero length, then both writers flush their buffers at independent
+   * offsets, producing a file whose tail contains remnants of the earlier
+   * write concatenated after the newer JSON object. That manifests as
+   * `SyntaxError: Unexpected non-whitespace character after JSON ...`.
+   *
+   * `handleToolCall('reset_telemetry')` intentionally fires `resetMetrics()`
+   * without awaiting it, so background flushes can still be in flight when
+   * the next caller invokes flushToDiskAsync(). Chain writes here to make
+   * the on-disk file always a single well-formed JSON object.
+   */
+  private flushChain: Promise<void> = Promise.resolve();
 
   // Session lifecycle counters
   private sessionsCreated: number = 0;
@@ -314,8 +330,18 @@ export class TelemetryManager {
 
   /**
    * Force a flush of current metrics to disk (async).
+   *
+   * Writes are serialized through `flushChain` so overlapping callers cannot
+   * corrupt METRICS_FILE by interleaving two concurrent fs.writeFile calls.
    */
   async flushToDiskAsync(): Promise<void> {
+    const next = this.flushChain.then(() => this.performFlush());
+    // Ensure the chain never rejects; we log inside performFlush.
+    this.flushChain = next.catch(() => undefined);
+    return next;
+  }
+
+  private async performFlush(): Promise<void> {
     try {
       const dirExists = await fs.access(TELEMETRY_DIR).then(() => true).catch(() => false);
       if (!dirExists) {
