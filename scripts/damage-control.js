@@ -63,7 +63,43 @@ function enrichReasonWithRules(reason, ruleType, rulesIntent) {
   return `${reason} (See RULES.md ${section})`;
 }
 
-module.exports = { loadRulesIntent, enrichReasonWithRules };
+// @AI:NAV[SEC:irreversibility-classifier] IrreversibilityClassifier
+// Classify action reversibility so destructive or external-facing commands
+// can be gated behind an explicit _evokore_approval_token. This complements
+// the YAML-driven rule set — it is a last-line catch for commands that look
+// irreversible regardless of pattern-specific rules.
+function classifyReversibility(toolName, toolInput) {
+  const cmd = (toolInput && (toolInput.command || toolInput.cmd || '')) || '';
+  const destructivePatterns = [
+    /rm\s+-[rf]/i,
+    /drop\s+table/i,
+    /git\s+reset\s+--hard/i,
+    /git\s+push\s+--force/i,
+    /truncate\s+table/i,
+    /format\s+[a-z]:/i,
+    /mkfs/i,
+    /del\s+\/[fqs]/i
+  ];
+  const externalPatterns = [
+    /curl\b/i,
+    /wget\b/i,
+    /fetch\b/i,
+    /http[s]?:\/\//i,
+    /ssh\b/i,
+    /scp\b/i,
+    /ftp\b/i,
+    /npm\s+publish/i,
+    /git\s+push\b/i
+  ];
+  const isDestructive = destructivePatterns.some((p) => p.test(cmd));
+  const isExternal = externalPatterns.some((p) => p.test(cmd));
+  if (isDestructive) return 'destructive';
+  if (isExternal) return 'external';
+  return 'reversible';
+}
+// @AI:NAV[END:irreversibility-classifier]
+
+module.exports = { loadRulesIntent, enrichReasonWithRules, classifyReversibility };
 
 // The stdin hook loop only runs when invoked as a script — either directly
 // (`node scripts/damage-control.js`) or through the canonical fail-safe
@@ -269,6 +305,22 @@ process.stdin.on('end', () => {
           emit('block', { reason, path: check.path, rule: check.rule, type: 'no_delete' });
           process.stderr.write(`DAMAGE CONTROL BLOCKED: ${reason}\n`);
           process.exit(2);
+        }
+      }
+    }
+
+    // 4.5 Irreversibility classifier — gate destructive/external actions behind
+    // an explicit _evokore_approval_token so the user confirms before execution.
+    if (toolName === 'Bash' && toolInput && toolInput.command) {
+      const reversibility = classifyReversibility(toolName, toolInput);
+      if (reversibility === 'destructive' || reversibility === 'external') {
+        const hasToken = Boolean(toolInput._evokore_approval_token);
+        if (!hasToken) {
+          const reason = `Action classified as ${reversibility}. Approval token required. Set _evokore_approval_token in tool arguments to proceed.`;
+          logViolation({ type: 'irreversibility_classifier', tool: toolName, classification: reversibility, reason, rule_id: 'irreversibility_classifier' });
+          emit('ask', { reason, classification: reversibility, type: 'irreversibility_classifier' });
+          console.log(JSON.stringify({ decision: 'ask', reason: `IRREVERSIBILITY: ${reason}` }));
+          process.exit(0);
         }
       }
     }

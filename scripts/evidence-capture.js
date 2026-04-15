@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { writeHookEvent, sanitizeId } = require('./hook-observability');
 const { pruneOldSessions } = require('./log-rotation');
 const { SESSIONS_DIR } = require('./session-continuity');
@@ -69,6 +70,36 @@ function getNextEvidenceNumber(evidencePath) {
 
 function formatEvidenceId(num) {
   return `E-${String(num).padStart(3, '0')}`;
+}
+
+/**
+ * SHA-256 proof chain: hash(prev_hash + canonical(entry core fields)).
+ * Produces a tamper-evident chain over the evidence log.
+ */
+function computeProofHash(prevHash, entry) {
+  const payload = JSON.stringify({
+    agentId: entry.agent_id || 'unknown',
+    toolName: entry.tool,
+    toolInput: entry.tool_input || {},
+    prevHash
+  });
+  return crypto.createHash('sha256').update(payload).digest('hex');
+}
+
+/**
+ * Read the last evidence entry's proof_hash to continue the chain.
+ * Returns 64 zeros if the file is missing, empty, or unreadable.
+ */
+function getLastHash(evidencePath) {
+  try {
+    const content = fs.readFileSync(evidencePath, 'utf8');
+    const lines = content.trim().split('\n').filter(Boolean);
+    if (!lines.length) return '0'.repeat(64);
+    const last = JSON.parse(lines[lines.length - 1]);
+    return last.proof_hash || '0'.repeat(64);
+  } catch {
+    return '0'.repeat(64);
+  }
 }
 
 /**
@@ -148,12 +179,20 @@ process.stdin.on('end', () => {
       ts: new Date().toISOString(),
       type: classification.type,
       tool: toolName,
+      tool_input: toolInput,
+      agent_id: payload.agent_id || 'unknown',
       summary: classification.summary,
       evidence_id: evidenceId,
       exit_code: payload.tool_response?.metadata?.exit_code ?? null,
       passed: payload.tool_response?.is_error !== true,
       invocation_ts: new Date().toISOString()
     };
+
+    // Wave 2 Phase 3.5-A: SHA-256 proof chain over evidence entries.
+    const prevHash = getLastHash(evidencePath);
+    const proofHash = computeProofHash(prevHash, entry);
+    entry.prev_hash = prevHash;
+    entry.proof_hash = proofHash;
 
     fs.appendFileSync(evidencePath, JSON.stringify(entry) + '\n');
     appendEvent(sessionId, {
