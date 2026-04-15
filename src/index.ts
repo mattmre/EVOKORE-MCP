@@ -39,6 +39,7 @@ import { ClaimsManager } from "./ClaimsManager";
 import { WorkerScheduler } from "./WorkerScheduler";
 import { TrustLedger } from "./TrustLedger";
 import { MemoryManager } from "./MemoryManager";
+import { FleetManager } from "./FleetManager";
 import { RegistryManager } from "./RegistryManager";
 import { AuditLog } from "./AuditLog";
 import { AuditExporter } from "./AuditExporter";
@@ -76,6 +77,7 @@ export class EvokoreMCPServer {
   private workerScheduler: WorkerScheduler;
   private trustLedger!: TrustLedger;
   private memoryManager: MemoryManager;
+  private fleetManager: FleetManager;
   private registryManager: RegistryManager;
   private auditLog: AuditLog;
   private auditExporter: AuditExporter;
@@ -115,6 +117,7 @@ export class EvokoreMCPServer {
     this.workerScheduler = new WorkerScheduler(this.claimsManager);
     this.trustLedger = new TrustLedger(process.env.EVOKORE_SESSION_ID || 'default');
     this.memoryManager = new MemoryManager();
+    this.fleetManager = new FleetManager();
     this.telemetryExporter = new TelemetryExporter(this.telemetryManager, {
       exportUrl: process.env.EVOKORE_TELEMETRY_EXPORT_URL,
       intervalMs: parseInt(process.env.EVOKORE_TELEMETRY_EXPORT_INTERVAL_MS || "", 10) || 60000,
@@ -176,6 +179,7 @@ export class EvokoreMCPServer {
       ...this.workerManager.getTools(),
       ...this.claimsManager.getTools(),
       ...this.memoryManager.getTools(),
+      ...this.fleetManager.getTools(),
     ];
     this.toolCatalog = new ToolCatalogIndex(nativeTools, this.proxyManager.getProxiedTools());
   }
@@ -658,6 +662,8 @@ export class EvokoreMCPServer {
         source = "builtin";
       } else if (this.memoryManager.isMemoryTool(toolName)) {
         source = "builtin";
+      } else if (this.fleetManager.isFleetTool(toolName)) {
+        source = "builtin";
       } else if (this.pluginManager.isPluginTool(toolName)) {
         source = "plugin";
       } else if (this.toolCatalog.isNativeTool(toolName)) {
@@ -743,6 +749,8 @@ export class EvokoreMCPServer {
           result = (await this.claimsManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (this.memoryManager.isMemoryTool(toolName)) {
           result = (await this.memoryManager.handleToolCall(toolName, args)) as CallToolResult;
+        } else if (this.fleetManager.isFleetTool(toolName)) {
+          result = (await this.fleetManager.handleTool(toolName, args as Record<string, unknown>)) as CallToolResult;
         } else if (source === "plugin") {
           result = (await this.pluginManager.handleToolCall(toolName, args)) as CallToolResult;
         } else if (source === "native") {
@@ -888,6 +896,7 @@ export class EvokoreMCPServer {
     this.telemetryManager.recordSessionStart();
     this.auditLog.log("session_create", "success", { metadata: { transport: "stdio" } });
     this.workerScheduler.start();
+    this.fleetManager.start();
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
     );
@@ -896,6 +905,7 @@ export class EvokoreMCPServer {
     const shutdown = async () => {
       this.webhookManager.emit("session_end", { transport: "stdio", reason: "shutdown" });
       this.workerScheduler.stop();
+      this.fleetManager.stop();
       await this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
       await this.auditExporter.shutdown().catch(() => { /* best effort */ });
       await this.telemetryManager.shutdown();
@@ -929,6 +939,7 @@ export class EvokoreMCPServer {
     this.telemetryManager.recordSessionStart();
     this.auditLog.log("session_create", "success", { metadata: { transport: "http", host: addr.host, port: addr.port } });
     this.workerScheduler.start();
+    this.fleetManager.start();
 
     this.bootProxyServersInBackground().catch((err) =>
       console.error('[EVOKORE] Fatal: background proxy boot threw unexpectedly:', err)
@@ -939,6 +950,7 @@ export class EvokoreMCPServer {
       console.error("[EVOKORE] Shutting down HTTP server...");
       this.webhookManager.emit("session_end", { transport: "http", reason: "shutdown" });
       this.workerScheduler.stop();
+      this.fleetManager.stop();
       await this.telemetryExporter.shutdown().catch(() => { /* best effort */ });
       await this.auditExporter.shutdown().catch(() => { /* best effort */ });
       await this.telemetryManager.shutdown();
