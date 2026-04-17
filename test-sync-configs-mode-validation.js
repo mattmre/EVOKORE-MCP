@@ -72,6 +72,9 @@ function createIsolatedEnv() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-sync-modes-'));
   const setup = getClaudeDesktopConfigPath(tempRoot);
   fs.mkdirSync(setup.detectDir, { recursive: true });
+  fs.mkdirSync(path.join(setup.env.HOME, '.claude'), { recursive: true });
+  fs.mkdirSync(path.join(setup.env.HOME, '.copilot'), { recursive: true });
+  fs.mkdirSync(path.join(setup.env.HOME, '.codex'), { recursive: true });
 
   return {
     tempRoot,
@@ -119,6 +122,69 @@ function validateApplyWritesConfig() {
   }
 }
 
+function validateClaudeCodeApplyPrefersNativeConfig() {
+  const { tempRoot, env } = createIsolatedEnv();
+  const nativeClaudeConfig = path.join(env.HOME, '.claude.json');
+  const legacyClaudeConfig = path.join(env.HOME, '.claude', 'settings.json');
+  fs.writeFileSync(nativeClaudeConfig, '{}\n');
+  fs.writeFileSync(legacyClaudeConfig, '{}\n');
+  try {
+    const result = spawnSync(process.execPath, [syncScriptPath, '--apply', 'claude-code'], {
+      encoding: 'utf8',
+      env,
+    });
+    assert.strictEqual(result.status, 0, `Expected exit code 0, got ${result.status}\n${result.stderr}`);
+
+    const nativeConfig = JSON.parse(fs.readFileSync(nativeClaudeConfig, 'utf8'));
+    const legacyConfig = JSON.parse(fs.readFileSync(legacyClaudeConfig, 'utf8'));
+    assert.strictEqual(nativeConfig.mcpServers['evokore-mcp'].command, 'node');
+    assert.deepStrictEqual(nativeConfig.mcpServers['evokore-mcp'].args, [expectedEntryPoint]);
+    assert.strictEqual(legacyConfig.mcpServers, undefined);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function validateCopilotApplyWritesConfig() {
+  const { tempRoot, env } = createIsolatedEnv();
+  const copilotConfigPath = path.join(env.HOME, '.copilot', 'mcp-config.json');
+  try {
+    const result = spawnSync(process.execPath, [syncScriptPath, '--apply', 'copilot'], {
+      encoding: 'utf8',
+      env,
+    });
+    assert.strictEqual(result.status, 0, `Expected exit code 0, got ${result.status}\n${result.stderr}`);
+    const config = JSON.parse(fs.readFileSync(copilotConfigPath, 'utf8'));
+    assert.deepStrictEqual(config.mcpServers['evokore-mcp'], {
+      type: 'local',
+      command: 'node',
+      args: [expectedEntryPoint],
+      tools: ['*'],
+    });
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+function validateCodexApplyWritesConfig() {
+  const { tempRoot, env } = createIsolatedEnv();
+  const codexConfigPath = path.join(env.HOME, '.codex', 'config.toml');
+  fs.writeFileSync(codexConfigPath, 'model = "gpt-5.4"\n');
+  try {
+    const result = spawnSync(process.execPath, [syncScriptPath, '--apply', 'codex'], {
+      encoding: 'utf8',
+      env,
+    });
+    assert.strictEqual(result.status, 0, `Expected exit code 0, got ${result.status}\n${result.stderr}`);
+    const configText = fs.readFileSync(codexConfigPath, 'utf8');
+    assert.match(configText, /\[mcp_servers\.evokore-mcp\]/);
+    assert.match(configText, /command = 'node'/);
+    assert.match(configText, /args = \['.*dist[\\/]index\.js'\]/);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
 function validateConflictingFlagsFailNonZero() {
   const { tempRoot, env } = createIsolatedEnv();
   try {
@@ -147,6 +213,9 @@ function validateUnknownTargetFailsNonZero() {
 test('sync configs mode validation', () => {
   validateDefaultDryRunDoesNotWrite();
   validateApplyWritesConfig();
+  validateClaudeCodeApplyPrefersNativeConfig();
+  validateCopilotApplyWritesConfig();
+  validateCodexApplyWritesConfig();
   validateConflictingFlagsFailNonZero();
   validateUnknownTargetFailsNonZero();
 });
