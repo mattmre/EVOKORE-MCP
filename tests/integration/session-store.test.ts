@@ -1,4 +1,3 @@
-// TODO(BUG-28): convert from source-scraping to behavioral test
 import { describe, it, expect, afterAll, beforeEach } from 'vitest';
 import fs from 'fs';
 import fsp from 'fs/promises';
@@ -8,7 +7,6 @@ import os from 'os';
 const ROOT = path.resolve(__dirname, '../..');
 const memoryStoreJsPath = path.join(ROOT, 'dist', 'stores', 'MemorySessionStore.js');
 const fileStoreJsPath = path.join(ROOT, 'dist', 'stores', 'FileSessionStore.js');
-const sessionStoreTsPath = path.join(ROOT, 'src', 'SessionStore.ts');
 const sessionIsolationJsPath = path.join(ROOT, 'dist', 'SessionIsolation.js');
 const sessionStoreJsPath = path.join(ROOT, 'dist', 'SessionStore.js');
 
@@ -44,45 +42,6 @@ function createTestSessionState(id: string, overrides?: Partial<{
 }
 
 describe('Session Store Architecture', () => {
-
-  // ---- Source-level validation ----
-
-  describe('SessionStore interface source', () => {
-    const src = fs.readFileSync(sessionStoreTsPath, 'utf8');
-
-    it('exports the SessionStore interface', () => {
-      expect(src).toMatch(/export\s+interface\s+SessionStore/);
-    });
-
-    it('defines get method', () => {
-      expect(src).toMatch(/get\(sessionId:\s*string\):\s*Promise<SessionState\s*\|\s*undefined>/);
-    });
-
-    it('defines set method', () => {
-      expect(src).toMatch(/set\(sessionId:\s*string,\s*state:\s*SessionState\):\s*Promise<void>/);
-    });
-
-    it('defines delete method', () => {
-      expect(src).toMatch(/delete\(sessionId:\s*string\):\s*Promise<void>/);
-    });
-
-    it('defines list method', () => {
-      expect(src).toMatch(/list\(\):\s*Promise<string\[\]>/);
-    });
-
-    it('defines cleanup method', () => {
-      expect(src).toMatch(/cleanup\(maxAgeMs:\s*number\):\s*Promise<number>/);
-    });
-
-    it('exports serialize and deserialize helpers', () => {
-      expect(src).toMatch(/export\s+function\s+serializeSessionState/);
-      expect(src).toMatch(/export\s+function\s+deserializeSessionState/);
-    });
-
-    it('exports SerializedSessionState interface', () => {
-      expect(src).toMatch(/export\s+interface\s+SerializedSessionState/);
-    });
-  });
 
   // ---- MemorySessionStore CRUD ----
 
@@ -689,14 +648,20 @@ describe('Session Store Architecture', () => {
       expect(iso.getSession('s4')).not.toBeNull();
     });
 
-    it('exports SessionState interface at the type level (source check)', () => {
-      const src = fs.readFileSync(path.join(ROOT, 'src', 'SessionIsolation.ts'), 'utf8');
-      expect(src).toMatch(/export\s+interface\s+SessionState/);
-    });
+    it('created sessions expose the canonical runtime state shape', () => {
+      const { SessionIsolation } = require(sessionIsolationJsPath);
+      const iso = new SessionIsolation();
+      const session = iso.createSession('shape-test');
 
-    it('SessionIsolationOptions now includes store field', () => {
-      const src = fs.readFileSync(path.join(ROOT, 'src', 'SessionIsolation.ts'), 'utf8');
-      expect(src).toMatch(/store\?\s*:\s*SessionStore/);
+      expect(session).toMatchObject({
+        sessionId: 'shape-test',
+        role: null,
+      });
+      expect(typeof session.createdAt).toBe('number');
+      expect(typeof session.lastAccessedAt).toBe('number');
+      expect(session.activatedTools).toBeInstanceOf(Set);
+      expect(session.rateLimitCounters).toBeInstanceOf(Map);
+      expect(session.metadata).toBeInstanceOf(Map);
     });
   });
 });
