@@ -128,7 +128,7 @@ Re-enter the repo from a clean `main`, confirm whether any open PR review work e
   - `OPS-01`, `OPS-05`
 - Active branch for the next slice: `test/bug-28-skill-registry-runtime`
 - Active implementation target:
-  - shrink `tests/integration/skill-registry.test.ts` to runtime smoke coverage only
-  - rely on `tests/integration/skill-registry-runtime.test.ts` for the deeper registry/network path
+  - remove the final source-scraping assertions from `tests/integration/session-store.test.ts`
+  - keep the slice narrow by relying on the file’s existing behavioral coverage
 - Next follow-up after this slice:
-  - rerank remaining `BUG-28` files, with `session-store.test.ts` now the leading narrow candidate because only its final source-level assertions remain
+  - rerank remaining `BUG-28` files, with `skill-watcher-stability.test.ts` and the broader file-store validation surface still in queue
