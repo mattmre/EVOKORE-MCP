@@ -69,7 +69,7 @@ Cursor primarily uses the MCP registration path rather than a dedicated EVOKORE 
 
 ## Copilot CLI / Codex CLI
 
-These CLIs do not have a native EVOKORE JSON status-line integration in this repo. If you want a post-command status line, wrap the CLI call in your own shell function or alias.
+These CLIs now support automated MCP registration through `scripts/sync-configs.js`. They still do not have a native EVOKORE JSON status-line integration in this repo, so if you want a post-command status line, wrap the CLI call in your own shell function or alias.
 
 PowerShell example:
 
@@ -89,10 +89,21 @@ npm run sync:dry
 npm run sync
 ```
 
+Supported automated targets:
+
+- `claude-code`
+- `claude-desktop`
+- `cursor`
+- `copilot`
+- `codex`
+
+`gemini` remains a manual command because its CLI manages MCP config through its own command surface.
+
 Key behavior:
 
 - dry run is the default safety mode
 - only the `evokore-mcp` entry is added or updated
+- Claude Code prefers the native user MCP config at `~/.claude.json` when present and falls back to `~/.claude/settings.json` for older setups
 - the script resolves the canonical repo root so disposable worktrees do not leak temp `dist/index.js` paths into user config files
 - use `--force` only when you intentionally want to overwrite an existing EVOKORE entry
 

@@ -55,7 +55,100 @@ describe('Cross-CLI Sync (T18)', () => {
     expect(source).toContain('claude-code');
     expect(source).toContain('claude-desktop');
     expect(source).toContain('cursor');
+    expect(source).toContain('copilot');
+    expect(source).toContain('codex');
     expect(source).toContain('gemini');
+  });
+
+  it('claude-code prefers the native user config when ~/.claude.json exists', () => {
+    const tempRoot = createTempRoot('claude-code');
+    const tempHome = path.join(tempRoot, 'home');
+    const tempAppData = path.join(tempRoot, 'appdata');
+    const nativeClaudeConfig = path.join(tempHome, '.claude.json');
+    const legacyClaudeConfig = path.join(tempHome, '.claude', 'settings.json');
+    fs.mkdirSync(path.dirname(legacyClaudeConfig), { recursive: true });
+    fs.writeFileSync(nativeClaudeConfig, '{}\n');
+    fs.writeFileSync(legacyClaudeConfig, '{}\n');
+
+    const env: Record<string, string> = {
+      ...process.env as Record<string, string>,
+      HOME: tempHome,
+      USERPROFILE: tempHome,
+      APPDATA: tempAppData,
+    };
+
+    try {
+      const result = runSync(['--apply', 'claude-code'], env);
+      expect(result.status).toBe(0);
+
+      const config = JSON.parse(fs.readFileSync(nativeClaudeConfig, 'utf8'));
+      const legacyConfig = JSON.parse(fs.readFileSync(legacyClaudeConfig, 'utf8'));
+      expect(config.mcpServers['evokore-mcp'].command).toBe('node');
+      expect(config.mcpServers['evokore-mcp'].args).toEqual([EXPECTED_ENTRY_POINT]);
+      expect(legacyConfig.mcpServers).toBeUndefined();
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('copilot target writes the user MCP config', () => {
+    const tempRoot = createTempRoot('copilot');
+    const tempHome = path.join(tempRoot, 'home');
+    const tempAppData = path.join(tempRoot, 'appdata');
+    const copilotDir = path.join(tempHome, '.copilot');
+    const configPath = path.join(copilotDir, 'mcp-config.json');
+    fs.mkdirSync(copilotDir, { recursive: true });
+
+    const env: Record<string, string> = {
+      ...process.env as Record<string, string>,
+      HOME: tempHome,
+      USERPROFILE: tempHome,
+      APPDATA: tempAppData,
+    };
+
+    try {
+      const result = runSync(['--apply', 'copilot'], env);
+      expect(result.status).toBe(0);
+
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      expect(config.mcpServers['evokore-mcp']).toEqual({
+        type: 'local',
+        command: 'node',
+        args: [EXPECTED_ENTRY_POINT],
+        tools: ['*'],
+      });
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('codex target writes the user TOML config', () => {
+    const tempRoot = createTempRoot('codex');
+    const tempHome = path.join(tempRoot, 'home');
+    const tempAppData = path.join(tempRoot, 'appdata');
+    const codexDir = path.join(tempHome, '.codex');
+    const configPath = path.join(codexDir, 'config.toml');
+    fs.mkdirSync(codexDir, { recursive: true });
+    fs.writeFileSync(configPath, 'model = "gpt-5.4"\n');
+
+    const env: Record<string, string> = {
+      ...process.env as Record<string, string>,
+      HOME: tempHome,
+      USERPROFILE: tempHome,
+      APPDATA: tempAppData,
+    };
+
+    try {
+      const result = runSync(['--apply', 'codex'], env);
+      expect(result.status).toBe(0);
+
+      const config = fs.readFileSync(configPath, 'utf8');
+      expect(config).toContain('[mcp_servers.evokore-mcp]');
+      expect(config).toContain("command = 'node'");
+      expect(config).toContain(`args = ['${EXPECTED_ENTRY_POINT}']`);
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 
   it('--dry-run produces output without modifying files', () => {

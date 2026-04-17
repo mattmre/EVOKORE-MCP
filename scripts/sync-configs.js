@@ -6,6 +6,7 @@ const os = require('os');
 const { execSync } = require('child_process');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
+const MCP_SERVER_NAME = 'evokore-mcp';
 
 function resolveCanonicalProjectRoot() {
   const overrideRoot = process.env.EVOKORE_SYNC_PROJECT_ROOT;
@@ -74,84 +75,109 @@ if (HAS_FORCE_FLAG && HAS_PRESERVE_EXISTING_FLAG) {
 const DRY_RUN = !HAS_APPLY_FLAG;
 const PRESERVE_EXISTING = !HAS_FORCE_FLAG;
 
+function commandExists(command) {
+  try {
+    execSync(process.platform === 'win32' ? `where ${command}` : `which ${command}`, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getClaudeCodeConfigPath() {
+  const nativeUserConfig = path.join(os.homedir(), '.claude.json');
+  if (fs.existsSync(nativeUserConfig)) {
+    return nativeUserConfig;
+  }
+
+  const legacyUserConfig = path.join(os.homedir(), '.claude', 'settings.json');
+  if (fs.existsSync(legacyUserConfig)) {
+    return legacyUserConfig;
+  }
+
+  return nativeUserConfig;
+}
+
+function getClaudeDesktopConfigPath() {
+  if (process.platform === 'win32') {
+    return path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+  }
+  return path.join(os.homedir(), '.config', 'claude', 'claude_desktop_config.json');
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function basicStdioEntry() {
+  return {
+    command: 'node',
+    args: [ENTRY_POINT],
+  };
+}
+
+function copilotEntry() {
+  return {
+    type: 'local',
+    command: 'node',
+    args: [ENTRY_POINT],
+    tools: ['*'],
+  };
+}
+
 // --- CLI Definitions ---
 
 const CLI_DEFS = {
   'claude-code': {
     label: 'Claude Code',
-    configPath: () => path.join(os.homedir(), '.claude', 'settings.json'),
-    detect: () => {
-      try {
-        execSync(process.platform === 'win32' ? 'where claude' : 'which claude', { stdio: 'ignore' });
-        return true;
-      } catch { return false; }
-    },
-    merge: (config) => {
-      if (!config.mcpServers) config.mcpServers = {};
-      config.mcpServers['evokore-mcp'] = {
-        command: 'node',
-        args: [ENTRY_POINT],
-      };
-      return config;
-    },
+    format: 'json',
+    configPath: () => getClaudeCodeConfigPath(),
+    detect: () => commandExists('claude')
+      || fs.existsSync(path.join(os.homedir(), '.claude.json'))
+      || fs.existsSync(path.join(os.homedir(), '.claude')),
+    entry: () => basicStdioEntry(),
   },
   'claude-desktop': {
     label: 'Claude Desktop',
-    configPath: () => {
-      if (process.platform === 'win32') {
-        return path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json');
-      } else if (process.platform === 'darwin') {
-        return path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
-      }
-      return path.join(os.homedir(), '.config', 'claude', 'claude_desktop_config.json');
-    },
-    detect: () => {
-      const configPath = CLI_DEFS['claude-desktop'].configPath();
-      return fs.existsSync(path.dirname(configPath));
-    },
-    merge: (config) => {
-      if (!config.mcpServers) config.mcpServers = {};
-      config.mcpServers['evokore-mcp'] = {
-        command: 'node',
-        args: [ENTRY_POINT],
-      };
-      return config;
-    },
+    format: 'json',
+    configPath: () => getClaudeDesktopConfigPath(),
+    detect: () => fs.existsSync(path.dirname(getClaudeDesktopConfigPath())),
+    entry: () => basicStdioEntry(),
   },
   'cursor': {
     label: 'Cursor',
+    format: 'json',
     configPath: () => {
       const userLevel = path.join(os.homedir(), '.cursor', 'mcp.json');
       if (fs.existsSync(userLevel)) return userLevel;
       return path.join(PROJECT_ROOT, '.cursor', 'mcp.json');
     },
-    detect: () => {
-      try {
-        execSync(process.platform === 'win32' ? 'where cursor' : 'which cursor', { stdio: 'ignore' });
-        return true;
-      } catch {
-        return fs.existsSync(path.join(os.homedir(), '.cursor'));
-      }
-    },
-    merge: (config) => {
-      if (!config.mcpServers) config.mcpServers = {};
-      config.mcpServers['evokore-mcp'] = {
-        command: 'node',
-        args: [ENTRY_POINT],
-      };
-      return config;
-    },
+    detect: () => commandExists('cursor') || fs.existsSync(path.join(os.homedir(), '.cursor')),
+    entry: () => basicStdioEntry(),
+  },
+  'copilot': {
+    label: 'Copilot CLI',
+    format: 'json',
+    configPath: () => path.join(os.homedir(), '.copilot', 'mcp-config.json'),
+    detect: () => commandExists('copilot') || fs.existsSync(path.join(os.homedir(), '.copilot')),
+    entry: () => copilotEntry(),
+  },
+  'codex': {
+    label: 'Codex CLI',
+    format: 'toml',
+    configPath: () => path.join(os.homedir(), '.codex', 'config.toml'),
+    detect: () => commandExists('codex') || fs.existsSync(path.join(os.homedir(), '.codex')),
+    entry: () => basicStdioEntry(),
   },
   'gemini': {
     label: 'Gemini CLI',
-    configPath: () => null, // Manual only
-    detect: () => {
-      try {
-        execSync(process.platform === 'win32' ? 'where gemini' : 'which gemini', { stdio: 'ignore' });
-        return true;
-      } catch { return false; }
-    },
-    merge: null, // Print command instead
+    format: 'manual',
+    configPath: () => null,
+    detect: () => commandExists('gemini'),
+    manualCommand: () => `gemini mcp add ${MCP_SERVER_NAME} node ${ENTRY_POINT} --scope user`,
   },
 };
 
@@ -169,6 +195,140 @@ function writeJsonSafe(filePath, data) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
+}
+
+function readTextSafe(filePath) {
+  try {
+    return fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
+function writeTextSafe(filePath, text) {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, text);
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function tomlLiteral(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function extractTomlTableRange(text, tableName) {
+  const headerPattern = new RegExp(`^\\[${escapeRegex(tableName)}\\]\\s*$`, 'm');
+  const headerMatch = headerPattern.exec(text);
+  if (!headerMatch) {
+    return null;
+  }
+
+  const start = headerMatch.index;
+  const afterHeader = start + headerMatch[0].length;
+  const remainder = text.slice(afterHeader);
+  const nextHeaderMatch = /^\[[^\n]+\]\s*$/m.exec(remainder);
+  const end = nextHeaderMatch ? afterHeader + nextHeaderMatch.index : text.length;
+  return { start, end };
+}
+
+function parseTomlArrayValues(arrayText) {
+  const values = [];
+  const tokenPattern = /'((?:[^']|'')*)'|"((?:[^"\\]|\\.)*)"/g;
+  let match = tokenPattern.exec(arrayText);
+  while (match) {
+    if (match[1] !== undefined) {
+      values.push(match[1].replace(/''/g, "'"));
+    } else {
+      values.push(match[2]);
+    }
+    match = tokenPattern.exec(arrayText);
+  }
+  return values;
+}
+
+function parseCodexEntry(text, name) {
+  const tableName = `mcp_servers.${name}`;
+  const range = extractTomlTableRange(text, tableName);
+  if (!range) {
+    return null;
+  }
+
+  const block = text.slice(range.start, range.end);
+  const commandMatch = block.match(/^command\s*=\s*(['"])(.*)\1\s*$/m);
+  const argsMatch = block.match(/^args\s*=\s*\[(.*)\]\s*$/m);
+  return {
+    command: commandMatch ? commandMatch[2] : null,
+    args: argsMatch ? parseTomlArrayValues(argsMatch[1]) : [],
+  };
+}
+
+function buildCodexEntryBlock(name, entry) {
+  return [
+    `[mcp_servers.${name}]`,
+    `command = ${tomlLiteral(entry.command)}`,
+    `args = [${entry.args.map(tomlLiteral).join(', ')}]`,
+    '',
+  ].join('\n');
+}
+
+function upsertCodexEntry(text, name, entry) {
+  const block = buildCodexEntryBlock(name, entry);
+  const tableName = `mcp_servers.${name}`;
+  const range = extractTomlTableRange(text, tableName);
+
+  if (!range) {
+    const prefix = text.trimEnd();
+    return `${prefix}${prefix ? '\n\n' : ''}${block}`;
+  }
+
+  const before = text.slice(0, range.start).replace(/\s*$/, '');
+  const after = text.slice(range.end).replace(/^\s*/, '');
+  const pieces = [];
+  if (before) pieces.push(before);
+  pieces.push(block.trimEnd());
+  if (after) pieces.push(after);
+  return `${pieces.join('\n\n')}\n`;
+}
+
+function readExistingEntry(def, configPath) {
+  if (def.format === 'json') {
+    const existing = fs.existsSync(configPath) ? readJsonSafe(configPath) : {};
+    return {
+      raw: existing,
+      entry: existing?.mcpServers?.[MCP_SERVER_NAME] || null,
+    };
+  }
+
+  if (def.format === 'toml') {
+    const existingText = readTextSafe(configPath);
+    return {
+      raw: existingText,
+      entry: parseCodexEntry(existingText, MCP_SERVER_NAME),
+    };
+  }
+
+  return { raw: null, entry: null };
+}
+
+function writeUpdatedEntry(def, configPath, entry, existingRaw) {
+  if (def.format === 'json') {
+    const updated = clone(existingRaw || {});
+    if (!updated.mcpServers) updated.mcpServers = {};
+    updated.mcpServers[MCP_SERVER_NAME] = entry;
+    writeJsonSafe(configPath, updated);
+    return updated;
+  }
+
+  if (def.format === 'toml') {
+    const updatedText = upsertCodexEntry(existingRaw || '', MCP_SERVER_NAME, entry);
+    writeTextSafe(configPath, updatedText);
+    return updatedText;
+  }
+
+  return existingRaw;
 }
 
 // --- Cross-IDE template targets (Cursor, Windsurf, Continue) ---
@@ -287,10 +447,7 @@ function main() {
     process.exit(1);
   }
 
-  const targetKeys = TARGETS.length > 0
-    ? TARGETS
-    : supportedTargets;
-
+  const targetKeys = TARGETS.length > 0 ? TARGETS : supportedTargets;
   let synced = 0;
 
   for (const key of targetKeys) {
@@ -304,10 +461,9 @@ function main() {
 
     console.log(`[${def.label}] Detected.`);
 
-    // Gemini CLI: manual command only
-    if (!def.merge) {
-      console.log(`  → Run manually:`);
-      console.log(`    gemini mcp add evokore-mcp node ${ENTRY_POINT} --scope user`);
+    if (def.format === 'manual') {
+      console.log('  → Run manually:');
+      console.log(`    ${def.manualCommand()}`);
       synced++;
       continue;
     }
@@ -318,14 +474,12 @@ function main() {
       continue;
     }
 
-    const existing = fs.existsSync(configPath) ? readJsonSafe(configPath) : {};
-    const existingEntry = existing?.mcpServers?.['evokore-mcp'];
+    const desiredEntry = def.entry();
+    const existingState = readExistingEntry(def, configPath);
+    const existingEntry = existingState.entry;
     const hasExistingEntry = !!existingEntry;
     const shouldPreserve = PRESERVE_EXISTING && hasExistingEntry;
-    const updated = shouldPreserve
-      ? existing
-      : def.merge(JSON.parse(JSON.stringify(existing)));
-    const resultingEntry = updated?.mcpServers?.['evokore-mcp'];
+    const resultingEntry = shouldPreserve ? existingEntry : desiredEntry;
     const actionLabel = shouldPreserve
       ? 'Preserve existing entry (no overwrite)'
       : hasExistingEntry
@@ -334,22 +488,20 @@ function main() {
 
     if (DRY_RUN) {
       console.log(`  → Would write to: ${configPath}`);
-      console.log('  → Existing evokore-mcp entry:');
+      console.log(`  → Existing ${MCP_SERVER_NAME} entry:`);
       if (hasExistingEntry) {
         console.log(`    ${JSON.stringify(existingEntry, null, 2).replace(/\n/g, '\n    ')}`);
       } else {
         console.log('    (none)');
       }
       console.log(`  → Action: ${actionLabel}`);
-      console.log('  → Resulting evokore-mcp entry:');
+      console.log(`  → Resulting ${MCP_SERVER_NAME} entry:`);
       console.log(`    ${JSON.stringify(resultingEntry, null, 2).replace(/\n/g, '\n    ')}`);
+    } else if (shouldPreserve) {
+      console.log(`  → Preserved existing entry in: ${configPath} (no changes written)`);
     } else {
-      if (shouldPreserve) {
-        console.log(`  → Preserved existing entry in: ${configPath} (no changes written)`);
-      } else {
-        writeJsonSafe(configPath, updated);
-        console.log(`  → Updated: ${configPath}`);
-      }
+      writeUpdatedEntry(def, configPath, desiredEntry, existingState.raw);
+      console.log(`  → Updated: ${configPath}`);
     }
     synced++;
   }

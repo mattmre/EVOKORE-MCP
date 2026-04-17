@@ -123,6 +123,8 @@ npm run sync:dry
 npm run sync
 ```
 
+This currently automates `Claude Code`, `Claude Desktop`, `Cursor`, `Copilot CLI`, and `Codex CLI`. `Gemini CLI` remains a manual command surfaced by the sync helper.
+
 ### 4. Start using the router
 
 - In **legacy mode**, your client sees the full native + proxied tool list.
