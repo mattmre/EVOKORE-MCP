@@ -77,7 +77,8 @@
   "overrides": {
     "@hono/node-server": "^1.19.11",
     "express-rate-limit": "^8.3.1",
-    "hono": "^4.12.7"
+    "hono": "^4.12.7",
+    "path-to-regexp": "^8.4.0"
   },
   "optionalDependencies": {
     "ioredis": "^5.4.0"
