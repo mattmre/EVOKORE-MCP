@@ -1,10 +1,10 @@
-// TODO(BUG-28): convert from source-scraping to behavioral test
-import { describe, it, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import fs from 'fs';
+import http from 'http';
+import os from 'os';
 import path from 'path';
 
 const ROOT = path.resolve(__dirname, '../..');
-const skillManagerTsPath = path.join(ROOT, 'src', 'SkillManager.ts');
 const skillManagerJsPath = path.join(ROOT, 'dist', 'SkillManager.js');
 const configPath = path.join(ROOT, 'mcp.config.json');
 
@@ -12,232 +12,146 @@ const mockProxyManager = {
   callProxiedTool: async () => ({ content: [{ type: 'text', text: '' }] })
 };
 
-describe('T21: Remote Skill Registry Validation', () => {
-  // ---- Source structure: list_registry tool definition ----
+function getSkillManager() {
+  const { SkillManager } = require(skillManagerJsPath);
+  return new SkillManager(mockProxyManager);
+}
 
-  describe('source contains list_registry tool definition', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
+describe('T21: Remote Skill Registry (runtime smoke)', () => {
+  const savedAllowPrivate = process.env.EVOKORE_HTTP_ALLOW_PRIVATE;
+  let server: http.Server;
+  let baseUrl: string;
+  let tempDir: string | null = null;
+  let tempConfigPath: string | null = null;
+  let originalConfigPath: string | undefined;
 
-    it('defines list_registry tool name', () => {
-      expect(src).toMatch(/name:\s*["']list_registry["']/);
+  beforeAll(async () => {
+    process.env.EVOKORE_HTTP_ALLOW_PRIVATE = 'true';
+    server = http.createServer((req, res) => {
+      if (req.url === '/registry.json') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          name: 'mixed-case-registry',
+          version: '1.0.0',
+          entries: [
+            {
+              name: 'registry-case-test-skill',
+              description: 'Verifies trimmed and case-insensitive registry lookups',
+              url: 'skills/case-test.md'
+            }
+          ]
+        }));
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      res.end('not found');
     });
 
-    it('has listRegistrySkills method', () => {
-      expect(src).toMatch(/listRegistrySkills/);
-    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Failed to start registry smoke server');
+    }
 
-    it('has loadRegistriesFromConfig private method', () => {
-      expect(src).toMatch(/loadRegistriesFromConfig/);
-    });
-
-    it('uses EVOKORE_MCP_CONFIG_PATH override for config loading', () => {
-      expect(src).toMatch(/EVOKORE_MCP_CONFIG_PATH/);
-    });
-
-    it('has SkillRegistry interface with name, baseUrl, and index', () => {
-      expect(src).toMatch(/interface SkillRegistry/);
-      expect(src).toMatch(/baseUrl:\s*string/);
-      expect(src).toMatch(/index:\s*string/);
-    });
-
-    it('has RegistrySkillEntry interface', () => {
-      expect(src).toMatch(/interface RegistrySkillEntry/);
-    });
+    baseUrl = `http://127.0.0.1:${address.port}`;
   });
 
-  // ---- Tool schema validation ----
+  afterEach(() => {
+    if (originalConfigPath !== undefined) {
+      process.env.EVOKORE_MCP_CONFIG_PATH = originalConfigPath;
+    } else {
+      delete process.env.EVOKORE_MCP_CONFIG_PATH;
+    }
 
-  describe('list_registry tool schema', () => {
-    it('exists in getTools output', () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
-      const tools = sm.getTools();
-      const listTool = tools.find((t: any) => t.name === 'list_registry');
-      expect(listTool).toBeDefined();
-    });
-
-    it('has registry as an optional string property', () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
-      const tools = sm.getTools();
-      const listTool = tools.find((t: any) => t.name === 'list_registry');
-
-      expect(listTool.inputSchema.properties.registry).toBeDefined();
-      expect(listTool.inputSchema.properties.registry.type).toBe('string');
-      // registry is optional (no required array, or not in it)
-      expect(listTool.inputSchema.required).toBeUndefined();
-    });
-
-    it('has readOnlyHint annotation set to true', () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
-      const tools = sm.getTools();
-      const listTool = tools.find((t: any) => t.name === 'list_registry');
-
-      expect(listTool.annotations).toBeDefined();
-      expect(listTool.annotations.readOnlyHint).toBe(true);
-    });
-
-    it('has idempotentHint annotation set to true', () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
-      const tools = sm.getTools();
-      const listTool = tools.find((t: any) => t.name === 'list_registry');
-
-      expect(listTool.annotations.idempotentHint).toBe(true);
-    });
-
-    it('has openWorldHint annotation set to true (network access)', () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
-      const tools = sm.getTools();
-      const listTool = tools.find((t: any) => t.name === 'list_registry');
-
-      expect(listTool.annotations.openWorldHint).toBe(true);
-    });
-
-    it('has descriptive title', () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
-      const tools = sm.getTools();
-      const listTool = tools.find((t: any) => t.name === 'list_registry');
-
-      expect(listTool.title).toBe('List Registry Skills');
-    });
+    if (tempDir) {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      tempDir = null;
+      tempConfigPath = null;
+    }
   });
 
-  // ---- mcp.config.json registry configuration ----
+  afterAll(async () => {
+    if (savedAllowPrivate !== undefined) {
+      process.env.EVOKORE_HTTP_ALLOW_PRIVATE = savedAllowPrivate;
+    } else {
+      delete process.env.EVOKORE_HTTP_ALLOW_PRIVATE;
+    }
 
-  describe('mcp.config.json registry configuration', () => {
-    it('config file exists and is valid JSON', () => {
-      const raw = fs.readFileSync(configPath, 'utf8');
-      const config = JSON.parse(raw);
-      expect(config).toBeDefined();
-    });
-
-    it('has skillRegistries key', () => {
-      const raw = fs.readFileSync(configPath, 'utf8');
-      const config = JSON.parse(raw);
-      expect(config).toHaveProperty('skillRegistries');
-    });
-
-    it('skillRegistries is an array', () => {
-      const raw = fs.readFileSync(configPath, 'utf8');
-      const config = JSON.parse(raw);
-      expect(Array.isArray(config.skillRegistries)).toBe(true);
-    });
-  });
-
-  // ---- Empty registry list handling ----
-
-  describe('empty registry list handling', () => {
-    it('returns empty array when no registries configured', () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
-
-      // The current config has skillRegistries: []
-      // listRegistrySkills should return empty
-      return sm.listRegistrySkills().then((entries: any[]) => {
-        expect(entries).toEqual([]);
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
       });
     });
+  });
 
-    it('handleToolCall returns informative message for empty registries', async () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
+  function writeRegistryConfig(registries: Array<{ name: string; baseUrl: string; index: string }>): void {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-registry-smoke-'));
+    tempConfigPath = path.join(tempDir, 'mcp.config.json');
+    originalConfigPath = process.env.EVOKORE_MCP_CONFIG_PATH;
+    fs.writeFileSync(tempConfigPath, JSON.stringify({ skillRegistries: registries }, null, 2));
+    process.env.EVOKORE_MCP_CONFIG_PATH = tempConfigPath;
+  }
 
+  describe('list_registry tool schema', () => {
+    it('exposes list_registry with optional registry/query args and read-only annotations', () => {
+      const sm = getSkillManager();
+      const tools = sm.getTools();
+      const listTool = tools.find((t: any) => t.name === 'list_registry');
+
+      expect(listTool).toBeDefined();
+      expect(listTool.title).toBe('List Registry Skills');
+      expect(listTool.inputSchema.properties.registry.type).toBe('string');
+      expect(listTool.inputSchema.properties.query.type).toBe('string');
+      expect(listTool.inputSchema.required).toBeUndefined();
+      expect(listTool.annotations.readOnlyHint).toBe(true);
+      expect(listTool.annotations.idempotentHint).toBe(true);
+      expect(listTool.annotations.openWorldHint).toBe(true);
+    });
+  });
+
+  describe('default config empty-state behavior', () => {
+    it('ships an mcp.config.json with skillRegistries as an array', () => {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      expect(config).toHaveProperty('skillRegistries');
+      expect(Array.isArray(config.skillRegistries)).toBe(true);
+    });
+
+    it('returns an empty list when no registries are configured', async () => {
+      const sm = getSkillManager();
+      const entries = await sm.listRegistrySkills();
+      expect(entries).toEqual([]);
+    });
+
+    it('returns an informative message when list_registry runs with no configured registries', async () => {
+      const sm = getSkillManager();
       const result = await sm.handleToolCall('list_registry', {});
-      expect(result.content[0].text).toMatch(/No skill registries are configured|No skills found/);
+
+      expect(result.isError).not.toBe(true);
+      expect(result.content[0].text).toMatch(/No skill registries are configured|no skills were found/i);
     });
 
-    it('handleToolCall returns informative message for specific nonexistent registry', async () => {
-      const { SkillManager } = require(skillManagerJsPath);
-      const sm = new SkillManager(mockProxyManager);
+    it('returns an informative message for a specific nonexistent registry name', async () => {
+      const sm = getSkillManager();
+      const result = await sm.handleToolCall('list_registry', { registry: ' nonexistent-registry ' });
 
-      const result = await sm.handleToolCall('list_registry', { registry: 'nonexistent-registry' });
-      expect(result.content[0].text).toMatch(/No skills found|not configured/);
-    });
-  });
-
-  // ---- Registry entry format validation (source-level) ----
-
-  describe('registry entry format validation', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
-
-    it('validates registry entries require name field', () => {
-      expect(src).toMatch(/typeof r\.name === ["']string["']/);
+      expect(result.isError).not.toBe(true);
+      expect(result.content[0].text).toMatch(/No skills found|not configured/i);
     });
 
-    it('validates registry entries require baseUrl field', () => {
-      expect(src).toMatch(/typeof r\.baseUrl === ["']string["']/);
-    });
+    it('trims and matches registry names case-insensitively when filtering a configured registry', async () => {
+      writeRegistryConfig([{ name: 'MixedCase', baseUrl, index: 'registry.json' }]);
 
-    it('validates registry entries require index field', () => {
-      expect(src).toMatch(/typeof r\.index === ["']string["']/);
-    });
+      const sm = getSkillManager();
+      const result = await sm.handleToolCall('list_registry', { registry: '  mixedcase  ' });
 
-    it('filters out invalid registry entries', () => {
-      expect(src).toMatch(/\.filter\(\(r: any\)/);
-    });
-
-    it('constructs index URL from baseUrl and index path', () => {
-      expect(src).toMatch(/registry\.baseUrl.*registry\.index/);
-    });
-
-    it('normalizes parsed registry entries through the shared mapper', () => {
-      expect(src).toMatch(/toRegistrySkillEntry/);
-      expect(src).toMatch(/resolveRegistryEntryUrl/);
-    });
-
-    it('delegates registry fetching through the shared RegistryManager path', () => {
-      expect(src).toMatch(/fetchConfiguredRegistryEntries/);
-      expect(src).toMatch(/registryManager\.fetchRegistry/);
-    });
-  });
-
-  // ---- Error handling for unreachable registries ----
-
-  describe('error handling for unreachable registries', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
-
-    it('catches errors when fetching registry index', () => {
-      expect(src).toMatch(/Failed to fetch registry/);
-    });
-
-    it('continues processing other registries after one fails', () => {
-      // The for loop continues even after try/catch in listRegistrySkills
-      expect(src).toMatch(/for \(const registry of targets\)/);
-    });
-
-    it('httpGet has a 30-second timeout', () => {
-      // Timeout constant moved to shared src/httpUtils.ts (BUG-10)
-      const httpUtilsSrc = fs.readFileSync(path.join(path.resolve(__dirname, '../..'), 'src', 'httpUtils.ts'), 'utf8');
-      expect(httpUtilsSrc).toMatch(/FETCH_TIMEOUT_MS\s*=\s*30000/);
-    });
-
-    it('handleToolCall wraps errors in structured isError response', async () => {
-      const src = fs.readFileSync(skillManagerTsPath, 'utf8');
-      // The list_registry handler has a try/catch that returns isError: true
-      expect(src).toMatch(/Failed to list registry skills/);
-    });
-  });
-
-  // ---- Registry name filtering ----
-
-  describe('registry name filtering', () => {
-    const src = fs.readFileSync(skillManagerTsPath, 'utf8');
-
-    it('filters by registry name case-insensitively', () => {
-      expect(src).toMatch(/\.toLowerCase\(\) === registryName\.toLowerCase\(\)/);
-    });
-
-    it('queries all registries when no name specified', () => {
-      // When registryName is undefined, targets = all registries
-      expect(src).toMatch(/registryName\s*\?\s*registries\.filter/);
-    });
-
-    it('trims registry argument from args', () => {
-      expect(src).toMatch(/args\.registry.*\.trim\(\)/);
+      expect(result.isError).not.toBe(true);
+      expect(result.content[0].text).toContain('registry-case-test-skill');
+      expect(result.content[0].text).toContain(`${baseUrl}/skills/case-test.md`);
     });
   });
 });

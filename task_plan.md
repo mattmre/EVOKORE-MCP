@@ -120,14 +120,15 @@ Re-enter the repo from a clean `main`, confirm whether any open PR review work e
 
 ## Execution Update (2026-04-17, post-PR #278)
 - PR `#278` landed the control-plane sync on `main`
+- PR `#279` landed the `skill-fetch` BUG-28 runtime conversion on `main`
 - Follow-up audit against current `main` shows these earlier review items are already fixed:
   - `SEC-01`
   - `SEC-03`, `SEC-04`
   - `REL-01`, `REL-02`, `REL-03`
   - `OPS-01`, `OPS-05`
-- Active branch for the next slice: `test/bug-28-skill-fetch-runtime`
+- Active branch for the next slice: `test/bug-28-skill-registry-runtime`
 - Active implementation target:
-  - replace `tests/integration/skill-fetch.test.ts` source-scraping coverage with runtime behavioral assertions
-  - keep the write surface narrow: one test file plus a dated research note
+  - shrink `tests/integration/skill-registry.test.ts` to runtime smoke coverage only
+  - rely on `tests/integration/skill-registry-runtime.test.ts` for the deeper registry/network path
 - Next follow-up after this slice:
-  - rerank remaining `BUG-28` files, with `skill-registry.test.ts` likely to shrink or retire because `skill-registry-runtime.test.ts` already covers the runtime path
+  - rerank remaining `BUG-28` files, with `session-store.test.ts` now the leading narrow candidate because only its final source-level assertions remain
