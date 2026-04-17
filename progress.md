@@ -1,5 +1,24 @@
 # Progress
 
+## 2026-04-17
+- Re-entered the repo from clean `main` to review any open PR work before starting another implementation wave
+- Confirmed `gh pr list --state open` returns `[]` for `mattmre/EVOKORE-MCP`
+- Confirmed current `HEAD` is `7ba93ef` and only the root worktree remains
+- Identified control-plane drift:
+  - `next-session.md` still listed Waves 4/7/8/9 as pending even though PRs `#270`-`#276` are merged
+  - `task_plan.md` still pointed at the old Phase 4C queue
+  - no session log existed for the post-`#277` state
+- Documented the remaining-work audit in `docs/research/remaining-roadmap-audit-2026-04-17.md`
+- Added `docs/session-logs/session-2026-04-17-remaining-roadmap-triage.md`
+- Rewrote `task_plan.md` and `next-session.md` so the next queue reflects the actual remaining slices:
+  - control-plane sync
+  - approval-token exposure hardening
+  - shared SSRF hardening
+  - HttpServer/reconnect lifecycle fixes
+  - `BUG-28` remainder
+  - vector-trigger instrumentation
+  - operator-gated npm publish follow-up
+
 ## 2026-04-04
 - Session 6: Closed open PRs #219 and #220, completed Phase 4A remainder and Phase 4B
 - PR #220 (Panel of Experts v2):
