@@ -115,3 +115,19 @@ Re-enter the repo from a clean `main`, confirm whether any open PR review work e
 1. Finish Stage 0 as a docs-only control-plane PR.
 2. Execute Stage 1 (`SEC-01`) next from fresh `main`.
 3. Keep Stage 2 (`SEC-03` / `SEC-04`) separate to isolate network-hardening risk.
+
+---
+
+## Execution Update (2026-04-17, post-PR #278)
+- PR `#278` landed the control-plane sync on `main`
+- Follow-up audit against current `main` shows these earlier review items are already fixed:
+  - `SEC-01`
+  - `SEC-03`, `SEC-04`
+  - `REL-01`, `REL-02`, `REL-03`
+  - `OPS-01`, `OPS-05`
+- Active branch for the next slice: `test/bug-28-skill-fetch-runtime`
+- Active implementation target:
+  - replace `tests/integration/skill-fetch.test.ts` source-scraping coverage with runtime behavioral assertions
+  - keep the write surface narrow: one test file plus a dated research note
+- Next follow-up after this slice:
+  - rerank remaining `BUG-28` files, with `skill-registry.test.ts` likely to shrink or retire because `skill-registry-runtime.test.ts` already covers the runtime path
