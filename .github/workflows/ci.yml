@@ -50,6 +50,9 @@ jobs:
       - name: Validate submodule cleanliness
         run: node scripts/validate-submodule-cleanliness.js
 
+      - name: Check for nested .git artifacts
+        run: node scripts/check-no-nested-git.js
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
