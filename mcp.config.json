@@ -13,6 +13,8 @@
       "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"]
     },
     "elevenlabs": {
+      "disabled": true,
+      "_comment": "disabled 2026-04-24 — ELEVENLABS_API_KEY env var not provisioned; server was erroring on every boot. See issue #282 item #6. Re-enable once the API key is in the user's environment (and optional dep `uvx` / elevenlabs-mcp is confirmed installed).",
       "command": "uvx",
       "args": ["elevenlabs-mcp"],
       "env": {
@@ -21,6 +23,8 @@
       }
     },
     "supabase": {
+      "disabled": true,
+      "_comment": "disabled 2026-04-24 — SUPABASE_ACCESS_TOKEN env var not provisioned; server was erroring on every boot. See issue #282 item #6. Re-enable once the token is in the user's environment.",
       "command": "npx",
       "args": ["-y", "@supabase/mcp-server-supabase", "--read-only"],
       "env": {
@@ -28,6 +32,8 @@
       }
     },
     "stitch": {
+      "disabled": true,
+      "_comment": "disabled 2026-04-24 — STITCH_API_KEY env var not provisioned AND upstream package `@google/stitch-mcp` may not exist on npm (npx resolution fails). See issue #282 item #6. Re-enable only after confirming both the package identity and the key.",
       "command": "npx",
       "args": ["-y", "@google/stitch-mcp"],
       "env": {
