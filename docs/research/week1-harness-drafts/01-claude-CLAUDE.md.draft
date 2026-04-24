@@ -1,0 +1,104 @@
+# User-level CLAUDE.md (DRAFT)
+
+> Drop-in target: `~/.claude/CLAUDE.md`
+> Source-of-truth derived from `D:/github/EVOKORE-MCP/docs/research/workflow-audit-2026-04-24.md`.
+> Keep this file under 200 lines. Edit, do not append-forever.
+
+---
+
+## 1. Environment facts (do not re-discover)
+
+- OS: Windows 11 Pro. Shell: Git Bash inside Claude Code's sandboxed bash tool.
+- Use **forward slashes** in all paths (`D:/github/EVOKORE-MCP/...`). Do not use backslashes in Bash invocations.
+- Do **not** emit `cmd.exe` syntax (`dir /b`, `where`, `findstr`, `set X=...`). Use POSIX equivalents (`ls`, `which`, `grep`, `X=... cmd`).
+- PowerShell only when explicitly required; quote with single quotes and avoid `&` operator chaining.
+- Repos live under `D:/github/`. Active set: `EVOKORE-MCP`, `RSMFConverter`, `OCR_LOCAL`, `myainewsbot.com`, `Claudius Maximus`, `AGENT33`, `Gemma`, `yourediscovery.com`.
+- vLLM Gemma server: `http://localhost:8000` (OpenAI-compatible). Treat localhost as **not** a trust boundary.
+
+## 2. Standing rules from the audit playbook
+
+1. **Cite paths.** Every claim about code points to a file:line. No vibes.
+2. **Counts beat anecdotes.** "I saw it in 3 files" loses to "grep returned 34 hits across 5 repos."
+3. **Sample, don't enumerate.** Read 5 representative files before reading 50.
+4. **Read-before-Edit, always.** Stale reads cause TOCTOU corruption (~1,200 errors in 30 days).
+5. **Throttle parallel Bash to N=2-3.** Sibling-tool errors dominated the failure mode (4,913 / 30d).
+6. **Discovery works, execution doesn't.** When invoking an EVOKORE-MCP skill, prefer `execute_skill` over hand-pasting persona prompts via Task fanout. If `execute_skill` returns `Unknown skill`, search first (`search_skills`), then fall back.
+7. **Hook observability is mandatory.** Do not add a new hook without telemetry — silent hooks compound. (Audit under-weighted risk #2.)
+8. **No new EVOKORE-MCP skills until `list_skills --grep` lands.** Discoverability blocks net-new.
+9. **Single-user is not a security boundary on Windows.** A poisoned skill or prompt-injected doc can rewrite the filesystem under current permissive settings.
+
+## 3. PR / commit conventions (mirror EVOKORE-MCP recent style)
+
+Format follows recent EVOKORE-MCP commits (e.g. "feat: Wave 9 — OrchestrationRuntime ..."):
+
+```
+<type>: <imperative summary, sentence case, <=72 chars>
+
+<wrapped paragraph: what changed and why, in plain English>
+
+- bullet 1: concrete file/module touched
+- bullet 2: test count delta or behavioral change
+- bullet 3: linked issue/SEC-XX/PERF-XX if applicable
+
+Co-Authored-By: Claude <model> <noreply@anthropic.com>
+```
+
+Allowed `<type>` values: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `perf`, `ci`, `build`.
+
+PR titles use the same `<type>: <summary>` shape. PR body sections: **Summary**, **Changes** (table when >3 files), **Test plan** (checkbox list), **Risk / rollback**.
+
+Do **not** include emoji or "Generated with" links unless the user has asked for that repo's house style. Recent EVOKORE-MCP work has dropped the emoji footer.
+
+## 4. EVOKORE-MCP invocation cheat
+
+Prefer in this order:
+1. `mcp__evokore-mcp__execute_skill` — actually runs the skill end-to-end.
+2. `mcp__evokore-mcp__resolve_workflow` — for multi-skill flows.
+3. `mcp__evokore-mcp__search_skills` / `get_skill_help` — discovery only.
+4. Manual Task fanout with pasted persona — last resort, log it as a miss.
+
+If a panel skill (`panel-of-experts`, `panel-architecture-planning`, `panel-code-refinement`) fails to execute, that is a bug to file, not a workflow to imitate. Tag the failure with `evokore-panel-execute-broken` in the session log so the audit trail keeps growing.
+
+## 5. Things I keep saying — short aliases
+
+The audit found these phrases repeated hundreds of times. Until proper slash-commands ship, treat the left-hand string as a directive:
+
+| Trigger phrase | What it means |
+|---|---|
+| `pr-manager` | Run the user's PR triage flow: list open PRs, summarize CI state, surface blockers. (Skill not yet registered — 256 errors in 30d. Behave as the skill would.) |
+| `session-wrap` | End-of-session: write `next-session.md` with top-3 carryovers, update `.claude/auto-memory`, propose 1 commit message. (Not a skill — do it inline.) |
+| `/priorities [N]` | Read `CLAUDE.md` + `next-session.md` + recent session log, return top N priorities with rationale and est. effort. |
+| `Phase NNN` | The user's phased-work ceremony. Skip the boilerplate; jump to the diff. |
+
+If a user message contains any of these, do the work, do not error out about a missing skill.
+
+## 6. Hook etiquette
+
+- Hooks live in `D:/github/EVOKORE-MCP/scripts/hooks/`.
+- Every new hook must emit a one-line JSONL trace to `~/.claude/hook-traces.jsonl` with `{ts, hook, decision, reason, latency_ms}`.
+- A hook that blocks an action must include a single-sentence override hint in its denial message.
+- If a hook has no recorded fires in the last 30 days, it is dead — delete it.
+
+## 7. Permissions posture (post-Week-1)
+
+The user is moving off `defaultMode: bypassPermissions` and `skipDangerousModePermissionPrompt: true`. Expect to:
+- See real permission prompts for new Bash patterns. Do not assume pre-approval.
+- Use `/permissions` to inspect what is currently allowed before running an unfamiliar command.
+- Keep the allowlist tight — only request a pattern when you would use it more than 3x/week.
+
+## 8. Memory hygiene
+
+- Auto-memory lives at `C:/Users/mattm/.claude/projects/C--Users-mattm/memory/MEMORY.md`. Currently sparse (2 entries). Add when something genuinely cross-session-relevant lands.
+- Per-repo `CLAUDE.md` overrides this file inside that repo's tree. Do not duplicate; defer.
+
+## 9. Anti-patterns to refuse politely
+
+- Spawning >3 parallel Bash calls that touch the same path.
+- Editing without a fresh Read of the same file in this turn.
+- Adding a new MCP child server without checking `proxy_server_status` (3 of 5 currently in error: elevenlabs, stitch, supabase).
+- Writing a `.md` summary report when the user asked for findings — return findings inline.
+- Re-litigating an entire allowlist or rules file entry-by-entry. Truncate to last-30-days actual usage.
+
+## 10. When in doubt
+
+Read `D:/github/EVOKORE-MCP/docs/research/workflow-audit-2026-04-24.md` Section 5 ("Risks the research agents under-weighted") before proposing anything ambitious.
