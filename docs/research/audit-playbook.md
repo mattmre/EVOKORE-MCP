@@ -23,6 +23,7 @@ The skill `session-retrospective-miner` (in EVOKORE-MCP `SKILLS/`) automates Pha
 3. **Counts beat anecdotes.** "X happened N times" trumps "I noticed X."
 4. **Disagree on purpose.** Panel critiques fail when personas politely agree from different angles. Real challenge produces uncomfortable insights.
 5. **Invert the additive bias.** Every "build a new skill" candidate must be tested against "delete something" or "modify CLAUDE.md instead."
+6. **Verify citations against live code.** Every finding that names a specific symbol, file, string, or PR must be confirmed against `git log -S '<symbol>'` or `grep` on the current tree **in the same agent turn** it is written. Finding it in an older `docs/research/*.md` is not enough — prior audits can be stale by days or weeks. See the [2026-04-24 correction note](workflow-audit-2026-04-24.md) for why: three Week-1 items (`tokenFull`, sub-`.git`, `Unknown skill:`) were cited as open when commit `c5534c9` had already resolved them ~20 days earlier. **How to apply:** when a research agent cites `X needs fixing`, the same agent must run `git log --all -S 'X' --oneline | head -5` and include the output in its report; if the top commit's subject says "fix"/"remove"/"close", the item is reclassified as "already-resolved — consider regression-gate test instead".
 
 ---
 

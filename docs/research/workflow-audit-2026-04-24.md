@@ -4,6 +4,13 @@
 **Sources mined:** 2,185 Claude session files (64 MB), 378 Codex CLI sessions (255 MB), 9 Copilot artifacts, ~20 active repos in `D:/github/`, full Claude+Codex harness configs, EVOKORE-MCP repo audit.
 **Refined by:** 2 expert panels (Workflow + MCP-Architecture/Security) using EVOKORE-MCP's panel-of-experts framework.
 
+> **Correction note (added 2026-04-24, post-publish):** the original draft listed `tokenFull` (item #2), nested `.git` artifact (item #4), and the `Skill not found:` string (item #10) as if open. They were partially-resolved status that this report mined from `docs/research/repo-review-2026-04-04.md` without cross-checking `git log -S`. Real status, verified against the tree on 2026-04-24:
+> - **`tokenFull`** — already removed in commit `c5534c9` (2026-04-04, Phase 5A). Item #2 is now a *regression-gate test* (PR #284 commit `77a2cd2`).
+> - **Sub-`.git`** — already cleaned. Item #4 is now a *prophylactic CI gate* (PR #284 commit `f88d43b`) so it can never re-land.
+> - **`Skill not found:`** — the real string (audit named the wrong one). Item #10 ships as fuzzy-match suggestion in PR #284 commit `625f522`.
+>
+> See [audit-playbook.md §"Verifying citations"](audit-playbook.md) for the `git log -S` requirement that was added to prevent this. The 2026-03-24 backfill report ([workflow-audit-2026-03-24.md](workflow-audit-2026-03-24.md)) also confirms the chronology: `dangerouslySkipPermissions` (PR #181, 2026-03-24) → `tokenFull` (2026-03-26) → `httpUtils.ts` (2026-04-03) → `c5534c9` removal (2026-04-04). The other 9 audit items (panels, hooks, hygiene, harness) are unchanged.
+
 ---
 
 ## Executive summary
