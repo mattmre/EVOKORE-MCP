@@ -2,13 +2,23 @@
 
 EVOKORE-MCP is a TypeScript-based stdio MCP router and multi-server aggregator. It gives AI clients a single MCP endpoint that combines EVOKORE’s native workflow tools with proxied child servers defined in `mcp.config.json`, while adding namespace isolation, dynamic tool discovery, and human-in-the-loop approval controls.
 
-Current package/runtime version: `3.0.0`.
+Current package/runtime version: `3.1.0`.
 
 ## Current operator snapshot
 
 - **Runtime shape:** stdio MCP router plus multi-server child aggregation
-- **Native tool surface:** `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`, `refresh_skills`, `fetch_skill`, `execute_skill`, `list_registry`
-- **v3.0 capabilities:** RBAC permissions, rate limiting, HTTP transport, MCP resources/prompts, tool annotations, skill ecosystem (versioning, registry, sandbox), session dashboard, async proxy boot
+- **Native tool surface (36 tools across 10 managers):**
+  - **SkillManager (11):** `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`, `refresh_skills`, `fetch_skill`, `list_registry`, `execute_skill`
+  - **ClaimsManager (4):** `claim_acquire`, `claim_release`, `claim_list`, `claim_sweep`
+  - **FleetManager (4):** `fleet_spawn`, `fleet_claim`, `fleet_release`, `fleet_status`
+  - **MemoryManager (3):** `memory_store`, `memory_search`, `memory_list`
+  - **OrchestrationRuntime (3):** `orchestration_start`, `orchestration_stop`, `orchestration_status`
+  - **SessionAnalyticsManager (4):** `session_context_health`, `session_analyze_replay`, `session_work_ratio`, `session_trust_report`
+  - **TelemetryManager (2):** `get_telemetry`, `reset_telemetry`
+  - **WorkerManager (2):** `worker_dispatch`, `worker_context`
+  - **NavigationAnchorManager (2):** `nav_get_map`, `nav_read_anchor`
+  - **PluginManager (1):** `reload_plugins`
+- **v3.1 capabilities:** v3.0 RBAC + rate limiting + HTTP transport + MCP resources/prompts + tool annotations + skill ecosystem (versioning, registry, sandbox) + session dashboard + async proxy boot, expanded with the orchestration runtime, fleet/claims coordination, persistent memory, session analytics, telemetry, worker dispatch, navigation anchors, and plugin manifest hot-reload
 - **Continuity surfaces:** canonical session manifest, managed Claude memory sync, manifest-backed status line, repo-state audit CLI
 - **Voice surfaces:** proxied ElevenLabs tools, VoiceMode guidance, standalone VoiceSidecar with persona-aware hook forwarding
 - **Recent change report:** [docs/RECENT_ADDITIONS_2026-03-12.md](docs/RECENT_ADDITIONS_2026-03-12.md)
@@ -24,8 +34,8 @@ EVOKORE exists to solve three common MCP operator problems:
 ## Current capabilities
 
 - **Single stdio MCP endpoint** for native EVOKORE tools plus proxied child servers.
-- **11 native tools**: `docs_architect`, `skill_creator`, `resolve_workflow`, `search_skills`, `get_skill_help`, `discover_tools`, `proxy_server_status`, `refresh_skills`, `fetch_skill`, `execute_skill`, `list_registry`.
-- **Proxied server aggregation** from `mcp.config.json`, currently `github`, `fs`, optional `elevenlabs`, optional `supabase`, optional `stitch`, plus opt-in local reverse-engineering child servers for `ghidra_headless`, `reva`, and `binary_analysis`.
+- **36 native tools** registered across 10 managers — see the [Native tool surface](#current-operator-snapshot) above for the per-manager breakdown.
+- **Proxied server aggregation** from `mcp.config.json`, currently `github` and `fs`, plus opt-in local reverse-engineering child servers for `ghidra_headless`, `reva`, and `binary_analysis`. The `elevenlabs`, `supabase`, and `stitch` integrations are currently disabled pending operator action — see [docs/research/child-server-status-2026-04-24.md](docs/research/child-server-status-2026-04-24.md).
 - **Prefixed proxied tools** in the form `${serverId}_${tool.name}` to avoid collisions.
 - **Tool discovery modes**:
   - `legacy` (default): full native + proxied tool listing
@@ -164,7 +174,7 @@ Use this before a new multi-slice session or cleanup wave to surface branch dive
 | Module | Role |
 |---|---|
 | `src/index.ts` | Main stdio MCP server, request handlers, discovery-mode projection, MCP resources/prompts, session activation state |
-| `src/SkillManager.ts` | Native EVOKORE tools (11 total), skill indexing, versioning, remote fetch, and sandboxed execution |
+| `src/SkillManager.ts` | Skill-management tools (11 of 36 native), skill indexing, versioning, remote fetch, and sandboxed execution |
 | `src/ProxyManager.ts` | Child-server boot (stdio + HTTP), prefixing, proxy execution, rate limiting, cooldown, env interpolation, async boot |
 | `src/ToolCatalogIndex.ts` | Unified native + proxied tool catalog, search index, projected tool listing |
 | `src/SecurityManager.ts` | HITL/allow/deny policy with RBAC role support (`admin`, `developer`, `readonly`) |
@@ -175,8 +185,8 @@ Use this before a new multi-slice session or cleanup wave to surface branch dive
 
 ## Recent implementation and research highlights
 
-- **v3.0.0 shipped** with RBAC, rate limiting, HTTP transport, MCP resources/prompts, tool annotations, skill versioning, remote registries, sandboxed execution, session dashboard, and async proxy boot.
-- **11 native tools** now include `refresh_skills`, `fetch_skill`, `execute_skill`, and `list_registry` for a complete skill ecosystem.
+- **v3.1.0 shipped** with the orchestration runtime, fleet/claims coordination, persistent memory, session analytics, telemetry, worker dispatch, navigation anchors, and plugin manifest hot-reload, on top of v3.0's RBAC, rate limiting, HTTP transport, MCP resources/prompts, tool annotations, skill versioning, remote registries, sandboxed execution, session dashboard, and async proxy boot.
+- **36 native tools** across 10 managers, with the SkillManager surface (`refresh_skills`, `fetch_skill`, `execute_skill`, `list_registry`, etc.) anchoring the skill ecosystem and the orchestration/fleet/claims/memory surfaces anchoring multi-agent coordination.
 - **Supabase integration** added as a proxied child server with tiered permissions (10 allow, 4 require_approval, 3 deny).
 - **Session dashboard** at `127.0.0.1:8899` with HITL approval UI at `/approvals`.
 - **Dynamic tool discovery MVP landed** with `legacy` default mode, opt-in `dynamic` mode, session-scoped activation, and exact-name compatibility for hidden proxied tools.
