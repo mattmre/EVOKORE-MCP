@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { httpGet, isPrivateAddress } from '../../src/httpUtils';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import dns from 'dns';
+import { httpGet, isPrivateAddress, assertResolvesPublic } from '../../src/httpUtils';
 
 /**
  * SEC-03 / TST-04: SSRF protection tests for httpGet() and isPrivateAddress().
