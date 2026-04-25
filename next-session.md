@@ -1,6 +1,6 @@
 # Next Session Priorities
 
-Last Updated (UTC): 2026-04-17
+Last Updated (UTC): 2026-04-25
 
 ## Current Handoff State
 - **Active branch:** `main` (clean)
@@ -105,6 +105,90 @@ Commands after operator action:
 npm run release:preflight
 npm publish
 ```
+
+### 7. FUTURE — Hosted EVOKORE on VPS (cross-platform, cross-session)
+
+Long-term strategic track. Not on the immediate critical path but a high-impact
+direction once SEC-A / SEC-B / Reliability land.
+
+**Concept**
+
+Stand up EVOKORE-MCP on a personal VPS behind a dedicated subdomain (e.g.
+`mcp.evokore.<domain>`) so it's reachable as a remote HTTP MCP endpoint from
+any client that supports MCP Connectors:
+
+- Claude Code on the web (claude.ai/code account-level Connector)
+- Claude Desktop
+- Codex / OpenAI clients with MCP support
+- any future MCP-aware client
+
+This replaces per-repo `.mcp.json` (PR `#287` baseline) with a single
+user-scoped attachment that follows the user across every repo, every
+session, every device — including phone-only sessions.
+
+**Auth**
+
+API-key / bearer-token gate using the existing `OAuthProvider`
+(`src/auth/OAuthProvider.ts`) with `EVOKORE_OAUTH_*` env vars, or a simpler
+static bearer scheme if account-level Connector UI doesn't yet support full
+OAuth flows. Pick whichever the target client actually accepts.
+
+**Centralized state — the real payoff**
+
+Once EVOKORE is hosted instead of per-laptop, all the session state can be
+centralized:
+
+- Session memory (`MemoryManager`) — currently `~/.evokore/sessions/...`
+  per machine; promote to a Postgres-backed store on the VPS so memory
+  follows the user across machines and clients.
+- Session replay + evidence JSONL — same pattern, persisted server-side.
+- Audit log (`AuditLog.write()`) — durable across sessions, searchable.
+- TillDone tasks, claims, fleet state — shared across devices.
+
+**Postgres + enrichments**
+
+With Postgres in front of the memory layer, longer-term analytics become
+tractable:
+
+- Cross-session pattern detection (which skills get used together, where
+  retries cluster, where work-ratio drops).
+- Embeddings for semantic recall over months of session history.
+- Per-repo and per-tool usage rollups.
+- Compliance / audit queries over the full timeline rather than per-file
+  JSONL grepping.
+
+**Productization angle**
+
+The same VPS-hosted shape can ship as first-class repo functionality:
+operators run `evokore-mcp` against their own VPS + Postgres and get all
+of the above out of the box. That turns EVOKORE from a local aggregator
+into an offering: "Bring your own VPS, bring your own Postgres, get
+durable cross-platform AI session memory."
+
+**Rough build-out checklist (for future planning)**
+
+1. Container image / `Dockerfile` + `docker-compose` for VPS deploy.
+2. Postgres-backed `MemoryManager` adapter behind the existing interface.
+3. Server-side sink for replay / evidence / audit JSONL → Postgres.
+4. Subdomain + TLS via Caddy or Cloudflare in front of EVOKORE HTTP.
+5. Bearer-token auth wired through `OAuthProvider` with key rotation.
+6. Migration tool: import existing `~/.evokore/sessions/*` into Postgres.
+7. Dashboard updates to query the remote store.
+8. Docs: "Self-host EVOKORE on a VPS" guide.
+
+**Why it's worth doing eventually**
+
+- Phone-first usage actually works (the original PR `#287` motivation).
+- Memory and audit history survive laptop changes, OS reinstalls, and
+  worktree thrash.
+- Same backend powers Claude, Codex, and any future MCP client equally.
+- Opens the door to a hosted/SaaS or self-host-as-product surface for
+  EVOKORE without forking the codebase.
+
+**Status**
+
+Not started. PR `#287` is the per-repo fallback; this is the durable
+cross-repo / cross-platform replacement.
 
 ---
 
