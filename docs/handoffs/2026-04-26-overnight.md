@@ -28,7 +28,7 @@ the PR was not opened (deferred, blocked, or context-budget hit)._
 
 | Order | PR # | URL | Title | State | CI status | Notes |
 |-------|------|-----|-------|-------|-----------|-------|
-| 1 | _TBD_ | _TBD_ | fix(session): namespace activation Map by client identity | _TBD_ | _TBD_ | _TBD_ |
+| 1 | 289 | https://github.com/mattmre/EVOKORE-MCP/pull/289 | fix(session): namespace stdio activation Map by per-instance id | open | pending | targeted vitest 35+79 passed locally; build clean |
 | 2 | 288 | https://github.com/mattmre/EVOKORE-MCP/pull/288 | docs: tool discovery tiering phased plan + next-session sync | open | pending | docs-only; safe to merge anytime |
 | 3 | _TBD_ | _TBD_ | feat(discovery): named profiles in mcp.config.json + ProfileResolver | _TBD_ | _TBD_ | _TBD_ |
 
@@ -59,7 +59,26 @@ At minimum: file diff stats, vitest scoped-run summary, tsc clean,
 build clean._
 
 ### PR 1
-_TBD — replaced when PR opens_
+
+- Opened: https://github.com/mattmre/EVOKORE-MCP/pull/289
+- Branch: `fix/stdio-activation-singleton` (from `origin/main` @ `fdac565`)
+- Diff stats: 3 files, 62 insertions, 6 deletions (commit `55ea376`)
+- Files:
+  - `src/index.ts` — drops shared `DEFAULT_SESSION_ID` literal, adds
+    per-instance `defaultSessionId = stdio:${randomUUID()}`
+  - `tests/integration/stdio-default-session-isolation.test.ts` (new)
+  - `tests/integration/session-isolation-httpserver-wiring.test.ts`
+    (regex updated to match `this.defaultSessionId`)
+- Air-check:
+  - `npx vitest run tests/integration/stdio-default-session-isolation.test.ts
+    tests/integration/session-isolation-httpserver-wiring.test.ts`
+    -> 35 passed
+  - `npx vitest run tests/integration/rate-limiting-per-session.test.ts
+    tests/integration/rbac-httpserver-per-session.test.ts
+    tests/integration/rbac-session-gaps.test.ts
+    tests/integration/session-counter-cleanup.test.ts`
+    -> 79 passed
+  - `npm run build` clean (tsc, no errors)
 
 ### PR 2
 
