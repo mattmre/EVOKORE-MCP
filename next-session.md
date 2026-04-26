@@ -6,12 +6,12 @@ Last Updated (UTC): 2026-04-26
 
 **Plan:** [docs/plans/tool-discovery-tiering-2026-04-26.md](docs/plans/tool-discovery-tiering-2026-04-26.md)
 
-**Status (overnight autonomous run):** in progress on session
-`sharp-tharp-090e3d`. PRs are being opened against `main`; **operator
-must review and merge in the morning**. Until this sprint completes,
-the rest of this file (security A/B, reliability, BUG-28, vector gate,
-npm publish, hosted VPS) is paused — **come back to it once the
-tiering sprint ships.**
+**Status (post-overnight, post-merge):** Phase 0 + Sprint 1.1 + plan
+docs **landed on `main`**. The next session resumes with **Sprint 2
+and Sprint 3** as the operator-rearranged top of the deferred queue
+(see "Deferred queue — REARRANGED" below). All other tracks (security
+A/B, reliability, BUG-28, vector gate, npm publish, hosted VPS) remain
+paused until the rearranged tiering work ships.
 
 **Why it jumped the queue:** every connecting MCP client pays a 12K–31K
 token tax on the initial `tools/list`. Panel-of-experts review (Q1/Q2/Q3
@@ -19,43 +19,97 @@ strategy + Panel A/B/C/D execution-risk) confirmed the existing binary
 `EVOKORE_TOOL_DISCOVERY_MODE=legacy|dynamic` toggle is the floor of what
 the technique can do — peers (Solo.io, Speakeasy, Cloudflare Code Mode)
 ship 96–99.9 % reductions while we ship ~50–60 %. The same review also
-surfaced a real session-isolation bug
-([src/index.ts:53](src/index.ts:53) — stdio activation Map keyed on
-literal `__stdio_default_session__`) that is independent of the
-strategy and ships in this sprint regardless.
+surfaced a real session-isolation bug (stdio activation Map keyed on
+the shared literal `__stdio_default_session__`) that was independent
+of the strategy and shipped alongside the docs PR.
 
-**Overnight scope (REDUCED after second-pass critique):**
+**Overnight scope (REDUCED after second-pass critique) — ALL MERGED:**
 
-| Order | Branch | Title | Status |
-|-------|--------|-------|--------|
-| 1 | `fix/stdio-activation-singleton` | fix(session): namespace activation Map by client identity | (see overnight handoff) |
-| 2 | `docs/tool-discovery-tiering-plan` | docs: tool discovery tiering phased plan + next-session sync | (see overnight handoff) |
-| 3 | `feat/discovery-profile-config` | feat(discovery): named profiles in mcp.config.json + ProfileResolver | draft, depends on PR 1 (see overnight handoff) |
+| Order | PR | Title | State |
+|-------|----|-------|-------|
+| 1 | [#289](https://github.com/mattmre/EVOKORE-MCP/pull/289) | fix(session): namespace stdio activation Map by per-instance id | merged |
+| 2 | [#288](https://github.com/mattmre/EVOKORE-MCP/pull/288) | docs: tool discovery tiering phased plan + next-session sync | merged |
+| 3 | [#290](https://github.com/mattmre/EVOKORE-MCP/pull/290) | feat(discovery): named profiles in mcp.config.json + ProfileResolver | merged |
 
-**Deferred to subsequent sessions** (full handoff details in the plan
-doc §10):
+All three PRs landed with full CI green (Type Check, Build, Windows
+Runtime Validation, all three test shards, security scans). One round
+of gemini-code-assist review feedback addressed before merge:
 
-- Sprint 1.2 — MCP cursor pagination on `tools/list`
-- Sprint 1.3 — determinism + Fuse pinning + ranking order
-- Sprint 1.4 — profile presets + deprecation shim + tests + benchmark
-- Sprint 2 — auto-derived skill composition graph + `nextSteps[]`
-- Sprint 3 — schema-deferred `tools/list` (`describe_tool` companion)
-- Parked — Cloudflare-style "Code Mode" tier-0 (research only)
+- PR #289: switched the per-instance prefix from `stdio:${uuid}` to
+  `stdio-${uuid}` so the id is safe as a Windows filename component
+  (FileSessionStore writes `~/.evokore/sessions/<sessionId>.json`).
+- PR #290: surface JSON parse errors from `loadDiscoveryConfig` to
+  stderr before soft-failing to `{}`, so a malformed `mcp.config.json`
+  discovery block is not silently ignored at startup.
+- PR #288: stop recommending the deprecated `@dqbd/tiktoken` package
+  (its README redirects to `js-tiktoken`); replaced the hard-coded
+  SKILL.md `lines 237-298` reference with a header-based section
+  locator + optional `@AI:NAV` marker recommendation.
+
+### Deferred queue — REARRANGED per operator priority shift (2026-04-26)
+
+The operator explicitly rearranged the deferred queue **after** the
+overnight run merged. Sprint 2 and Sprint 3 are now the next two items
+to tackle, ahead of Sprints 1.2 / 1.3 / 1.4. Rationale: they are the
+two highest-leverage techniques in the panel scan (skill composition +
+schema-deferred discovery). Sprint 2 has a verified blocker —
+`code-refinement` is a panel-of-experts panel, not an executable skill,
+so the `pr-manager → security-review → code-refinement` chain must be
+either (a) wired up by building the skill or (b) cleaned up by removing
+the dangling reference. Sprint 3 needs a client-compatibility matrix
+research pass before implementation.
+
+**New priority order:**
+
+1. **Sprint 2 — Auto-derived skill composition graph + `nextSteps[]`**
+   - Plan: `docs/plans/tool-discovery-tiering-2026-04-26.md` §10
+   - 5–8 day sprint. First PR is the `code-refinement` blocker
+     resolution (build OR remove); second PR is
+     `scripts/derive-skill-composition.js` + `skill-graph.json`
+     artifact; third PR is `execute_skill` returning `nextSteps[]` +
+     auto-activation hook + `tools/list_changed` emission.
+   - Use the markdown-heading section locator (or add a structured
+     `<!-- @AI:NAV(SEC:injection-points) -->` marker) when parsing the
+     panel-of-experts SKILL.md injection table — do NOT hard-code line
+     numbers, the file is edited too frequently.
+
+2. **Sprint 3 — Schema-deferred `tools/list` + `describe_tool`**
+   - Plan: §10
+   - **Prerequisite:** client-compatibility matrix research first
+     (Claude Desktop, Cursor, Cline, Continue, custom MCP clients).
+     Schema deferral is the highest-leverage technique in the panel
+     scan (96–100× reduction in benchmarks) but only works if clients
+     gracefully fall back when `inputSchema` is absent on `tools/list`
+     and present on `describe_tool`. Do not start implementation
+     without that matrix.
+
+3. *(was-priority-1)* Sprint 1.2 — MCP cursor pagination on
+   `tools/list`
+4. *(was-priority-2)* Sprint 1.3 — determinism + Fuse pinning +
+   ranking order
+5. *(was-priority-3)* Sprint 1.4 — profile presets + deprecation shim
+   + tests + benchmark (with `tiktoken` / `js-tiktoken`, NOT
+   `@dqbd/tiktoken`)
+6. **Parked** — Cloudflare-style "Code Mode" tier-0 (research only;
+   revisit only if Sprint 3's deferral benchmark is insufficient)
+
+After all of the above complete, return to the original queue (Security
+A, Security B, Reliability, BUG-28 test conversion, vector gate
+instrumentation, npm publish v3.1.0, and the long-term hosted-VPS
+track).
 
 **Morning operator handoff:** see
 [docs/handoffs/2026-04-26-overnight.md](docs/handoffs/2026-04-26-overnight.md)
-once the run completes for exact PR URLs, statuses, and the resume
-command for the next session.
+for the per-PR evidence record from the overnight run.
 
 ---
 
 ## Current Handoff State
-- **Active branch:** `main` (clean) at run start
-- **HEAD at run start:** `fdac565` (`docs: add hosted-VPS EVOKORE track to next-session.md`)
-- **Open PRs:** none at run start; up to 3 expected to be open after the overnight tiering run
+- **Active branch:** `main` (clean)
+- **HEAD:** `802d600` (`feat(discovery): named profiles in mcp.config.json + ProfileResolver (#290)`)
+- **Open PRs:** none (all three overnight PRs merged: #288, #289, #290)
 - **Worktrees:** orchestrator session running on
-  `sharp-tharp-090e3d`; per-PR worktrees spawned under
-  `.claude/worktrees/agent-*` and removed after each PR ships
+  `sharp-tharp-090e3d`; per-PR agent worktrees retired post-merge
 
 ---
 
@@ -253,11 +307,43 @@ instrumentation -> operator-gated npm publication
 
 ### Option Z — Resume the Tool Discovery Tiering sprint (P0, blocks all others)
 
-> "Load `docs/plans/tool-discovery-tiering-2026-04-26.md` and
-> `docs/handoffs/2026-04-26-overnight.md`. Confirm the morning state —
-> which PRs landed, which are still open, which are deferred. Resume
-> with the next deferred sprint in §10 of the plan (Sprint 1.2 if
-> Sprint 1.1 merged, otherwise pick up Sprint 1.1 work)."
+The overnight run shipped Phase 0 + Sprint 1.1 + plan docs (PRs #288 /
+#289 / #290, all merged). Per the operator priority shift on
+2026-04-26, the next session picks up **Sprint 2 first, then Sprint
+3**, NOT Sprints 1.2 / 1.3 / 1.4.
+
+**Sprint 2 — Skill composition graph + `nextSteps[]` (start here):**
+
+> "Load `docs/plans/tool-discovery-tiering-2026-04-26.md` §10 and
+> `docs/handoffs/2026-04-26-overnight.md`. Phase 0 + Sprint 1.1 +
+> docs all landed on `main` (PRs #288 / #289 / #290). Pick up
+> Sprint 2 — auto-derived skill composition graph + `nextSteps[]`.
+> First slice: resolve the verified `code-refinement` blocker —
+> either build it as an executable skill under
+> `SKILLS/ORCHESTRATION FRAMEWORK/.../code-refinement/SKILL.md`
+> with proper trigger-explicit description and progressive
+> disclosure, OR remove the dangling reference from `pr-manager`.
+> Decide based on what `pr-manager → security-review →
+> code-refinement` is supposed to actually do, not on which option
+> is faster. Then build `scripts/derive-skill-composition.js`
+> using a markdown-heading section locator (NOT line numbers) for
+> the panel-of-experts SKILL.md injection table."
+
+**Sprint 3 — Schema-deferred `tools/list` + `describe_tool` (do
+research first):**
+
+> "Load `docs/plans/tool-discovery-tiering-2026-04-26.md` §10
+> Sprint 3. Before any implementation, produce a client-compatibility
+> matrix covering Claude Desktop, Cursor, Cline, Continue, and any
+> other custom MCP clients in repo docs. For each client, document:
+> does it tolerate `inputSchema` being absent on `tools/list`? Does
+> it call a separate tool to fetch the schema before invocation, and
+> if so under what method name? What's the user-visible failure mode
+> when a tool is called without a cached schema? Land that matrix as
+> a `docs/research/tools-list-deferred-schema-compat-2026-04-XX.md`
+> doc PR. Only after the matrix is on main do we start the
+> implementation slice (`describe_tool` companion + flag-gated
+> deferred `tools/list`)."
 
 ### Option A — Security A
 
