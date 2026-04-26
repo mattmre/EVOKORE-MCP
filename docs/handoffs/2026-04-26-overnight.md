@@ -29,7 +29,7 @@ the PR was not opened (deferred, blocked, or context-budget hit)._
 | Order | PR # | URL | Title | State | CI status | Notes |
 |-------|------|-----|-------|-------|-----------|-------|
 | 1 | _TBD_ | _TBD_ | fix(session): namespace activation Map by client identity | _TBD_ | _TBD_ | _TBD_ |
-| 2 | _TBD_ | _TBD_ | docs: tool discovery tiering phased plan + next-session sync | _TBD_ | _TBD_ | _TBD_ |
+| 2 | 288 | https://github.com/mattmre/EVOKORE-MCP/pull/288 | docs: tool discovery tiering phased plan + next-session sync | open | pending | docs-only; safe to merge anytime |
 | 3 | _TBD_ | _TBD_ | feat(discovery): named profiles in mcp.config.json + ProfileResolver | _TBD_ | _TBD_ | _TBD_ |
 
 ---
@@ -62,7 +62,15 @@ build clean._
 _TBD — replaced when PR opens_
 
 ### PR 2
-_TBD — replaced when PR opens_
+
+- Opened: https://github.com/mattmre/EVOKORE-MCP/pull/288
+- Branch: `docs/tool-discovery-tiering-plan` (from `origin/main` @ `fdac565`)
+- Diff stats: 3 files, 829 insertions, 5 deletions (commit `c38e731`)
+- Files:
+  - `docs/plans/tool-discovery-tiering-2026-04-26.md` (new)
+  - `docs/handoffs/2026-04-26-overnight.md` (new — this file)
+  - `next-session.md` (modified — existing content preserved)
+- Air-check: docs-only, no test/build impact
 
 ### PR 3
 _TBD — replaced when PR opens_
