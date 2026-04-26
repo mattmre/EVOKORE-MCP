@@ -1,5 +1,6 @@
 import Fuse from "fuse.js";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import type { DiscoveryProfile } from "./ProfileResolver";
 
 export type ToolCatalogSource = "native" | "proxy";
 
@@ -24,10 +25,25 @@ export class ToolCatalogIndex {
   private readonly entriesByName: Map<string, ToolCatalogEntry>;
   private readonly fuse: Fuse<ToolCatalogEntry>;
 
-  constructor(nativeTools: Tool[], proxiedTools: Tool[]) {
+  constructor(nativeTools: Tool[], proxiedTools: Tool[], profile?: DiscoveryProfile) {
+    const visibilitySet =
+      profile && Array.isArray(profile.alwaysVisible)
+        ? new Set(profile.alwaysVisible)
+        : null;
+    const isAlwaysVisible = (tool: Tool, source: ToolCatalogSource): boolean => {
+      // Profile-driven visibility: explicit list of tool names.
+      if (visibilitySet) {
+        return visibilitySet.has(tool.name);
+      }
+      // Default ("all-native" or no profile supplied): preserve legacy
+      // behavior — every native tool is always visible, proxied tools
+      // are dynamic.
+      return source === "native";
+    };
+
     this.entries = [
-      ...nativeTools.map((tool) => this.createEntry(tool, "native")),
-      ...proxiedTools.map((tool) => this.createEntry(tool, "proxy"))
+      ...nativeTools.map((tool) => this.createEntry(tool, "native", isAlwaysVisible(tool, "native"))),
+      ...proxiedTools.map((tool) => this.createEntry(tool, "proxy", isAlwaysVisible(tool, "proxy")))
     ];
 
     this.entriesByName = new Map(this.entries.map((entry) => [entry.name, entry]));
@@ -42,7 +58,7 @@ export class ToolCatalogIndex {
     });
   }
 
-  private createEntry(tool: Tool, source: ToolCatalogSource): ToolCatalogEntry {
+  private createEntry(tool: Tool, source: ToolCatalogSource, alwaysVisible: boolean): ToolCatalogEntry {
     const serverSplitIndex = source === "proxy" ? tool.name.indexOf("_") : -1;
     const serverId = serverSplitIndex > 0 ? tool.name.slice(0, serverSplitIndex) : undefined;
     const originalName = serverSplitIndex > 0 ? tool.name.slice(serverSplitIndex + 1) : undefined;
@@ -52,7 +68,7 @@ export class ToolCatalogIndex {
       description: tool.description || "No description provided.",
       tool,
       source,
-      alwaysVisible: source === "native",
+      alwaysVisible,
       serverId,
       originalName,
       keywords: []

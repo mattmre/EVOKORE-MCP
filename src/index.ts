@@ -47,6 +47,12 @@ import { AuditLog } from "./AuditLog";
 import { AuditExporter } from "./AuditExporter";
 import { warmContainerSandboxImages } from "./ContainerSandbox";
 import { ComplianceChecker } from "./ComplianceChecker";
+import {
+  loadDiscoveryConfig,
+  resolveActiveProfile,
+  type DiscoveryProfile,
+  type ResolvedProfile,
+} from "./ProfileResolver";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -89,6 +95,8 @@ export class EvokoreMCPServer {
   private sessionTtlMs: number | undefined;
   private httpMode: boolean;
   private readonly defaultSessionId: string;
+  private readonly resolvedProfile: ResolvedProfile;
+  private readonly discoveryProfile: DiscoveryProfile;
 
   constructor(options?: EvokoreMCPServerOptions) {
     this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
@@ -99,6 +107,11 @@ export class EvokoreMCPServer {
     // to use as a filename component on Windows (FileSessionStore writes
     // `~/.evokore/sessions/<sessionId>.json`).
     this.defaultSessionId = `stdio-${randomUUID()}`;
+    // Discovery profile is resolved once at construction and frozen for
+    // this server instance. Hot-reload of profiles is intentionally out
+    // of scope for Sprint 1.1.
+    this.resolvedProfile = resolveActiveProfile({ config: loadDiscoveryConfig() });
+    this.discoveryProfile = this.resolvedProfile.profile;
     this.server = new Server(
       {
         name: "evokore-mcp",
@@ -145,7 +158,7 @@ export class EvokoreMCPServer {
     });
     this.skillManager = new SkillManager(this.proxyManager, this.registryManager);
     this.complianceChecker = new ComplianceChecker();
-    this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), []);
+    this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), [], this.discoveryProfile);
 
     // Session TTL parsed once, used both here and in loadSubsystems() for Redis init
     const ttlMs = parseInt(process.env.EVOKORE_SESSION_TTL_MS || "3600000", 10);
@@ -195,7 +208,7 @@ export class EvokoreMCPServer {
       ...this.fleetManager.getTools(),
       ...this.orchestrationRuntime.getTools(),
     ];
-    this.toolCatalog = new ToolCatalogIndex(nativeTools, this.proxyManager.getProxiedTools());
+    this.toolCatalog = new ToolCatalogIndex(nativeTools, this.proxyManager.getProxiedTools(), this.discoveryProfile);
   }
 
   private getSessionId(extra?: RequestExtra): string {
@@ -920,7 +933,7 @@ export class EvokoreMCPServer {
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode})`);
+    console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on stdio (tool discovery mode: ${this.discoveryMode}, profile: ${this.resolvedProfile.profileName} via ${this.resolvedProfile.source})`);
     this.webhookManager.emit("session_start", { transport: "stdio" });
     this.telemetryManager.recordSessionStart();
     this.auditLog.log("session_create", "success", { metadata: { transport: "stdio" } });
@@ -963,7 +976,7 @@ export class EvokoreMCPServer {
     await httpServer.start();
 
     const addr = httpServer.getAddress();
-    console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on HTTP at http://${addr.host}:${addr.port} (tool discovery mode: ${this.discoveryMode})`);
+    console.error(`[EVOKORE] v${SERVER_VERSION} Enterprise Router running on HTTP at http://${addr.host}:${addr.port} (tool discovery mode: ${this.discoveryMode}, profile: ${this.resolvedProfile.profileName} via ${this.resolvedProfile.source})`);
     this.webhookManager.emit("session_start", { transport: "http", host: addr.host, port: addr.port });
     this.telemetryManager.recordSessionStart();
     this.auditLog.log("session_create", "success", { metadata: { transport: "http", host: addr.host, port: addr.port } });
