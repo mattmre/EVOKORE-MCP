@@ -128,7 +128,7 @@ PR 2 (docs) is independent and can merge in any order.
 ## 5. Phase 0 — stdio singleton fix
 
 ### Problem
-[src/index.ts:53,194-210](src/index.ts) — `DEFAULT_SESSION_ID =
+[src/index.ts:53,194-210](/src/index.ts) — `DEFAULT_SESSION_ID =
 "__stdio_default_session__"` is the only key for stdio sessions.
 Multiple stdio clients connected to the same EVOKORE process share one
 activation Map. This is a session-isolation regression that already
