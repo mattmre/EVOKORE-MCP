@@ -3,7 +3,7 @@
 - **Session:** `sharp-tharp-090e3d`
 - **Plan:** [docs/plans/tool-discovery-tiering-2026-04-26.md](../plans/tool-discovery-tiering-2026-04-26.md)
 - **Run started (UTC):** 2026-04-26 (operator asleep)
-- **Run ended (UTC):** _filled in at sprint stop_
+- **Run ended (UTC):** 2026-04-26 (overnight scope complete)
 - **Operator action required:** review and merge PRs in the order below
 
 ---
@@ -30,7 +30,7 @@ the PR was not opened (deferred, blocked, or context-budget hit)._
 |-------|------|-----|-------|-------|-----------|-------|
 | 1 | 289 | https://github.com/mattmre/EVOKORE-MCP/pull/289 | fix(session): namespace stdio activation Map by per-instance id | open | pending | targeted vitest 35+79 passed locally; build clean |
 | 2 | 288 | https://github.com/mattmre/EVOKORE-MCP/pull/288 | docs: tool discovery tiering phased plan + next-session sync | open | pending | docs-only; safe to merge anytime |
-| 3 | _TBD_ | _TBD_ | feat(discovery): named profiles in mcp.config.json + ProfileResolver | _TBD_ | _TBD_ | _TBD_ |
+| 3 | 290 | https://github.com/mattmre/EVOKORE-MCP/pull/290 | feat(discovery): named profiles in mcp.config.json + ProfileResolver | open (DRAFT) | pending | branched from PR #289; rebase onto post-#289 main before merging |
 
 ---
 
@@ -92,16 +92,43 @@ build clean._
 - Air-check: docs-only, no test/build impact
 
 ### PR 3
-_TBD — replaced when PR opens_
+
+- Opened: https://github.com/mattmre/EVOKORE-MCP/pull/290 (DRAFT)
+- Branch: `feat/discovery-profile-config` (cut from
+  `fix/stdio-activation-singleton`)
+- Diff stats: 6 files, 434 insertions, 9 deletions (commit `9e2944b`)
+- Files added:
+  - `src/ProfileResolver.ts` — pure resolver + config loader
+  - `tests/integration/profile-resolver.test.ts` (8 cases)
+  - `tests/integration/tool-catalog-profile-visibility.test.ts` (7 cases)
+- Files modified:
+  - `src/ToolCatalogIndex.ts` — optional 3rd `profile` param
+  - `src/index.ts` — resolves profile once at construction, threads to
+    both `ToolCatalogIndex` constructions, logs at startup
+  - `.env.example` — documents `EVOKORE_DISCOVERY_PROFILE` + safety pin
+- Air-check:
+  - `npx vitest run tests/integration/profile-resolver.test.ts
+    tests/integration/tool-catalog-profile-visibility.test.ts`
+    -> 15 passed
+  - `npx vitest run tests/integration/session-isolation-httpserver-wiring.test.ts
+    tests/integration/stdio-default-session-isolation.test.ts`
+    -> 35 passed (Phase 0 still green on this branch)
+  - `npx vitest run test-env-sync-validation.js` -> 1 passed
+  - `npm run build` clean
 
 ---
 
 ## Deviations from the plan
 
-_Filled in if the orchestrator had to deviate from
-`docs/plans/tool-discovery-tiering-2026-04-26.md` for any reason._
+None. The overnight scope landed as designed in the reduced-scope
+panel-revised plan. One small in-scope adjustment worth flagging for
+the operator:
 
-_TBD_
+- The Phase 0 PR (#289) also updated one source-scraping assertion in
+  `tests/integration/session-isolation-httpserver-wiring.test.ts`
+  (regex changed from `DEFAULT_SESSION_ID` to `this.defaultSessionId`)
+  to match the new code shape. This is the same pattern the BUG-28
+  conversion wave is already applying to other source-scraping tests.
 
 ---
 
@@ -175,13 +202,19 @@ run. Pick it up first per plan §6, then proceed to Sprint 1.2."
 
 ## Stop reasons
 
-_Filled in by the orchestrator when the run ends. One of:_
+**Sprint complete — 3/3 PRs opened.**
 
-- _Sprint complete (3/3 PRs opened, all checks green)_
-- _Air-check failure quota reached (specific PR + failure)_
-- _GitHub Actions quota below 200 minutes_
-- _90-minute wall-clock cap_
-- _Orchestrator context pressure_
-- _Hard error / unrecoverable state — operator intervention required_
+- PR #289 (Phase 0 stdio fix) — open, ready for review, all targeted
+  vitest runs passed locally, build clean.
+- PR #288 (docs) — open, docs-only.
+- PR #290 (Sprint 1.1 ProfileResolver) — open as DRAFT (depends on
+  PR #289), all targeted vitest runs passed locally, build clean.
 
-_TBD_
+No air-check failures. No context-pressure cutoff hit. No deviations
+from the reduced-scope plan in
+`docs/plans/tool-discovery-tiering-2026-04-26.md`.
+
+Sprint 1.2 / 1.3 / 1.4 / Sprint 2 / Sprint 3 / parked Code Mode all
+deferred per the original reduced-scope plan, not because of run-time
+constraints. See "Deferred to next session" above for the resume
+sequence.
