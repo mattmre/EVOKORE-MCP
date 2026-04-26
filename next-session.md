@@ -1,12 +1,61 @@
 # Next Session Priorities
 
-Last Updated (UTC): 2026-04-25
+Last Updated (UTC): 2026-04-26
+
+## ⚠️ ACTIVE PRIORITY SET — Tool Discovery Tiering Sprint (P0)
+
+**Plan:** [docs/plans/tool-discovery-tiering-2026-04-26.md](docs/plans/tool-discovery-tiering-2026-04-26.md)
+
+**Status (overnight autonomous run):** in progress on session
+`sharp-tharp-090e3d`. PRs are being opened against `main`; **operator
+must review and merge in the morning**. Until this sprint completes,
+the rest of this file (security A/B, reliability, BUG-28, vector gate,
+npm publish, hosted VPS) is paused — **come back to it once the
+tiering sprint ships.**
+
+**Why it jumped the queue:** every connecting MCP client pays a 12K–31K
+token tax on the initial `tools/list`. Panel-of-experts review (Q1/Q2/Q3
+strategy + Panel A/B/C/D execution-risk) confirmed the existing binary
+`EVOKORE_TOOL_DISCOVERY_MODE=legacy|dynamic` toggle is the floor of what
+the technique can do — peers (Solo.io, Speakeasy, Cloudflare Code Mode)
+ship 96–99.9 % reductions while we ship ~50–60 %. The same review also
+surfaced a real session-isolation bug
+([src/index.ts:53](src/index.ts:53) — stdio activation Map keyed on
+literal `__stdio_default_session__`) that is independent of the
+strategy and ships in this sprint regardless.
+
+**Overnight scope (REDUCED after second-pass critique):**
+
+| Order | Branch | Title | Status |
+|-------|--------|-------|--------|
+| 1 | `fix/stdio-activation-singleton` | fix(session): namespace activation Map by client identity | (see overnight handoff) |
+| 2 | `docs/tool-discovery-tiering-plan` | docs: tool discovery tiering phased plan + next-session sync | (see overnight handoff) |
+| 3 | `feat/discovery-profile-config` | feat(discovery): named profiles in mcp.config.json + ProfileResolver | draft, depends on PR 1 (see overnight handoff) |
+
+**Deferred to subsequent sessions** (full handoff details in the plan
+doc §10):
+
+- Sprint 1.2 — MCP cursor pagination on `tools/list`
+- Sprint 1.3 — determinism + Fuse pinning + ranking order
+- Sprint 1.4 — profile presets + deprecation shim + tests + benchmark
+- Sprint 2 — auto-derived skill composition graph + `nextSteps[]`
+- Sprint 3 — schema-deferred `tools/list` (`describe_tool` companion)
+- Parked — Cloudflare-style "Code Mode" tier-0 (research only)
+
+**Morning operator handoff:** see
+[docs/handoffs/2026-04-26-overnight.md](docs/handoffs/2026-04-26-overnight.md)
+once the run completes for exact PR URLs, statuses, and the resume
+command for the next session.
+
+---
 
 ## Current Handoff State
-- **Active branch:** `main` (clean)
-- **HEAD:** `7ba93ef` (`Expand CLI sync to Copilot and Codex (#277)`)
-- **Open PRs:** None
-- **Worktrees:** Root checkout only
+- **Active branch:** `main` (clean) at run start
+- **HEAD at run start:** `fdac565` (`docs: add hosted-VPS EVOKORE track to next-session.md`)
+- **Open PRs:** none at run start; up to 3 expected to be open after the overnight tiering run
+- **Worktrees:** orchestrator session running on
+  `sharp-tharp-090e3d`; per-PR worktrees spawned under
+  `.claude/worktrees/agent-*` and removed after each PR ships
 
 ---
 
@@ -201,6 +250,14 @@ instrumentation -> operator-gated npm publication
 ---
 
 ## How To Start Next Session
+
+### Option Z — Resume the Tool Discovery Tiering sprint (P0, blocks all others)
+
+> "Load `docs/plans/tool-discovery-tiering-2026-04-26.md` and
+> `docs/handoffs/2026-04-26-overnight.md`. Confirm the morning state —
+> which PRs landed, which are still open, which are deferred. Resume
+> with the next deferred sprint in §10 of the plan (Sprint 1.2 if
+> Sprint 1.1 merged, otherwise pick up Sprint 1.1 work)."
 
 ### Option A — Security A
 
