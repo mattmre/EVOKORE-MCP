@@ -152,8 +152,10 @@ In rank order of priority for the next session:
    - Plan: §9
    - Add `coding`, `research`, `voice`, `legacy-full`, `legacy-dynamic`
      profiles
-   - Use a real tokenizer (tiktoken / @dqbd/tiktoken) for budget
-     enforcement, OR label budgets as approximate and reduce by 30 %
+   - Use a real tokenizer (`tiktoken` or `js-tiktoken`; the older
+     `@dqbd/tiktoken` package is deprecated and should not be used) for
+     budget enforcement, OR label budgets as approximate and reduce by
+     30 %
 
 4. **Sprint 2 — Auto-derived skill composition graph**
    - Plan: §10

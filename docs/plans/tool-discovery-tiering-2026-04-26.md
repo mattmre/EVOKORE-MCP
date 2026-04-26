@@ -318,10 +318,15 @@ Pre-staged design lives here.
   deprecation shim
 - Extend `scripts/benchmark-tool-discovery.js` to emit token counts
   per profile
-- **Use a real tokenizer** (panel B fix): wire in `tiktoken` or
-  `@dqbd/tiktoken` for accurate counting; do NOT use char/4 estimates
-  for budget enforcement. If a real tokenizer is impractical, label all
-  budget claims as "approximate" and reduce them by 30 %.
+- **Use a real tokenizer** (panel B fix): wire in `tiktoken` (the
+  actively maintained OpenAI port) or `js-tiktoken` (pure-JS, ~2 MB,
+  noted as the working option in
+  `docs/research/ecc-cascade-feasibility-panel-2026-03-30.md`) for
+  accurate counting; do NOT use char/4 estimates for budget enforcement.
+  Note: the older `@dqbd/tiktoken` package is deprecated — its README
+  redirects users to `js-tiktoken`, so do not pin a new dependency on
+  it. If a real tokenizer is impractical, label all budget claims as
+  "approximate" and reduce them by 30 %.
 - `EVOKORE_TOOL_DISCOVERY_MODE` deprecation timeline documented in
   `docs/TOOL_DISCOVERY_PROFILES.md`
 - `CLAUDE.md` runtime additions section: 3-line summary linking to the
@@ -358,11 +363,18 @@ prose is aspirational, not wired. Sprint 2 must either (a) build the
 skill or (b) remove the dangling reference.
 
 **What to pick up:**
-- Build `scripts/derive-skill-composition.js` — reads
-  `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/SKILL.md` injection
-  table (lines 237–298) and statically scans all `SKILLS/**/SKILL.md`
+- Build `scripts/derive-skill-composition.js` — locates the injection
+  table inside
+  `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/SKILL.md` by
+  searching for the section header (e.g. an `## Injection Points`
+  / `### Mandatory Injection Points` markdown heading) rather than
+  hard-coded line numbers, since SKILL.md is edited frequently and
+  line offsets drift. Then statically scans all `SKILLS/**/SKILL.md`
   files for `invoke .*-skill|run .*panel` references, emits a
-  `skill-graph.json` artifact at build time.
+  `skill-graph.json` artifact at build time. (For an even more
+  durable contract, add a structured frontmatter or HTML-comment
+  marker — e.g. `<!-- @AI:NAV(SEC:injection-points) -->` — when this
+  feature is implemented and parse against the marker.)
 - Extend `execute_skill` in `src/SkillManager.ts` to read
   `skill-graph.json` and return `nextSteps: [{skill, reason}]` in its
   payload.
