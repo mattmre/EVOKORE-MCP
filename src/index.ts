@@ -95,7 +95,10 @@ export class EvokoreMCPServer {
     // Per-instance default session key. Replaces the previous shared
     // "__stdio_default_session__" literal so distinct server instances
     // never share an activation Map even when running in the same process.
-    this.defaultSessionId = `stdio:${randomUUID()}`;
+    // Use a hyphen separator instead of a colon so the session id is safe
+    // to use as a filename component on Windows (FileSessionStore writes
+    // `~/.evokore/sessions/<sessionId>.json`).
+    this.defaultSessionId = `stdio-${randomUUID()}`;
     this.server = new Server(
       {
         name: "evokore-mcp",

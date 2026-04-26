@@ -28,8 +28,12 @@ describe('stdio default session isolation', () => {
 
     expect(typeof idA).toBe('string');
     expect(typeof idB).toBe('string');
-    expect(idA.startsWith('stdio:')).toBe(true);
-    expect(idB.startsWith('stdio:')).toBe(true);
+    expect(idA.startsWith('stdio-')).toBe(true);
+    expect(idB.startsWith('stdio-')).toBe(true);
+    // Hyphen separator (not colon) keeps the id safe as a Windows filename
+    // component for FileSessionStore.
+    expect(idA).not.toMatch(/^stdio:/);
+    expect(idB).not.toMatch(/^stdio:/);
     expect(idA).not.toBe(idB);
   });
 
