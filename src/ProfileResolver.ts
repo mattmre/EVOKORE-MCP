@@ -171,7 +171,15 @@ export function loadDiscoveryConfig(configPath?: string): DiscoveryConfig {
       return {};
     }
     return discovery as DiscoveryConfig;
-  } catch {
+  } catch (err) {
+    // Soft-fail to {} so a malformed config never crashes startup, but
+    // surface the reason on stderr so operators can debug a silently-
+    // ignored discovery block (e.g. JSON syntax error in mcp.config.json).
+    const message = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.error(
+      `[evokore-mcp] Failed to load discovery config from ${resolved}: ${message}. Using built-in default profile.`
+    );
     return {};
   }
 }
