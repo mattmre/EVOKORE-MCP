@@ -130,7 +130,7 @@ describe('SessionIsolation-HttpServer Wiring', () => {
     });
 
     it('pre-creates the default session in run() for stdio mode', () => {
-      expect(indexSrc).toMatch(/sessionIsolation\.createSession\s*\(\s*DEFAULT_SESSION_ID\s*\)/);
+      expect(indexSrc).toMatch(/sessionIsolation\.createSession\s*\(\s*this\.defaultSessionId\s*\)/);
     });
 
     it('getActivatedTools delegates to sessionIsolation', () => {

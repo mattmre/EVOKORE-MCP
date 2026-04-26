@@ -16,6 +16,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
 import path from "path";
+import { randomUUID } from "crypto";
 
 // Load Vault Secrets before any proxy spawns
 dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
@@ -49,8 +50,6 @@ import { ComplianceChecker } from "./ComplianceChecker";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
-
-const DEFAULT_SESSION_ID = "__stdio_default_session__";
 
 const SERVER_VERSION = "3.1.0";
 
@@ -89,9 +88,17 @@ export class EvokoreMCPServer {
   private sessionIsolation: SessionIsolation;
   private sessionTtlMs: number | undefined;
   private httpMode: boolean;
+  private readonly defaultSessionId: string;
 
   constructor(options?: EvokoreMCPServerOptions) {
     this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
+    // Per-instance default session key. Replaces the previous shared
+    // "__stdio_default_session__" literal so distinct server instances
+    // never share an activation Map even when running in the same process.
+    // Use a hyphen separator instead of a colon so the session id is safe
+    // to use as a filename component on Windows (FileSessionStore writes
+    // `~/.evokore/sessions/<sessionId>.json`).
+    this.defaultSessionId = `stdio-${randomUUID()}`;
     this.server = new Server(
       {
         name: "evokore-mcp",
@@ -192,7 +199,7 @@ export class EvokoreMCPServer {
   }
 
   private getSessionId(extra?: RequestExtra): string {
-    return extra?.sessionId ?? DEFAULT_SESSION_ID;
+    return extra?.sessionId ?? this.defaultSessionId;
   }
 
   /**
@@ -907,8 +914,9 @@ export class EvokoreMCPServer {
     // Load all subsystems sequentially
     await this.loadSubsystems();
 
-    // Pre-create the default session for stdio mode
-    this.sessionIsolation.createSession(DEFAULT_SESSION_ID);
+    // Pre-create the default session for stdio mode using this instance's
+    // unique default session key (no shared literal across instances).
+    this.sessionIsolation.createSession(this.defaultSessionId);
 
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
