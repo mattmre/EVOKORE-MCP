@@ -354,13 +354,18 @@ frontmatter on 170+ skills" approach a context-rot trap. The replacement
 `nextSteps[]` runtime activation + 7-mandatory-injection-point
 allowlist) is its own 5–8 day sprint and would explode this PR chain.
 
-**Important verified finding (panel D):**
-`SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/panels/code-refinement.md`
-exists as a **panel definition only**. There is **no executable
-`code-refinement` skill anywhere in the repo**. The
-`pr-manager → security-review → code-refinement` chain referenced in
-prose is aspirational, not wired. Sprint 2 must either (a) build the
-skill or (b) remove the dangling reference.
+**Sprint 2.0 — code-refinement blocker — RESOLVED.** Panel D's original
+finding was that `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/panels/code-refinement.md`
+exists only as a panel definition and that the
+`pr-manager → security-review → code-refinement` chain in prose was
+aspirational. Sprint 2.0 verified that the panel definition is itself a
+loadable skill (frontmatter `name: panel-code-refinement`, indexed by
+`SkillManager.loadSkills()`), that neither `pr-manager` nor
+`security-review` skill bodies ever invoked code-refinement, and that
+the imagined chain only existed in three planning docs from the
+overnight orchestrator run. Resolution: option (b) — remove the
+dangling references. See
+[`docs/decisions/2026-04-26-code-refinement-blocker.md`](../decisions/2026-04-26-code-refinement-blocker.md).
 
 **What to pick up:**
 - Build `scripts/derive-skill-composition.js` — locates the injection
@@ -388,8 +393,6 @@ skill or (b) remove the dangling reference.
   re-emits `tools/list_changed`.
 - Force the 7 mandatory injection-point downstream skills into every
   default profile's `alwaysVisibleTools`.
-- Audit + repair the `pr-manager → security-review → code-refinement`
-  chain.
 
 ### Sprint 3 — Schema-deferred tools/list
 

@@ -160,11 +160,18 @@ In rank order of priority for the next session:
 4. **Sprint 2 — Auto-derived skill composition graph**
    - Plan: §10
    - 5–8 day sprint, separate from tiering work
-   - **Verified blocker:** `code-refinement` skill does not exist as
-     an executable skill (only as a panel definition under
-     `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/panels/code-refinement.md`).
-     Sprint 2 must either build it or remove the dangling reference
-     in `pr-manager`.
+   - **Earlier blocker — RESOLVED in Sprint 2.0:** the original
+     "verified blocker" prose claimed an executable
+     `code-refinement` skill was missing and that a
+     `pr-manager → security-review → code-refinement` chain needed
+     audit + repair. Verification showed the panel-of-experts panel
+     at `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/panels/code-refinement.md`
+     is itself a loadable skill (registered name
+     `panel-code-refinement`), and that no `pr-manager` /
+     `security-review` skill body ever invoked code-refinement. The
+     dangling references in this handoff and the plan doc were
+     cleaned up. See
+     [`docs/decisions/2026-04-26-code-refinement-blocker.md`](../decisions/2026-04-26-code-refinement-blocker.md).
 
 5. **Sprint 3 — Schema-deferred `tools/list`**
    - Plan: §10
