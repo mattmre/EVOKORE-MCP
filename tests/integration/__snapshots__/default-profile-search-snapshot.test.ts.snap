@@ -90,6 +90,11 @@ exports[`Default profile search snapshot > locks top-5 results for canonical que
       "subcategory": "commands",
     },
     {
+      "category": "ARCHITECTURE",
+      "name": "improve-codebase-architecture",
+      "subcategory": "",
+    },
+    {
       "category": "ORCHESTRATION FRAMEWORK",
       "name": "orch-tdd",
       "subcategory": "commands",
@@ -103,11 +108,6 @@ exports[`Default profile search snapshot > locks top-5 results for canonical que
       "category": "ORCHESTRATION FRAMEWORK",
       "name": "panel-code-refinement",
       "subcategory": "panel-of-experts/panels",
-    },
-    {
-      "category": "WSHOBSON PLUGINS",
-      "name": "architecture-patterns",
-      "subcategory": "backend-development",
     },
   ],
   "voice": [
