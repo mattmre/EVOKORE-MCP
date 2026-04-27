@@ -7,3 +7,6 @@ url = https://github.com/K-Dense-AI/claude-skills-mcp
 [submodule "SKILLS/OFFICIAL MCP SERVERS"]
 path = SKILLS/OFFICIAL MCP SERVERS
 url = https://github.com/modelcontextprotocol/servers
+[submodule "SKILLS/upstream/mattpocock-skills"]
+	path = SKILLS/upstream/mattpocock-skills
+	url = https://github.com/mattpocock/skills.git

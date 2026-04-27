@@ -1,0 +1,54 @@
+EVOKORE-MCP
+Copyright (c) 2026 mattmre
+
+This product includes software developed under the MIT License.
+See LICENSE for the full text of the EVOKORE-MCP license.
+
+================================================================================
+EVOKORE-MCP Third-Party Skill Attribution
+================================================================================
+
+EVOKORE-MCP vendors selected third-party skill packs as read-only git
+submodules. Each entry below records the upstream source, the commit pinned
+into this repository, the date the submodule was fetched, and the upstream
+license that governs its contents. Adapter SKILL.md files written inside
+EVOKORE-MCP that reference these upstreams must preserve the upstream
+copyright notice in any redistributed substantial portions, per the relevant
+license terms.
+
+--------------------------------------------------------------------------------
+mattpocock/skills
+--------------------------------------------------------------------------------
+
+Source repo:        https://github.com/mattpocock/skills
+Pinned commit:      90ea8eec03d4ae8f43427aaf6fe4722653561a42
+Fetched date:       2026-04-27
+License type:       MIT
+Copyright holder:   Copyright (c) 2026 Matt Pocock
+Submodule path:     SKILLS/upstream/mattpocock-skills
+License file:       SKILLS/upstream/mattpocock-skills/LICENSE
+
+The MIT License text from the upstream repository is reproduced below for
+convenience. The authoritative copy lives at the License file path above.
+
+    MIT License
+
+    Copyright (c) 2026 Matt Pocock
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
