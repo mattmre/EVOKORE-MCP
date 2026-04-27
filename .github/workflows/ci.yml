@@ -27,6 +27,23 @@ jobs:
       - name: TypeScript type check
         run: npx tsc --noEmit
 
+  manifest-drift:
+    name: README manifest drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Pure Node.js script — no dependencies, no install step needed.
+      - name: Check README version + native tool count match source of truth
+        run: node scripts/check-readme-manifest-drift.js
+
   test:
     name: Test Suite (shard ${{ matrix.shard }}/3)
     needs: [build]
