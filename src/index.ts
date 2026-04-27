@@ -369,8 +369,12 @@ export class EvokoreMCPServer {
     this.schemaCompatProbeTimer = setTimeout(() => {
       if (this.describeToolInvoked) return;
       this.schemaModeEffective = "full";
+      const windowLabel =
+        this.schemaFallbackMs >= 1000
+          ? `${Math.round(this.schemaFallbackMs / 1000)}s`
+          : `${this.schemaFallbackMs}ms`;
       console.error(
-        "[EVOKORE] Schema-deferral fallback: client did not call describe_tool within 60s; reverting to full mode (offending client likely doesn't support deferred schemas)."
+        `[EVOKORE] Schema-deferral fallback: client did not call describe_tool within ${windowLabel}; reverting to full mode (offending client likely doesn't support deferred schemas).`
       );
       // Bump epoch and notify listeners so the next tools/list returns
       // full schemas. Best-effort — failures are logged but do not

@@ -195,8 +195,11 @@ describe('schema-deferred tools/list', () => {
       expect(search.inputSchema.properties.query).toBeDefined();
 
       // Stderr warning must fire exactly once with the expected text.
+      // Window label is dynamic (50ms in this test) — match the
+      // stable prefix so the assertion isn't tied to the configured
+      // fallback duration.
       const fallbackWarnings = errSpy.mock.calls.filter((c) =>
-        String(c[0] ?? '').includes('Schema-deferral fallback: client did not call describe_tool within 60s'),
+        String(c[0] ?? '').includes('Schema-deferral fallback: client did not call describe_tool within '),
       );
       expect(fallbackWarnings.length).toBe(1);
       errSpy.mockRestore();
