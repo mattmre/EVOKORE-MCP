@@ -53,6 +53,7 @@ import {
   type DiscoveryProfile,
   type ResolvedProfile,
 } from "./ProfileResolver";
+import { paginateTools } from "./ToolCatalogPagination";
 
 type ToolDiscoveryMode = "legacy" | "dynamic";
 type RequestExtra = { sessionId?: string };
@@ -91,6 +92,11 @@ export class EvokoreMCPServer {
   private auditExporter: AuditExporter;
   private complianceChecker: ComplianceChecker;
   private discoveryMode: ToolDiscoveryMode;
+  // Sprint 1.2 — incremented on every `tools/list_changed` notification.
+  // `tools/list` cursors carry this epoch so stale cursors decode to a
+  // graceful reset (first page) instead of indexing into a different
+  // tool array.
+  private toolListEpoch: number = 0;
   private sessionIsolation: SessionIsolation;
   private sessionTtlMs: number | undefined;
   private httpMode: boolean;
@@ -245,11 +251,24 @@ export class EvokoreMCPServer {
       return;
     }
 
+    this.toolListEpoch++;
     try {
       await this.server.sendToolListChanged();
     } catch (error: any) {
       console.error(`[EVOKORE] sendToolListChanged() failed in best-effort mode: ${error?.message || error}`);
     }
+  }
+
+  /**
+   * Sprint 1.2 — test-only helper to bump the tool-list epoch without
+   * relying on the MCP transport. Production code paths bump the epoch
+   * directly before calling `sendToolListChanged()`. Tests use this
+   * method to assert cursor invalidation independently of transport.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private bumpToolListEpochForTests(): number {
+    this.toolListEpoch++;
+    return this.toolListEpoch;
   }
 
   private getListedToolNames(extra?: RequestExtra): string[] {
@@ -282,6 +301,7 @@ export class EvokoreMCPServer {
       console.error(`[EVOKORE] Proxy bootstrap complete: ${proxiedToolCount} proxied tool(s) registered.`);
 
       if (listedToolsChanged) {
+        this.toolListEpoch++;
         try {
           await this.server.sendToolListChanged();
         } catch (error: any) {
@@ -379,6 +399,7 @@ export class EvokoreMCPServer {
     const result = await this.skillManager.refreshSkills();
     this.rebuildToolCatalog();
 
+    this.toolListEpoch++;
     try {
       await this.server.sendToolListChanged();
     } catch (error: any) {
@@ -397,6 +418,7 @@ export class EvokoreMCPServer {
     const result = await this.pluginManager.loadPlugins();
     this.rebuildToolCatalog();
 
+    this.toolListEpoch++;
     try {
       await this.server.sendToolListChanged();
     } catch (error: any) {
@@ -438,6 +460,7 @@ export class EvokoreMCPServer {
       try {
         await this.skillManager.refreshSkills();
         this.rebuildToolCatalog();
+        this.toolListEpoch++;
         await this.server.sendToolListChanged();
 
         // Append a refresh note to the response
@@ -668,12 +691,36 @@ export class EvokoreMCPServer {
     });
 
     // 3. Tools (Dynamic Injection & Proxied Actions)
-    this.server.setRequestHandler(ListToolsRequestSchema, async (_request, extra) => {
-      return {
-        tools: this.discoveryMode === "dynamic"
-          ? this.toolCatalog.getProjectedTools(this.getActivatedTools(extra))
-          : this.toolCatalog.getAllTools()
+    this.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
+      const allTools = this.discoveryMode === "dynamic"
+        ? this.toolCatalog.getProjectedTools(this.getActivatedTools(extra))
+        : this.toolCatalog.getAllTools();
+
+      // Operator opt-out: bypass pagination entirely. Useful for clients
+      // that cannot page (legacy MCP probes) or for diagnostic snapshots.
+      if (process.env.EVOKORE_TOOL_LIST_PAGINATION === "off") {
+        return { tools: allTools };
+      }
+
+      // Default page size 35 keeps the first page under the Cursor IDE
+      // 40-tool cap. Operators may raise the cap up to 1000 per page.
+      const rawPageSize = parseInt(process.env.EVOKORE_TOOL_LIST_PAGE_SIZE || "", 10);
+      const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0
+        ? Math.min(Math.max(Math.floor(rawPageSize), 1), 1000)
+        : 35;
+
+      const cursor = typeof request.params?.cursor === "string"
+        ? request.params.cursor
+        : undefined;
+
+      const page = paginateTools(allTools, pageSize, cursor, this.toolListEpoch);
+      const response: { tools: typeof page.tools; nextCursor?: string } = {
+        tools: page.tools,
       };
+      if (page.nextCursor) {
+        response.nextCursor = page.nextCursor;
+      }
+      return response;
     });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
@@ -926,6 +973,7 @@ export class EvokoreMCPServer {
     if (process.env.EVOKORE_SKILL_WATCHER === "true") {
       this.skillManager.setOnRefreshCallback(() => {
         this.rebuildToolCatalog();
+        this.toolListEpoch++;
         this.server.sendToolListChanged().catch((err: any) => {
           console.error(`[EVOKORE] sendToolListChanged() failed after watcher refresh: ${err?.message || err}`);
         });
