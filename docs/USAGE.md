@@ -91,12 +91,18 @@ When `get_skill_help` is invoked, EVOKORE-MCP returns the raw Markdown instructi
 
 EVOKORE supports two tool-listing modes:
 
-- **`legacy`** (default): every `tools/list` returns the full native + proxied tool list, now including `discover_tools`.
-- **`dynamic`**: `tools/list` returns the always-visible native tools plus only the proxied tools activated during the current session.
+- **`dynamic`** (default in v3.1+): `tools/list` returns the always-visible native tools plus only the proxied tools activated during the current session. Yields a lean ~1.5-2.5K-token initial payload.
+- **`legacy`** (opt-out): every `tools/list` returns the full native + proxied tool list, including `discover_tools`. Restores pre-v3.1 behavior (~12-31K-token payload).
 
 ```bash
-EVOKORE_TOOL_DISCOVERY_MODE=dynamic node dist/index.js
+# Default behavior — no env var needed:
+node dist/index.js
+
+# Opt out to legacy full-list mode:
+EVOKORE_TOOL_DISCOVERY_MODE=legacy node dist/index.js
 ```
+
+`EVOKORE_TOOL_DISCOVERY_MODE=legacy` is also a hard safety pin: it overrides any `EVOKORE_DISCOVERY_PROFILE` selection and forces the built-in default profile (every native tool always visible).
 
 In `dynamic` mode:
 
