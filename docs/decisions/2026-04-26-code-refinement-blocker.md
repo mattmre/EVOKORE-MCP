@@ -34,7 +34,7 @@ They split cleanly into two groups:
 These are not broken. `code-refinement` is an established panel name in
 the panel-of-experts framework. The panel definition itself loads as a
 skill under the registered name `panel-code-refinement` (see frontmatter
-at [`code-refinement.md` line 2](../../SKILLS/ORCHESTRATION%20FRAMEWORK/panel-of-experts/panels/code-refinement.md)).
+at line 2 of `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/panels/code-refinement.md`).
 
 | File | Lines | Nature |
 |---|---|---|
