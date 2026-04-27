@@ -135,6 +135,18 @@ dangerous_commands:
     pattern: 'git\s+remote\s+set-url'
     reason: 'Git remote URL modification — potential supply chain attack'
     ask: false
+  - id: DC-44
+    # TDD red-commit-hash convention (advisory).
+    # Matches `git commit -m "..."` whose inline message body mentions a
+    # test file (e.g. *.test.ts, *_test.py, *.spec.tsx) but does NOT
+    # include a `Test-Red: <40-hex-SHA>` footer. Surfaces an `ask` so the
+    # operator can confirm the GREEN commit references the prior RED SHA.
+    # ask: true rather than block — too noisy to hard-block today.
+    # See SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-tdd/SKILL.md
+    # ("Red-commit-hash evidence rule") and scripts/validate-tdd-evidence.js.
+    pattern: 'git\s+commit\s+-m\s+"(?=[^"]*\b\S+\.(?:test|spec)\.[a-z]+\b)(?:(?!Test-Red:\s*[0-9a-fA-F]{40})[\s\S])*"'
+    reason: 'TDD: commit touches a test file but lacks `Test-Red: <40-hex-SHA>` footer (orch-tdd advisory)'
+    ask: true
 
 zero_access_paths:
   - '.env'
