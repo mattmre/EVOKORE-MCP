@@ -211,9 +211,57 @@ After testing the skill, users may request improvements. Often this happens righ
 3. Identify how SKILL.md or bundled resources should be updated
 4. Implement changes and test again
 
+## EVOKORE Authoring Contract
+
+Skills authored for EVOKORE-MCP must satisfy a stricter shape than the upstream
+Anthropic skill-creator template, because `resolve_workflow` performs semantic
+ranking over `description` and the static composition graph parses literal
+phrases out of SKILL.md bodies. The `quick_validate.py` script enforces these
+rules as failures — they are NOT downgradable warnings.
+
+- **Trigger-explicit `description`.** The frontmatter `description` field must
+  start with `Use when ...` (case-insensitive) or contain the substring
+  `when to use`. Pure noun-phrase descriptions ("Browser automation tool")
+  are rejected because they degrade `resolve_workflow` ranking.
+- **Verb + minimum length.** The description must be at least 60 characters
+  AND contain at least one verb (heuristic: a word ending in `-ing` or one
+  of the verb allowlist in `quick_validate.py`).
+- **5-second-decide H2.** The skill body must contain an H2 heading
+  `## When to use this skill` within the first 30 lines after the closing
+  frontmatter `---`. A reader should be able to decide in 5 seconds whether
+  the skill applies to their task — this section is the answer.
+- **Kebab-case naming.** The `name` field is hyphen-case
+  (`[a-z0-9-]+`, no leading/trailing/consecutive hyphens). Skill directory
+  name must match.
+- **Composition phrasing.** When this skill should chain into another skill,
+  use the literal phrase format `invoke X skill` somewhere in SKILL.md.
+  `scripts/derive-skill-composition.js` parses that phrase into the static
+  skill graph, which powers `nextSteps[]` in `execute_skill` responses.
+- **Optional `upstream:` frontmatter.** Skills ported from external sources
+  (Anthropic Cookbook, mattpocock, third-party authors) MAY include an
+  `upstream:` field in frontmatter recording the canonical source URL or
+  repository. Adapter skills (see below) require additional provenance
+  fields beyond this base reference.
+
+### Baseline allowlist (deletion-only ratchet)
+
+Skills that predate this lint are listed in
+`baseline-allowlist.txt` (one POSIX-style path per line). Listed paths fail
+the lint as warnings and exit 0; unlisted paths that fail still exit 1. The
+allowlist is enforced as deletion-only by the vitest suite — entries can be
+removed when fixed but not added.
+
+To run the lint against a single skill with the allowlist applied:
+
+```bash
+python "SKILLS/DEVELOPER TOOLS/skill-creator/scripts/quick_validate.py" \\
+    "SKILLS/path/to/skill" \\
+    --against-allowlist "SKILLS/DEVELOPER TOOLS/skill-creator/baseline-allowlist.txt"
+```
+
 ## Adapter Skills
 
-EVOKORE-MCP vendors selected third-party skill packs as read-only git submodules under `SKILLS/upstream/<vendor>/`. When porting one of those upstream skills into an EVOKORE consumable form, write an **adapter SKILL.md** in the appropriate EVOKORE category directory (e.g., `SKILLS/DEVELOPER TOOLS/<skill-name>/SKILL.md`) instead of editing the submodule. Submodules are immutable from this repo's perspective.
+EVOKORE-MCP vendors selected third-party skill packs as read-only git submodules under `SKILLS/upstream/<vendor>/`. When porting one of those upstream skills into an EVOKORE consumable form, write an **adapter SKILL.md** in the appropriate EVOKORE category directory (e.g., `SKILLS/COMMUNICATION/<skill-name>/SKILL.md`) instead of editing the submodule. Submodules are immutable from this repo's perspective.
 
 ### Adapter Frontmatter Fields
 
@@ -227,11 +275,12 @@ When the submodule is bumped (see `SKILLS/upstream/UPSTREAM-*.md` for the upgrad
 
 ### Adapter Body Structure
 
-Every adapter SKILL.md must include three sections (in addition to whatever procedural body the skill needs):
+Every adapter SKILL.md must include these sections (in addition to whatever procedural body the skill needs):
 
 1. `## When to use this skill` — 5-second-decide trigger summary. Lead with the trigger, not implementation details.
 2. `## Adapted From Upstream` — link or `nav_read_anchor` pointer at the upstream file, plus a one-line license credit (e.g., "License: MIT, Copyright (c) 2026 Matt Pocock; see repo-root `NOTICE`").
 3. `## EVOKORE-Specific Adaptations` — concrete delta vs upstream (collapsed user-loops, panel-of-experts substitutions, continuity-manifest wiring, native-tool replacements, etc.).
+4. `## Composition` — list callers (skills that invoke this) and callees (skills this invokes). Use literal `invoke X skill` phrasing so `derive-skill-composition.js` parses edges into `skill-graph.json`.
 
 ### Scaffolding Template
 
@@ -241,4 +290,4 @@ Use the canonical adapter template at:
 SKILLS/DEVELOPER TOOLS/skill-creator/templates/adapter-template.md
 ```
 
-Copy it into the target category directory, rename to `SKILL.md`, and fill in the frontmatter and body placeholders. Do NOT modify files inside `SKILLS/upstream/<vendor>/` — adapter bodies live exclusively in EVOKORE category directories.
+Copy it into the target category directory, rename to `SKILL.md`, and fill in the frontmatter and body placeholders. Do NOT modify files inside `SKILLS/upstream/<vendor>/` — adapter bodies live exclusively in EVOKORE category directories. Canonical Wave 1 adapter examples: `SKILLS/COMMUNICATION/zoom-out/SKILL.md` and `SKILLS/CONTEXT/ubiquitous-language/SKILL.md`.
