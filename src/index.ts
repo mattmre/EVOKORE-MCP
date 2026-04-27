@@ -589,6 +589,63 @@ export class EvokoreMCPServer {
     };
   }
 
+  /**
+   * Sprint 2.x — apply nextSteps[] auto-activation from execute_skill.
+   *
+   * Reads the `nextSteps` field that SkillManager attaches to its
+   * execute_skill responses, projects each `skill` name through the
+   * tool catalog, and adds matching proxy/native tool names to the
+   * session's activation set. Emits exactly one
+   * `sendToolListChanged()` if and only if the activation set grew.
+   */
+  private async applyExecuteSkillNextSteps(
+    result: CallToolResult,
+    extra?: RequestExtra
+  ): Promise<void> {
+    if (this.discoveryMode !== "dynamic") return;
+    const nextSteps = (result as any)?.nextSteps;
+    if (!Array.isArray(nextSteps) || nextSteps.length === 0) return;
+
+    const activatedTools = this.getActivatedTools(extra);
+    let added = 0;
+    for (const step of nextSteps) {
+      const skillName = typeof step?.skill === "string" ? step.skill : "";
+      if (!skillName) continue;
+      // Activate the catalog entry whose tool name matches the
+      // referenced skill name. Skills that do not surface as a tool
+      // (most of them) silently no-op, which is the desired behavior.
+      // The skill graph uses kebab-case identifiers (matches the
+      // SKILL.md naming convention), but several native tools use
+      // snake_case (e.g. `docs_architect`). Try the kebab form first,
+      // then a snake_case-normalized fallback so the auto-activation
+      // resolves both worlds.
+      let entry = this.toolCatalog.getEntry(skillName);
+      if (!entry && skillName.includes("-")) {
+        entry = this.toolCatalog.getEntry(skillName.replace(/-/g, "_"));
+      }
+      if (!entry) continue;
+      if (entry.alwaysVisible) continue;
+      if (activatedTools.has(entry.name)) continue;
+      activatedTools.add(entry.name);
+      added++;
+    }
+
+    if (added > 0) {
+      this.toolListEpoch++;
+      try {
+        await this.server.sendToolListChanged();
+      } catch (error: any) {
+        console.error(
+          `[EVOKORE] sendToolListChanged() failed after execute_skill nextSteps activation: ${error?.message || error}`
+        );
+      }
+      const sessionId = this.getSessionId(extra);
+      this.sessionIsolation.persistSession(sessionId).catch(() => {
+        // Best-effort persistence; errors are non-fatal.
+      });
+    }
+  }
+
   private async handleRefreshSkills(): Promise<any> {
     const result = await this.skillManager.refreshSkills();
     this.rebuildToolCatalog();
@@ -1079,6 +1136,15 @@ export class EvokoreMCPServer {
             metadata: nativeSession?.metadata ?? new Map(),
           };
           result = (await this.skillManager.handleToolCall(toolName, args, skillContext)) as CallToolResult;
+
+          // Sprint 2.x — auto-activate tools referenced by execute_skill
+          // through its derived nextSteps[]. We reuse the same
+          // activation-set + sendToolListChanged() path as discover_tools,
+          // and only fire one notification even if multiple steps were
+          // activated. No-op if the activation set did not actually grow.
+          if (toolName === "execute_skill") {
+            await this.applyExecuteSkillNextSteps(result, extra);
+          }
         } else if (source === "proxied") {
           const sessionId = this.getSessionId(extra);
           const session = this.sessionIsolation.getSession(sessionId);
