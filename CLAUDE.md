@@ -107,6 +107,7 @@ Seven hooks are wired in `.claude/settings.json` through canonical `scripts/hook
 - **MCP Resources:** `resources/list` returns skills as `skill://` URIs plus server-level resources (`evokore://server/status`, `evokore://server/config`, `evokore://skills/categories`).
 - **MCP Prompts:** `prompts/list` returns 3 prompts: `resolve-workflow`, `skill-help`, `server-overview`.
 - **Skill Hot-Reload:** `refresh_skills` tool rescans SKILLS/ directory. Optional filesystem watcher via `EVOKORE_SKILL_WATCHER=true`.
+- **`tools/list` cursor pagination (v3.1+):** the handler supports MCP cursor pagination but defaults to **off** to preserve pre-v3.1 single-call behavior. Pagination activates either when the client sends a `cursor` param (signaling cursor support) or when the operator forces it on with `EVOKORE_TOOL_LIST_PAGINATION=on`. Default page size is 35 (under the Cursor IDE 40-tool cap), tunable via `EVOKORE_TOOL_LIST_PAGE_SIZE` clamped to `[1, 1000]`. Cursors are auto-invalidated on `tools/list_changed`: stale cursors decode to a graceful first-page reset rather than throwing.
 - **Rate Limiting:** Configurable per-server and per-tool rate limits via `rateLimit` in mcp.config.json. Token bucket algorithm, separate from error-triggered cooldown.
 - **Session Dashboard:** `npm run dashboard` launches a zero-dependency web UI on `127.0.0.1:8899` for session replay and evidence viewing.
 - **HITL Approval UI:** Dashboard `/approvals` page shows pending approval tokens with deny buttons. File-based state at `~/.evokore/pending-approvals.json`.

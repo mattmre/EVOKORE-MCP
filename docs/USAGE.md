@@ -115,6 +115,27 @@ Hidden proxied tools remain callable by exact prefixed name for compatibility, e
 
 For the current stdio runtime, EVOKORE uses a default session key when the transport does not provide a real `sessionId`. In practice, that means one long-lived stdio connection behaves like one discovery session. Session isolation becomes multi-session only on transports that attach distinct session IDs.
 
+### 2.1.1 `tools/list` cursor pagination
+
+EVOKORE supports MCP opaque-cursor pagination for `tools/list`, but it is **off by default** to preserve pre-v3.1 single-call behavior for clients that don't follow `nextCursor`.
+
+Pagination activates when *either*:
+
+1. **The client sends a `cursor` param** — signaling cursor support. The handler returns a page and a `nextCursor` for the rest of the catalog.
+2. **The operator opts in via `EVOKORE_TOOL_LIST_PAGINATION=on`** — the first response is also paged, useful for capped clients (e.g., Cursor IDE silently truncates at 40 tools) that don't yet send a cursor on the initial probe.
+
+If neither condition is met, the handler returns the full tool array with no `nextCursor` (legacy contract).
+
+- **Default page size:** `35` (chosen for headroom under the Cursor IDE 40-tool cap).
+- **Configure page size:** `EVOKORE_TOOL_LIST_PAGE_SIZE=<n>` — clamped to `[1, 1000]`.
+- **Force pagination on:** `EVOKORE_TOOL_LIST_PAGINATION=on` — useful when you want capped clients to immediately see a paged response without waiting for them to send a cursor.
+- **Cursor invalidation:** every `tools/list_changed` notification bumps an internal epoch. Cursors issued before the bump decode to a *graceful first-page reset* rather than an error.
+
+```bash
+# Force pagination on with a custom page size:
+EVOKORE_TOOL_LIST_PAGINATION=on EVOKORE_TOOL_LIST_PAGE_SIZE=50 node dist/index.js
+```
+
 ### 2.2 Benchmarking tool discovery
 
 Use the benchmark script to capture a deterministic JSON snapshot of the discovery/listing contract:
