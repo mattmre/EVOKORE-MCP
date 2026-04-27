@@ -183,16 +183,27 @@ export class EvokoreMCPServer {
   }
 
   private parseToolDiscoveryMode(value?: string): ToolDiscoveryMode {
-    if (value === "dynamic") {
+    // Sprint 1.5: an unset/empty EVOKORE_TOOL_DISCOVERY_MODE now resolves to
+    // "dynamic" so an unconfigured operator gets the lean tools/list payload
+    // (~1.5-2.5K tokens) instead of the legacy 12-31K-token full proxied list.
+    // Native tools stay always-visible via the built-in default profile
+    // (`alwaysVisible: "all-native"` in ProfileResolver); only proxied tools
+    // become activation-gated through `discover_tools`.
+    //
+    // Operators who depend on the pre-v3.1 behavior set the explicit safety
+    // pin `EVOKORE_TOOL_DISCOVERY_MODE=legacy`. ProfileResolver also honors
+    // that exact value as a hard pin to the built-in default profile, so
+    // flipping the unset default here does not affect the safety-pin path.
+    if (!value || value === "dynamic") {
       return "dynamic";
     }
 
-    if (!value || value === "legacy") {
+    if (value === "legacy") {
       return "legacy";
     }
 
-    console.error(`[EVOKORE] Unknown EVOKORE_TOOL_DISCOVERY_MODE '${value}'. Falling back to legacy mode.`);
-    return "legacy";
+    console.error(`[EVOKORE] Unknown EVOKORE_TOOL_DISCOVERY_MODE '${value}'. Falling back to dynamic mode.`);
+    return "dynamic";
   }
 
   private rebuildToolCatalog() {
