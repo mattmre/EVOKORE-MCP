@@ -129,8 +129,26 @@ test('damage-control expansion validation', () => {
 
   for (const rule of rules.dangerous_commands) {
     assert.ok(rule.id, `Rule missing id: ${JSON.stringify(rule).slice(0, 80)}`);
-    assert.ok(rule.pattern, `Rule ${rule.id} missing pattern`);
     assert.ok(rule.reason, `Rule ${rule.id} missing reason`);
+    // W0g: rules now come in three shapes:
+    //   1. Legacy regex rules    → require `pattern` (string) + `ask` (boolean)
+    //   2. argv-aware rules      → require `argv_match` (object) + optional severity
+    //   3. inert/alias-only rules → marked `inert: true` or `pattern_alias_of: <id>`
+    if (rule.inert === true || rule.pattern_alias_of) {
+      // Documentation markers — neither a pattern nor argv_match is required.
+      continue;
+    }
+    if (rule.argv_match) {
+      assert.ok(typeof rule.argv_match === 'object',
+        `Rule ${rule.id} argv_match must be an object`);
+      // severity is optional (defaults to 'block' in evaluateArgvRule)
+      if (rule.severity) {
+        assert.ok(['block', 'warn'].includes(rule.severity),
+          `Rule ${rule.id} severity must be 'block' or 'warn', got ${rule.severity}`);
+      }
+      continue;
+    }
+    assert.ok(rule.pattern, `Rule ${rule.id} missing pattern (or argv_match)`);
     assert.ok(typeof rule.ask === 'boolean', `Rule ${rule.id} missing boolean ask field`);
   }
 
@@ -139,6 +157,7 @@ test('damage-control expansion validation', () => {
   assert.strictEqual(ids.length, unique.size, `Duplicate IDs found: ${ids.filter((id, i) => ids.indexOf(id) !== i)}`);
 
   for (const rule of rules.dangerous_commands) {
+    if (typeof rule.pattern !== 'string') continue; // skip argv-aware / inert rules
     try {
       new RegExp(rule.pattern, 'i');
     } catch (e) {

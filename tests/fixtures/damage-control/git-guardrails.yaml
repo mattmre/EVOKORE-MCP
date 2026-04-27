@@ -1,0 +1,94 @@
+# Wave 0g git guardrail fixtures (DC-33 .. DC-40).
+#
+# Each row carries:
+#   rule_id: DC-XX (the rule being exercised; null = "no rule should match")
+#   command: shell command string the matcher will tokenize
+#   expect:  block | warn | allow
+#   env:     optional env overrides used by the rule (e.g. EVOKORE_ALLOW_GC_PRUNE)
+#   cwd:     optional cwd override (used by DC-42 — see auto-mutation.yaml)
+#   note:    optional human-readable rationale
+#
+# Triviality + benign cases are at the top so the matcher's safety floor is
+# exercised first. Edge cases drawn from CLAUDE.md ("Git Safety Protocol",
+# "Stale Feature Replay", "Control-Plane Preservation PRs") follow.
+
+cases:
+  # ---- Triviality / safety floor (DC-03 colon-bug guard) -------------------
+  - { rule_id: null, command: '',                         expect: allow, note: 'empty string must never match anything' }
+  - { rule_id: null, command: ':',                        expect: allow, note: 'lone colon must never match anything (DC-03 colon-bug regression)' }
+  - { rule_id: null, command: ' ',                        expect: allow }
+  - { rule_id: null, command: 'a',                        expect: allow }
+  - { rule_id: null, command: 'git',                      expect: allow }
+  - { rule_id: null, command: 'gh',                       expect: allow }
+
+  # ---- DC-33: Force push to protected refs ---------------------------------
+  - { rule_id: DC-33, command: 'git push --force origin main',                                  expect: block }
+  - { rule_id: DC-33, command: 'git push -f origin master',                                     expect: block }
+  - { rule_id: DC-33, command: 'git push --force origin release/v1',                            expect: block }
+  - { rule_id: DC-33, command: 'git push --force-with-lease origin main',                       expect: warn,  note: 'lease is safer than --force but still warn on protected ref' }
+  - { rule_id: DC-33, command: 'git push --force-with-lease origin chore/control-plane-foo',    expect: allow, note: 'CLAUDE.md "Control-Plane Preservation PRs" allowlist' }
+  - { rule_id: DC-33, command: 'git push origin main',                                          expect: allow }
+  - { rule_id: DC-33, command: 'git push -u origin feature',                                    expect: allow, note: '-u (set-upstream) is not -f' }
+  - { rule_id: DC-33, command: 'git push --force origin feature-x',                             expect: allow, note: 'feature-x is not a protected ref' }
+
+  # ---- DC-34: Working-tree wipe --------------------------------------------
+  - { rule_id: DC-34, command: 'git checkout .',                          expect: block }
+  - { rule_id: DC-34, command: 'git restore .',                           expect: block }
+  - { rule_id: DC-34, command: 'git checkout -- .',                       expect: block }
+  - { rule_id: DC-34, command: 'git restore --staged --worktree .',       expect: block }
+  - { rule_id: DC-34, command: 'git clean -fdx',                          expect: block }
+  - { rule_id: DC-34, command: 'git clean -ffdx',                         expect: block }
+  - { rule_id: DC-34, command: 'git clean -fd src/specific-path',         expect: allow, note: 'CLAUDE.md allows -fd <path>' }
+  - { rule_id: DC-34, command: 'git clean -n',                            expect: allow, note: 'dry run' }
+  - { rule_id: DC-34, command: 'git checkout main',                       expect: allow }
+  - { rule_id: DC-34, command: 'git checkout -f main',                    expect: allow, note: 'CLAUDE.md "git checkout -f <branch>" branch switching' }
+  - { rule_id: DC-34, command: 'git restore src/foo.ts',                  expect: allow }
+
+  # ---- DC-35: History rewrite on shared branches ---------------------------
+  - { rule_id: DC-35, command: 'git filter-branch --tree-filter "rm -f secret" HEAD', expect: block }
+  - { rule_id: DC-35, command: 'git filter-repo --invert-paths --path secrets',       expect: block }
+  - { rule_id: DC-35, command: 'git rebase -i main',                                  expect: block }
+  - { rule_id: DC-35, command: 'git rebase -i origin/main',                           expect: block }
+  - { rule_id: DC-35, command: 'git rebase -i origin/master',                         expect: block }
+  - { rule_id: DC-35, command: 'git rebase main',                                     expect: allow, note: 'non-interactive rebase onto main is the legitimate replay path' }
+  - { rule_id: DC-35, command: 'git rebase -i my-topic-branch',                       expect: allow, note: 'interactive rebase onto a topic branch is allowed' }
+
+  # ---- DC-36: Ref deletion of protected refs -------------------------------
+  - { rule_id: DC-36, command: 'git push origin :main',                  expect: block }
+  - { rule_id: DC-36, command: 'git push origin :master',                expect: block }
+  - { rule_id: DC-36, command: 'git push origin --delete main',          expect: block }
+  - { rule_id: DC-36, command: 'git update-ref -d refs/heads/main',      expect: block }
+  - { rule_id: DC-36, command: 'git update-ref -d refs/heads/master',    expect: block }
+  - { rule_id: DC-36, command: 'git push origin :feature-x',             expect: allow }
+  - { rule_id: DC-36, command: 'git push origin --delete feature-x',     expect: allow, note: 'CLAUDE.md remote branch cleanup workflow' }
+
+  # ---- DC-37: Reflog destruction -------------------------------------------
+  - { rule_id: DC-37, command: 'git reflog expire --expire=now --all',   expect: block }
+  - { rule_id: DC-37, command: 'git reflog delete master@{0}',           expect: block }
+  - { rule_id: DC-37, command: 'git gc --prune=now --aggressive',        expect: warn,  note: 'legitimate maintenance, surface anyway' }
+  - { rule_id: DC-37, command: 'git gc --auto',                          expect: allow, note: 'implicit maintenance is safe' }
+
+  # ---- DC-38: Submodule deinit force ---------------------------------------
+  - { rule_id: DC-38, command: 'git submodule deinit --force SKILLS/foo', expect: block }
+  - { rule_id: DC-38, command: 'git submodule deinit -f SKILLS/foo',      expect: block }
+  - { rule_id: DC-38, command: 'git submodule deinit SKILLS/foo',         expect: allow }
+  - { rule_id: DC-38, command: 'git submodule add https://github.com/foo/bar SKILLS/bar', expect: allow, note: 'CLAUDE.md "Submodules" Wave 0a flow' }
+  - { rule_id: DC-38, command: 'git submodule update --init',             expect: allow }
+
+  # ---- DC-39: gc prune now (env-overrideable) -----------------------------
+  - { rule_id: DC-39, command: 'git gc --prune=now',                      expect: block }
+  - { rule_id: DC-39, command: 'git gc --prune=now',                      expect: allow, env: { EVOKORE_ALLOW_GC_PRUNE: 'true' }, note: 'env override' }
+  - { rule_id: DC-39, command: 'git gc --auto',                           expect: allow }
+
+  # ---- DC-03 tightened (regex-on-joined-string) ----------------------------
+  # These exercise the W0g pattern tightening — the actual regex still lives in
+  # damage-control-rules.yaml under DC-03 (severity ask=true ⇒ warn here).
+  - { rule_id: DC-03, command: 'git push --force',                        expect: warn }
+  - { rule_id: DC-03, command: 'git push -f',                             expect: warn,  note: 'short-flag tightening' }
+  - { rule_id: DC-03, command: 'git push origin main -f',                 expect: warn,  note: 'short-flag tightening' }
+  - { rule_id: DC-03, command: 'git push -uf origin feature',             expect: warn,  note: 'compound short flag including f' }
+  - { rule_id: DC-03, command: 'git push --force-with-lease',             expect: warn }
+  - { rule_id: DC-03, command: 'git push origin main',                    expect: allow }
+  - { rule_id: DC-03, command: 'git push -u origin feature',              expect: allow }
+  - { rule_id: DC-03, command: 'git log -f',                              expect: allow, note: 'CLAUDE.md "git log -f" follow-renames must not match' }
+  - { rule_id: DC-03, command: 'git fetch --prune origin',                expect: allow, note: 'CLAUDE.md "Remote Branch Cleanup"' }

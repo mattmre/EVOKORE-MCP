@@ -1,0 +1,152 @@
+# Wave 0g auto-mutation guardrail fixtures (DC-41 / DC-42 / DC-43).
+#
+# Same row schema as git-guardrails.yaml:
+#   rule_id: DC-XX (or null when no rule should match)
+#   command: shell command string the matcher will tokenize
+#   expect:  block | warn | allow
+#   env:     optional env overrides used by the rule
+#            (EVOKORE_AUTO_FILE_ISSUES, EVOKORE_AUTO_FILE_PRS,
+#             EVOKORE_AUTO_LABEL_ISSUES)
+#   cwd:     optional cwd override (DC-42 uses cwd_match_glob to detect
+#            agent worktrees under `*/.claude/worktrees/*`)
+#   note:    optional human-readable rationale
+#
+# The harness must invoke the matcher with both `env` and `cwd` overrides
+# applied so worktree-context detection (DC-42) and env-override toggles
+# (DC-41 / DC-42 / DC-43) are exercised end-to-end.
+
+cases:
+  # ---- Triviality / safety floor (shared with git-guardrails.yaml) ---------
+  - { rule_id: null, command: '',         expect: allow }
+  - { rule_id: null, command: 'gh',       expect: allow, note: 'bare program is not enough to match any rule' }
+  - { rule_id: null, command: 'gh issue', expect: allow, note: 'subcommand without subverb does not trigger DC-41' }
+  - { rule_id: null, command: 'gh pr',    expect: allow, note: 'subcommand without subverb does not trigger DC-42' }
+
+  # ---- DC-41: gh issue create (autonomous issue filing) -------------------
+  - rule_id: DC-41
+    command: 'gh issue create --title "bug" --body "details"'
+    expect: block
+    note: 'default deny — autonomous issue filing requires explicit opt-in'
+  - rule_id: DC-41
+    command: 'gh issue create --title "bug" --body "details"'
+    expect: allow
+    env: { EVOKORE_AUTO_FILE_ISSUES: 'true' }
+    note: 'env override unlocks autonomous issue filing'
+  - rule_id: DC-41
+    command: 'gh issue create -t bug -b details'
+    expect: block
+    note: 'short-flag form still gated'
+  - rule_id: DC-41
+    command: 'gh issue list'
+    expect: allow
+    note: 'read-only ops never gated by DC-41'
+  - rule_id: DC-41
+    command: 'gh issue list --state open'
+    expect: allow
+  - rule_id: DC-41
+    command: 'gh issue view 123'
+    expect: allow
+    note: 'read-only ops never gated by DC-41'
+  - rule_id: DC-41
+    command: 'gh issue comment 123 --body "thanks"'
+    expect: allow
+    note: 'commenting on existing issues is not "create"'
+  - rule_id: DC-41
+    command: 'gh issue close 123'
+    expect: allow
+
+  # ---- DC-42: gh pr create from agent worktrees ---------------------------
+  - rule_id: DC-42
+    command: 'gh pr create --title "feat: foo" --body "details"'
+    expect: block
+    cwd: 'D:/GITHUB/EVOKORE-MCP/.claude/worktrees/agent-a20a94fdd3b568427'
+    note: 'PR creation from a `.claude/worktrees/*` cwd is gated'
+  - rule_id: DC-42
+    command: 'gh pr create --title "feat: foo" --body-file body.md'
+    expect: block
+    cwd: 'D:/GITHUB/EVOKORE-MCP/.claude/worktrees/agent-some-other-id'
+    note: 'any agent worktree path matches the cwd glob'
+  - rule_id: DC-42
+    command: 'gh pr create --title "feat: foo" --body "details"'
+    expect: allow
+    cwd: 'D:/GITHUB/EVOKORE-MCP/.claude/worktrees/agent-a20a94fdd3b568427'
+    env: { EVOKORE_AUTO_FILE_PRS: 'true' }
+    note: 'env override unlocks worktree-based PR creation'
+  - rule_id: DC-42
+    command: 'gh pr create --title "feat: foo" --body "details"'
+    expect: allow
+    cwd: 'D:/GITHUB/EVOKORE-MCP'
+    note: 'CLAUDE.md "PR Template" workflow — repo root remains allowed'
+  - rule_id: DC-42
+    command: 'gh pr create --body-file body.md'
+    expect: allow
+    cwd: '/home/user/projects/EVOKORE-MCP'
+    note: 'POSIX repo root path remains allowed'
+  - rule_id: DC-42
+    command: 'gh pr list'
+    expect: allow
+    cwd: 'D:/GITHUB/EVOKORE-MCP/.claude/worktrees/agent-a20a94fdd3b568427'
+    note: 'read-only ops never gated by DC-42 even from a worktree'
+  - rule_id: DC-42
+    command: 'gh pr view 105'
+    expect: allow
+    cwd: 'D:/GITHUB/EVOKORE-MCP/.claude/worktrees/agent-a20a94fdd3b568427'
+  - rule_id: DC-42
+    command: 'gh pr checkout 105'
+    expect: allow
+    cwd: 'D:/GITHUB/EVOKORE-MCP/.claude/worktrees/agent-a20a94fdd3b568427'
+    note: 'pr checkout is not pr create'
+
+  # ---- DC-43: gh issue/pr edit --add-label for sensitive labels -----------
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --add-label security'
+    expect: block
+    note: 'sensitive label triggers default-deny'
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --add-label security'
+    expect: allow
+    env: { EVOKORE_AUTO_LABEL_ISSUES: 'true' }
+    note: 'env override unlocks autonomous labelling'
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --add-label release'
+    expect: block
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --add-label ready-for-agent'
+    expect: block
+    note: 'ready-for-agent gates downstream automation pickup'
+  - rule_id: DC-43
+    command: 'gh pr edit 105 --add-label security'
+    expect: block
+  - rule_id: DC-43
+    command: 'gh pr edit 105 --add-label release'
+    expect: block
+    note: 'release label on a PR triggers cut/publish workflows'
+  - rule_id: DC-43
+    command: 'gh pr edit 105 --add-label ready-for-agent'
+    expect: block
+  - rule_id: DC-43
+    command: 'gh pr edit 105 --add-label ready-for-agent'
+    expect: allow
+    env: { EVOKORE_AUTO_LABEL_ISSUES: 'true' }
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --add-label documentation'
+    expect: allow
+    note: 'non-sensitive labels are always allowed'
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --add-label bug'
+    expect: allow
+  - rule_id: DC-43
+    command: 'gh pr edit 105 --add-label needs-review'
+    expect: allow
+    note: 'non-sensitive PR labels are always allowed'
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --remove-label security'
+    expect: allow
+    note: 'remove-label is never gated — only add-label of sensitive values'
+  - rule_id: DC-43
+    command: 'gh issue edit 123 --title "new title"'
+    expect: allow
+    note: 'edits without --add-label are not gated by DC-43'
+  - rule_id: DC-43
+    command: 'gh pr edit 105 --body "new body"'
+    expect: allow
