@@ -189,3 +189,104 @@ node scripts/benchmark-tool-discovery.js --profile coding
 Both commands emit JSON to stdout. Pass `--output <path>` to also
 write the JSON to disk. Pass `--live-timings` to include hot-path
 measurements (excluded by default so the artifact is reproducible).
+
+## Schema-deferred `tools/list` (`describe_tool`, opt-in)
+
+Sprint 3.x adds a second axis to the `tools/list` token-budget knob:
+the operator can opt into **schema deferral**, which strips the
+`inputSchema` body from every tool in the listing and replaces it with
+a placeholder plus a `_meta: { schema_deferred: true }` marker. Clients
+fetch the real schemas just-in-time via the new native tool
+`describe_tool`.
+
+This complements the discovery-profile axis: profiles control *which*
+tools ship in the listing, schema deferral controls *how much per-tool
+detail* ships. Both can be combined.
+
+### Configuration
+
+| Env var | Default | Effect |
+|---|---|---|
+| `EVOKORE_TOOL_SCHEMA_MODE` | `full` | `full` keeps the pre-3.x contract (every tool ships its full `inputSchema`). `deferred` strips schema details from `tools/list`. |
+| `EVOKORE_TOOL_SCHEMA_FALLBACK_MS` | `60000` | Compat-probe window. If no client invokes `describe_tool` within this many milliseconds after the first deferred `tools/list` response, the runtime reverts to `full` mode for the rest of the process and emits a one-time stderr warning. |
+
+### Semantics
+
+- **`full` mode (default).** Bit-identical to pre-3.x. Every tool in
+  `tools/list` carries its full `inputSchema`, `annotations`, and
+  metadata. No client needs to know about `describe_tool`.
+- **`deferred` mode.** Each tool in `tools/list` ships as
+  `{ name, description, inputSchema: <empty placeholder>,
+  annotations?, _meta: { schema_deferred: true } }`. The placeholder
+  inputSchema is `{ type: "object", properties: {}, "x-evokore-schema-deferred": true }`
+  rather than `undefined` because the official `@modelcontextprotocol/sdk`
+  Zod `ToolSchema` lists `inputSchema` as a required field — clients
+  built on the SDK would reject responses that omit it entirely (panel-B
+  finding from the compat research).
+- **`describe_tool` is always visible** regardless of the active
+  discovery profile or discovery mode. It accepts `{ tools: string[] }`
+  and returns `{ schemas: Tool[], unknown: string[] }` where `schemas`
+  contains the *full* (non-deferred) tool definitions for known names
+  and `unknown` lists any names that do not resolve. This is the
+  bootstrap path operators rely on — without it, deferred mode would be
+  a one-way trap.
+- **Per-tool Zod fallback.** If a tool's full definition fails the SDK's
+  `ToolSchema` Zod validation (unusual, but possible if a plugin or
+  proxied tool's upstream definition is itself malformed), the deferred
+  projection emits the *full* schema for that tool only and logs a
+  one-time stderr warning naming the offending tool. This protects
+  SDK-bound clients from receiving a placeholder for a tool they would
+  have rejected anyway.
+
+### Compat-probe + automatic fallback
+
+Schema deferral is opt-in by default for a reason: most MCP clients in
+the wild today do not implement a schema-fetch path and silently drop
+tools they cannot fully parse. The compat-probe is the safety net.
+
+1. The first `tools/list` response under `deferred` mode arms a
+   `EVOKORE_TOOL_SCHEMA_FALLBACK_MS` timer.
+2. If a client invokes `describe_tool` even once before the timer
+   fires, the runtime stays in deferred mode for the rest of the
+   process — the client has proven it understands the bootstrap path.
+3. If the timer fires and no `describe_tool` call has been observed,
+   the runtime flips effective mode to `full`, emits the warning
+   `[EVOKORE] Schema-deferral fallback: client did not call describe_tool within 60s; reverting to full mode (offending client likely doesn't support deferred schemas).`,
+   and broadcasts a `tools/list_changed` notification so the client
+   re-fetches with full schemas.
+
+Operators who deliberately want to force `deferred` mode without the
+safety net can crank `EVOKORE_TOOL_SCHEMA_FALLBACK_MS` very high (e.g.
+`86400000` for 24h), but **the recommended posture remains opt-in only,
+default off**.
+
+### Hard advisory: do not enable for these clients
+
+The 2026-04-26 compat-research (`docs/research/tools-list-deferred-schema-compat-2026-04-26.md`)
+graded six MCP clients. **None** are safe defaults. The hardest
+negatives:
+
+- **Cline — high risk.** Cline forwards parsing to the bundled
+  `@modelcontextprotocol/sdk` Zod schema, which lists `inputSchema` as
+  a required property. Even though our deferred placeholder satisfies
+  that requirement, Cline-side strictness around `properties` shape and
+  the lack of any client-side schema-fetch path means deferral will
+  break tool routing. Do not enable.
+- **Claude Code, Cursor IDE, Claude Desktop — historically silent-drop
+  on unfamiliar shapes.** Issue and forum precedent
+  (anthropics/claude-code#25081, Cursor forum #130573 / #141326) shows
+  these clients silently drop tools when the parser hits something it
+  doesn't recognise. Schema deferral is exactly that kind of
+  deviation. Do not enable.
+- **Continue, Codex — unverified.** Public docs do not describe the
+  parsing contract; treat as unsafe until source review is done.
+
+### When to enable
+
+A controlled probe environment with an MCP client confirmed to
+tolerate placeholder `inputSchema` and to actually invoke
+`describe_tool` before tool execution. That is the only case where
+deferred mode is currently safe. Watch for the compat-probe stderr
+warning — if it ever fires, the client is not safe and the operator
+should set `EVOKORE_TOOL_SCHEMA_MODE=full` until the upstream client
+ships proper support.

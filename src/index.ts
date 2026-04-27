@@ -12,7 +12,9 @@ import {
   ReadResourceRequestSchema,
   ErrorCode,
   McpError,
-  Resource
+  Resource,
+  Tool,
+  ToolSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
 import path from "path";
@@ -103,6 +105,20 @@ export class EvokoreMCPServer {
   private readonly defaultSessionId: string;
   private readonly resolvedProfile: ResolvedProfile;
   private readonly discoveryProfile: DiscoveryProfile;
+  // Sprint 3.x — schema-deferral state. `schemaMode` is captured once at
+  // construction; runtime fallback (compat-probe miss or per-tool Zod
+  // validation rejection) flips `schemaModeEffective` to "full" without
+  // mutating the operator's configured value.
+  private schemaMode: "full" | "deferred";
+  private schemaModeEffective: "full" | "deferred";
+  private schemaFallbackMs: number;
+  private describeToolInvoked: boolean = false;
+  private schemaCompatProbeTimer: NodeJS.Timeout | null = null;
+  private schemaCompatProbeArmed: boolean = false;
+  // One-time per-tool Zod-fallback warnings keyed by tool name. We log
+  // once per offending tool to avoid stderr flooding when a server has
+  // multiple non-conforming tools.
+  private schemaZodWarnedTools: Set<string> = new Set();
 
   constructor(options?: EvokoreMCPServerOptions) {
     this.discoveryMode = this.parseToolDiscoveryMode(process.env.EVOKORE_TOOL_DISCOVERY_MODE);
@@ -118,6 +134,17 @@ export class EvokoreMCPServer {
     // of scope for Sprint 1.1.
     this.resolvedProfile = resolveActiveProfile({ config: loadDiscoveryConfig() });
     this.discoveryProfile = this.resolvedProfile.profile;
+
+    // Sprint 3.x — schema-deferred tools/list (opt-in, default off).
+    // See docs/research/tools-list-deferred-schema-compat-2026-04-26.md
+    // for the compatibility matrix; deferral is risky against any
+    // SDK-bound client and should only be enabled by operators on
+    // confirmed-permissive clients.
+    this.schemaMode = this.parseSchemaMode(process.env.EVOKORE_TOOL_SCHEMA_MODE);
+    this.schemaModeEffective = this.schemaMode;
+    const fallbackRaw = parseInt(process.env.EVOKORE_TOOL_SCHEMA_FALLBACK_MS || "", 10);
+    this.schemaFallbackMs =
+      Number.isFinite(fallbackRaw) && fallbackRaw > 0 ? fallbackRaw : 60000;
     this.server = new Server(
       {
         name: "evokore-mcp",
@@ -166,6 +193,14 @@ export class EvokoreMCPServer {
     this.complianceChecker = new ComplianceChecker();
     this.toolCatalog = new ToolCatalogIndex(this.skillManager.getTools(), [], this.discoveryProfile);
 
+    // Sprint 3.x — let describe_tool resolve full schemas from the
+    // unified catalog (native, plugin, proxied). The catalog is
+    // rebuilt on proxy boot / plugin reload, so we read from
+    // `this.toolCatalog` lazily at call time.
+    this.skillManager.setToolSchemaResolver((name: string) => {
+      return this.toolCatalog.getEntry(name)?.tool;
+    });
+
     // Session TTL parsed once, used both here and in loadSubsystems() for Redis init
     const ttlMs = parseInt(process.env.EVOKORE_SESSION_TTL_MS || "3600000", 10);
     this.sessionTtlMs = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : undefined;
@@ -210,6 +245,161 @@ export class EvokoreMCPServer {
 
     console.error(`[EVOKORE] Unknown EVOKORE_TOOL_DISCOVERY_MODE '${value}'. Falling back to dynamic mode.`);
     return "dynamic";
+  }
+
+  /**
+   * Sprint 3.x — parse EVOKORE_TOOL_SCHEMA_MODE. Default `full` preserves
+   * the pre-3.x contract (every tool ships with its full inputSchema).
+   * `deferred` opts into schema-deferred tools/list payloads. Unknown
+   * values are warned and fall back to `full`.
+   */
+  private parseSchemaMode(value?: string): "full" | "deferred" {
+    if (!value || value === "full") {
+      return "full";
+    }
+    if (value === "deferred") {
+      return "deferred";
+    }
+    console.error(
+      `[EVOKORE] Unknown EVOKORE_TOOL_SCHEMA_MODE '${value}'. Falling back to full mode.`
+    );
+    return "full";
+  }
+
+  /**
+   * Sprint 3.x — return a tools/list-shaped projection of `tools` with
+   * inputSchema stripped and `_meta.schema_deferred = true` set. Tools
+   * whose original inputSchema fails the SDK's Zod ToolSchema validation
+   * fall back to their full schema individually (with a one-time stderr
+   * warning per offending tool). The returned array is safe to surface
+   * over the wire.
+   */
+  private projectDeferredTools(tools: Tool[]): Tool[] {
+    return tools.map((tool) => {
+      // Per-tool SDK Zod sanity check on the *full* tool: if the
+      // upstream definition is itself invalid, deferring it would mask
+      // the bug and is unsafe. Fall back to the original (full) tool
+      // for that entry only and warn once per offending name.
+      const validationError = this.validateFullToolSchema(tool);
+      if (validationError) {
+        if (!this.schemaZodWarnedTools.has(tool.name)) {
+          this.schemaZodWarnedTools.add(tool.name);
+          console.error(
+            `[EVOKORE] Schema-deferral per-tool fallback: '${tool.name}' failed SDK Zod validation (${validationError}); returning full schema for this tool.`
+          );
+        }
+        return tool;
+      }
+
+      // describe_tool itself must always ship with its full schema — it
+      // is the bootstrap path operators use to fetch deferred schemas,
+      // and a deferred describe_tool would create a chicken-and-egg
+      // problem.
+      if (tool.name === "describe_tool") {
+        return tool;
+      }
+
+      const meta: Record<string, unknown> = {
+        ...((tool as any)._meta ?? {}),
+        schema_deferred: true,
+      };
+      const projected: Tool = {
+        name: tool.name,
+        description: tool.description,
+        // Per the SDK Zod schema (panel-B finding) inputSchema is a
+        // required field. Even in deferred mode we therefore ship a
+        // minimal placeholder rather than omitting the key entirely.
+        // The placeholder advertises the deferral via _meta and an
+        // empty properties bag so SDK-bound clients don't drop the
+        // tool. Operators wanting strict omission must take the
+        // bootstrap-via-describe_tool path off-band.
+        inputSchema: {
+          type: "object",
+          properties: {},
+          // Marker on the schema itself so introspection tools that
+          // don't read top-level _meta still see the deferral signal.
+          "x-evokore-schema-deferred": true,
+        } as any,
+        annotations: tool.annotations,
+        title: (tool as any).title,
+        _meta: meta,
+      };
+      // Strip undefined fields to keep the wire payload tight.
+      if (projected.annotations === undefined) delete (projected as any).annotations;
+      if ((projected as any).title === undefined) delete (projected as any).title;
+      return projected;
+    });
+  }
+
+  /**
+   * Sprint 3.x — run the SDK's Zod ToolSchema validator against a full
+   * tool definition. Returns null on success, or a short error string on
+   * failure. Used so the deferred-mode projection can detect
+   * upstream-malformed tools per-tool and fall back to their full
+   * schema rather than masking the bug behind a placeholder.
+   */
+  private validateFullToolSchema(tool: Tool): string | null {
+    try {
+      const result = (ToolSchema as any).safeParse(tool);
+      if (!result?.success) {
+        const issues = result?.error?.issues;
+        const summary = Array.isArray(issues) && issues.length > 0
+          ? issues.map((i: any) => i.message).slice(0, 2).join("; ")
+          : "Zod validation failed";
+        return summary;
+      }
+      return null;
+    } catch (err: any) {
+      return err?.message || "Zod validation threw";
+    }
+  }
+
+  /**
+   * Sprint 3.x — arm the compat probe timer. Fires once per process
+   * lifetime when schema-deferred mode is active. If no describe_tool
+   * call is observed within `schemaFallbackMs`, the runtime flips
+   * effective mode to `full` for the remainder of the process and emits
+   * a tools/list_changed notification so well-behaved clients re-fetch.
+   */
+  private armSchemaCompatProbeIfNeeded(): void {
+    if (this.schemaCompatProbeArmed) return;
+    if (this.schemaModeEffective !== "deferred") return;
+    this.schemaCompatProbeArmed = true;
+
+    this.schemaCompatProbeTimer = setTimeout(() => {
+      if (this.describeToolInvoked) return;
+      this.schemaModeEffective = "full";
+      console.error(
+        "[EVOKORE] Schema-deferral fallback: client did not call describe_tool within 60s; reverting to full mode (offending client likely doesn't support deferred schemas)."
+      );
+      // Bump epoch and notify listeners so the next tools/list returns
+      // full schemas. Best-effort — failures are logged but do not
+      // crash the process.
+      this.toolListEpoch++;
+      this.server
+        .sendToolListChanged()
+        .catch((err: any) => {
+          console.error(
+            `[EVOKORE] sendToolListChanged() failed after schema-deferral fallback: ${err?.message || err}`
+          );
+        });
+    }, this.schemaFallbackMs);
+    // Don't keep the Node process alive solely for this timer.
+    if (typeof this.schemaCompatProbeTimer.unref === "function") {
+      this.schemaCompatProbeTimer.unref();
+    }
+  }
+
+  /**
+   * Sprint 3.x — record that a client invoked describe_tool. Cancels the
+   * compat probe timer so the runtime stays in deferred mode.
+   */
+  private markDescribeToolInvoked(): void {
+    this.describeToolInvoked = true;
+    if (this.schemaCompatProbeTimer) {
+      clearTimeout(this.schemaCompatProbeTimer);
+      this.schemaCompatProbeTimer = null;
+    }
   }
 
   private rebuildToolCatalog() {
@@ -692,9 +882,18 @@ export class EvokoreMCPServer {
 
     // 3. Tools (Dynamic Injection & Proxied Actions)
     this.server.setRequestHandler(ListToolsRequestSchema, async (request, extra) => {
-      const allTools = this.discoveryMode === "dynamic"
+      let allTools = this.discoveryMode === "dynamic"
         ? this.toolCatalog.getProjectedTools(this.getActivatedTools(extra))
         : this.toolCatalog.getAllTools();
+
+      // Sprint 3.x — schema-deferred projection. Only applied when the
+      // operator opted in AND the runtime hasn't already fallen back to
+      // full mode after a compat-probe miss.
+      if (this.schemaModeEffective === "deferred") {
+        allTools = this.projectDeferredTools(allTools);
+        // Arm the compat probe on the first deferred response.
+        this.armSchemaCompatProbeIfNeeded();
+      }
 
       const cursor = typeof request.params?.cursor === "string"
         ? request.params.cursor
@@ -733,6 +932,14 @@ export class EvokoreMCPServer {
     this.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const toolName = request.params.name;
       const args = request.params.arguments || {};
+
+      // Sprint 3.x — mark describe_tool invocations so the schema-defer
+      // compat probe knows the connected client supports the bootstrap
+      // path. Done before any RBAC / approval / dispatch so even gated
+      // calls count as "client tried to fetch a schema".
+      if (toolName === "describe_tool") {
+        this.markDescribeToolInvoked();
+      }
 
       // Selective audit logging for admin/config/approval tools
       const AUDITED_TOOLS = new Set(["reload_plugins", "reset_telemetry", "refresh_skills", "fetch_skill"]);

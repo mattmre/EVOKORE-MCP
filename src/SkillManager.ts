@@ -146,6 +146,14 @@ export class SkillManager {
   private watcher: fsSync.FSWatcher | null = null;
   private onRefreshCallback: (() => void) | null = null;
   private telemetryIndex: TelemetryIndex;
+  /**
+   * Sprint 3.x — schema-deferred tools/list support. The describe_tool
+   * native needs a way to look up the *full* (non-deferred) schema for
+   * any tool by name, including proxied tools. index.ts wires this
+   * resolver during setup so SkillManager can answer describe_tool calls
+   * without owning the unified catalog directly.
+   */
+  private toolSchemaResolver: ((name: string) => Tool | undefined) | null = null;
 
   /** Allowlist of environment variable keys safe to pass to sandbox subprocesses. */
   private static readonly SAFE_ENV_KEYS = new Set([
@@ -165,6 +173,16 @@ export class SkillManager {
     this.proxyManager = proxyManager;
     this.registryManager = registryManager || new RegistryManager();
     this.telemetryIndex = telemetryIndex || new TelemetryIndex();
+  }
+
+  /**
+   * Sprint 3.x — wired by EvokoreMCPServer during setup so describe_tool
+   * can resolve full schemas (including proxied tools) without owning the
+   * tool catalog. The resolver receives a tool name and returns the Tool
+   * object with its full inputSchema, or undefined if unknown.
+   */
+  setToolSchemaResolver(resolver: (name: string) => Tool | undefined): void {
+    this.toolSchemaResolver = resolver;
   }
 
   /** Expose the routing telemetry sink (primarily for tests and diagnostics). */
@@ -1131,6 +1149,34 @@ export class SkillManager {
           idempotentHint: false,
           openWorldHint: true
         }
+      },
+      {
+        // Sprint 3.x — describe_tool returns the full (non-deferred)
+        // schemas for the requested tool names. Always visible regardless
+        // of profile/discovery mode so operators can bootstrap when
+        // EVOKORE_TOOL_SCHEMA_MODE=deferred drops inputSchema from
+        // tools/list payloads.
+        name: "describe_tool",
+        title: "Describe Tool",
+        description: "Return full Tool schemas (name, description, inputSchema, annotations) for the requested tool names. Use this to fetch inputSchema details when EVOKORE_TOOL_SCHEMA_MODE=deferred has stripped them from tools/list. Unknown tool names are returned in a parallel 'unknown' list.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            tools: {
+              type: "array",
+              items: { type: "string" },
+              description: "Array of tool names to describe."
+            }
+          },
+          required: ["tools"]
+        },
+        annotations: {
+          title: "Describe Tool",
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false
+        }
       }
     ];
   }
@@ -1523,6 +1569,42 @@ export class SkillManager {
                 isError: true
             };
         }
+    }
+
+    if (name === "describe_tool") {
+        const requested = Array.isArray(args?.tools) ? args.tools : null;
+        if (!requested) {
+            return {
+                content: [{ type: "text", text: "The 'tools' argument must be an array of tool names." }],
+                isError: true
+            };
+        }
+
+        const schemas: Tool[] = [];
+        const unknown: string[] = [];
+        const seen = new Set<string>();
+
+        for (const raw of requested) {
+            if (typeof raw !== "string") continue;
+            const toolName = raw.trim();
+            if (!toolName || seen.has(toolName)) continue;
+            seen.add(toolName);
+
+            const resolved = this.toolSchemaResolver ? this.toolSchemaResolver(toolName) : undefined;
+            if (resolved) {
+                schemas.push(resolved);
+            } else {
+                unknown.push(toolName);
+            }
+        }
+
+        return {
+            content: [{
+                type: "text",
+                text: JSON.stringify({ schemas, unknown }, null, 2)
+            }],
+            structuredContent: { schemas, unknown }
+        };
     }
 
     throw new McpError(ErrorCode.MethodNotFound, "Unknown tool: " + name);
