@@ -62,6 +62,24 @@ type RequestExtra = { sessionId?: string };
 
 const SERVER_VERSION = "3.1.0";
 
+// Wave 0d-f — destructive auto-activation targets. When the truth-score
+// gate is on (default), nextSteps[] auto-activation defers any of these
+// tool names until a passing `verification-quality` evidence row appears
+// in the active session's evidence log. The set covers both kebab-case
+// skill identifiers (as they appear in skill-graph.json) and the
+// snake_case fallback that `applyExecuteSkillNextSteps` resolves into.
+const DESTRUCTIVE_AUTO_ACTIVATION_TARGETS = new Set<string>([
+  "tdd",
+  "pr-manager",
+  "pr_manager",
+  "orch-refactor",
+  "orch_refactor",
+  "to-issues",
+  "to_issues",
+  "release-readiness",
+  "release_readiness"
+]);
+
 // @AI:NAV[SEC:interface-evokoremcpserveroptions] interface EvokoreMCPServerOptions
 export interface EvokoreMCPServerOptions {
   /** When true, SessionIsolation uses FileSessionStore for persistence. */
@@ -99,6 +117,23 @@ export class EvokoreMCPServer {
   // graceful reset (first page) instead of indexing into a different
   // tool array.
   private toolListEpoch: number = 0;
+  // Wave 0d-f — `tools/list_changed` debounce. When multiple
+  // notifications would fire within `toolsListChangedDebounceMs`, only
+  // one is sent at the end of the window. The pending flag tracks
+  // whether at least one trigger happened during the window. The timer
+  // is `unref()`'d so it does not block process exit.
+  private toolsListChangedDebounceMs: number = 250;
+  private toolsListChangedTimer: NodeJS.Timeout | null = null;
+  private toolsListChangedPending: boolean = false;
+  // Wave 0d-f — soft per-session token-budget tracking for nextSteps[]
+  // auto-activations. Indexed by session id; the active discovery
+  // profile's tokenBudget is the cap.
+  private nextStepsTokenSpend: Map<string, number> = new Map();
+  // Wave 0d-f — when true (default), block nextSteps[] auto-activation
+  // of destructive skills (tdd, pr-manager, orch-refactor, to-issues,
+  // release-readiness) until the active session has a passing
+  // `verification-quality` evidence row.
+  private requireTruthScoreForAutoActivation: boolean = true;
   private sessionIsolation: SessionIsolation;
   private sessionTtlMs: number | undefined;
   private httpMode: boolean;
@@ -145,6 +180,39 @@ export class EvokoreMCPServer {
     const fallbackRaw = parseInt(process.env.EVOKORE_TOOL_SCHEMA_FALLBACK_MS || "", 10);
     this.schemaFallbackMs =
       Number.isFinite(fallbackRaw) && fallbackRaw > 0 ? fallbackRaw : 60000;
+
+    // Wave 0d-f — `tools/list_changed` coalescing window. Default 250 ms,
+    // operator-tunable via EVOKORE_TOOLS_LIST_CHANGED_DEBOUNCE_MS, clamped
+    // to [0, 5000] ms. 0 disables debounce (every trigger fires
+    // immediately, preserving pre-Wave-0 behavior bit-for-bit).
+    const debounceRaw = parseInt(
+      process.env.EVOKORE_TOOLS_LIST_CHANGED_DEBOUNCE_MS || "",
+      10
+    );
+    if (Number.isFinite(debounceRaw)) {
+      this.toolsListChangedDebounceMs = Math.max(0, Math.min(5000, debounceRaw));
+    } else {
+      this.toolsListChangedDebounceMs = 250;
+    }
+
+    // Wave 0d-f — truth-score gate for nextSteps[] auto-activation.
+    // Default on. Operators can disable via
+    // EVOKORE_AUTO_ACTIVATION_REQUIRE_TRUTH_SCORE=0|false|off|no.
+    const truthScoreRaw = String(
+      process.env.EVOKORE_AUTO_ACTIVATION_REQUIRE_TRUTH_SCORE ?? ""
+    )
+      .trim()
+      .toLowerCase();
+    if (
+      truthScoreRaw === "0" ||
+      truthScoreRaw === "false" ||
+      truthScoreRaw === "off" ||
+      truthScoreRaw === "no"
+    ) {
+      this.requireTruthScoreForAutoActivation = false;
+    } else {
+      this.requireTruthScoreForAutoActivation = true;
+    }
     this.server = new Server(
       {
         name: "evokore-mcp",
@@ -445,11 +513,77 @@ export class EvokoreMCPServer {
       return;
     }
 
+    this.scheduleToolListChanged("notifyToolListChangedIfNeeded");
+  }
+
+  /**
+   * Wave 0d-f — coalesce a `tools/list_changed` trigger into the active
+   * debounce window. When `toolsListChangedDebounceMs <= 0`, the
+   * notification fires synchronously (current pre-Wave-0 behavior). For
+   * positive windows, the first trigger arms a one-shot timer; any
+   * additional triggers within the window only set the pending flag and
+   * the timer flush emits a single notification on expiry.
+   *
+   * The epoch is bumped on every emit (not on every coalesced trigger)
+   * so cursor invalidation matches the actual notification cadence.
+   */
+  private scheduleToolListChanged(_reasonHint?: string): void {
+    if (this.toolsListChangedDebounceMs <= 0) {
+      this.toolListEpoch++;
+      void this.server.sendToolListChanged().catch((error: any) => {
+        console.error(
+          `[EVOKORE] sendToolListChanged() failed in best-effort mode: ${error?.message || error}`
+        );
+      });
+      return;
+    }
+
+    if (this.toolsListChangedTimer) {
+      // Window already armed — just record that another trigger arrived.
+      this.toolsListChangedPending = true;
+      return;
+    }
+
+    this.toolsListChangedPending = true;
+    this.toolsListChangedTimer = setTimeout(() => {
+      const shouldEmit = this.toolsListChangedPending;
+      this.toolsListChangedTimer = null;
+      this.toolsListChangedPending = false;
+      if (!shouldEmit) return;
+      this.toolListEpoch++;
+      void this.server.sendToolListChanged().catch((error: any) => {
+        console.error(
+          `[EVOKORE] sendToolListChanged() failed in best-effort mode: ${error?.message || error}`
+        );
+      });
+    }, this.toolsListChangedDebounceMs);
+    if (typeof (this.toolsListChangedTimer as any)?.unref === "function") {
+      (this.toolsListChangedTimer as any).unref();
+    }
+  }
+
+  /**
+   * Wave 0d-f — test-only helper. Fires any pending coalesced
+   * `tools/list_changed` immediately and clears the timer. Production
+   * code never calls this; tests use it to assert that exactly one
+   * notification is emitted per debounce window without waiting on
+   * real wall-clock time.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async flushToolsListChangedForTests(): Promise<void> {
+    if (this.toolsListChangedTimer) {
+      clearTimeout(this.toolsListChangedTimer);
+      this.toolsListChangedTimer = null;
+    }
+    if (!this.toolsListChangedPending) return;
+    this.toolsListChangedPending = false;
     this.toolListEpoch++;
     try {
       await this.server.sendToolListChanged();
     } catch (error: any) {
-      console.error(`[EVOKORE] sendToolListChanged() failed in best-effort mode: ${error?.message || error}`);
+      console.error(
+        `[EVOKORE] sendToolListChanged() failed in best-effort mode: ${error?.message || error}`
+      );
     }
   }
 
@@ -606,8 +740,24 @@ export class EvokoreMCPServer {
     const nextSteps = (result as any)?.nextSteps;
     if (!Array.isArray(nextSteps) || nextSteps.length === 0) return;
 
+    const sessionId = this.getSessionId(extra);
     const activatedTools = this.getActivatedTools(extra);
+
+    // Wave 0d-f — soft per-session token-budget cap from the active
+    // discovery profile. 0 / undefined means no cap.
+    const tokenBudget = this.getActiveProfileTokenBudget();
+    const currentSpend = this.nextStepsTokenSpend.get(sessionId) ?? 0;
+    let spend = currentSpend;
+
+    // Wave 0d-f — truth-score gate. Only computed once per call, and
+    // only when the gate is on AND a destructive target appears in the
+    // nextSteps list (cheap-path optimization).
+    let truthScoreOk: boolean | null = null;
+    const gateOn = this.requireTruthScoreForAutoActivation;
+
     let added = 0;
+    let deferredTruthScore = 0;
+    let deferredBudget = 0;
     for (const step of nextSteps) {
       const skillName = typeof step?.skill === "string" ? step.skill : "";
       if (!skillName) continue;
@@ -626,23 +776,152 @@ export class EvokoreMCPServer {
       if (!entry) continue;
       if (entry.alwaysVisible) continue;
       if (activatedTools.has(entry.name)) continue;
+
+      // Wave 0d-f — destructive-target truth-score gate. Block
+      // auto-activation of dangerous tools until the active session has
+      // a passing `verification-quality` evidence row.
+      const isDestructive =
+        DESTRUCTIVE_AUTO_ACTIVATION_TARGETS.has(skillName.toLowerCase()) ||
+        DESTRUCTIVE_AUTO_ACTIVATION_TARGETS.has(entry.name.toLowerCase());
+      if (gateOn && isDestructive) {
+        if (truthScoreOk === null) {
+          truthScoreOk =
+            await this.hasRecentVerificationQualityEvidence(sessionId);
+        }
+        if (!truthScoreOk) {
+          step.hint = "deferred_truth_score";
+          deferredTruthScore++;
+          continue;
+        }
+      }
+
+      // Wave 0d-f — soft token-budget gate.
+      const cost =
+        typeof step?.tokenCostEstimate === "number" &&
+        Number.isFinite(step.tokenCostEstimate)
+          ? Math.max(0, step.tokenCostEstimate)
+          : 0;
+      if (tokenBudget > 0 && spend + cost > tokenBudget) {
+        step.hint = "deferred_budget";
+        deferredBudget++;
+        continue;
+      }
+      spend += cost;
+
       activatedTools.add(entry.name);
       added++;
     }
 
+    this.nextStepsTokenSpend.set(sessionId, spend);
+
+    if (deferredTruthScore > 0 || deferredBudget > 0) {
+      // Operator-facing diagnostic so deferred activations are visible
+      // in stderr without flooding logs (one line per call).
+      console.error(
+        `[EVOKORE] applyExecuteSkillNextSteps deferred=${deferredTruthScore + deferredBudget} (truth_score=${deferredTruthScore} budget=${deferredBudget}) activated=${added} session=${sessionId}`
+      );
+    }
+
     if (added > 0) {
-      this.toolListEpoch++;
-      try {
-        await this.server.sendToolListChanged();
-      } catch (error: any) {
-        console.error(
-          `[EVOKORE] sendToolListChanged() failed after execute_skill nextSteps activation: ${error?.message || error}`
-        );
-      }
-      const sessionId = this.getSessionId(extra);
+      this.scheduleToolListChanged("applyExecuteSkillNextSteps");
       this.sessionIsolation.persistSession(sessionId).catch(() => {
         // Best-effort persistence; errors are non-fatal.
       });
+    }
+  }
+
+  /**
+   * Wave 0d-f — read the active discovery profile's token budget. The
+   * profile shape varies across legacy/dynamic configs, so we accept
+   * any of `tokenBudget`, `token_budget`, `budget`, or `maxTokens`.
+   * Returns 0 when no budget is set (no cap).
+   */
+  private getActiveProfileTokenBudget(): number {
+    const profile: any = this.discoveryProfile;
+    if (!profile || typeof profile !== "object") return 0;
+    const candidates = [
+      profile.tokenBudget,
+      profile.token_budget,
+      profile.budget,
+      profile.maxTokens
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+        return candidate;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Wave 0d-f — truth-score gate. Reads the session's evidence JSONL
+   * looking for a recent `verification-quality` row. A row counts as
+   * "passing" when `passed === true`, OR when a numeric `score` field
+   * meets the configured threshold (default 0.7).
+   *
+   * Bounded by EVOKORE_TRUTH_SCORE_EVIDENCE_WINDOW (default 50, max
+   * 1000) to keep the scan cheap on long sessions. Reads are best-
+   * effort: if the file is missing or unreadable, the gate fails closed
+   * (returns false) so destructive auto-activation defers rather than
+   * spuriously firing.
+   */
+  private async hasRecentVerificationQualityEvidence(
+    sessionId: string
+  ): Promise<boolean> {
+    try {
+      const fs = await import("fs/promises");
+      const os = await import("os");
+      const pathMod = await import("path");
+      const evidencePath = pathMod.join(
+        os.homedir(),
+        ".evokore",
+        "sessions",
+        `${sessionId}-evidence.jsonl`
+      );
+      let raw: string;
+      try {
+        raw = await fs.readFile(evidencePath, "utf-8");
+      } catch {
+        return false;
+      }
+      const windowRaw = parseInt(
+        process.env.EVOKORE_TRUTH_SCORE_EVIDENCE_WINDOW || "",
+        10
+      );
+      const windowSize = Number.isFinite(windowRaw) && windowRaw > 0
+        ? Math.min(windowRaw, 1000)
+        : 50;
+      const thresholdRaw = parseFloat(
+        process.env.EVOKORE_TRUTH_SCORE_THRESHOLD || ""
+      );
+      const threshold = Number.isFinite(thresholdRaw) ? thresholdRaw : 0.7;
+
+      const lines = raw.split(/\r?\n/).filter((l) => l.length > 0);
+      const tail = lines.slice(Math.max(0, lines.length - windowSize));
+      for (const line of tail) {
+        let row: any;
+        try {
+          row = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (!row || typeof row !== "object") continue;
+        const t = row.type ?? row.kind ?? row.evidenceType;
+        if (t !== "verification-quality" && t !== "verification_quality") continue;
+        if (row.passed === true) return true;
+        const score =
+          typeof row.score === "number"
+            ? row.score
+            : typeof row.truthScore === "number"
+              ? row.truthScore
+              : null;
+        if (score !== null && Number.isFinite(score) && score >= threshold) {
+          return true;
+        }
+      }
+      return false;
+    } catch {
+      return false;
     }
   }
 
@@ -1257,10 +1536,10 @@ export class EvokoreMCPServer {
     if (process.env.EVOKORE_SKILL_WATCHER === "true") {
       this.skillManager.setOnRefreshCallback(() => {
         this.rebuildToolCatalog();
-        this.toolListEpoch++;
-        this.server.sendToolListChanged().catch((err: any) => {
-          console.error(`[EVOKORE] sendToolListChanged() failed after watcher refresh: ${err?.message || err}`);
-        });
+        // Wave 0d-f — coalesce rapid watcher refreshes so a burst of
+        // SKILL.md saves within the debounce window emits only one
+        // `tools/list_changed` notification.
+        this.scheduleToolListChanged("watcher_refresh");
       });
       this.skillManager.enableWatcher();
     }

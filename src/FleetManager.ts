@@ -76,6 +76,24 @@ function isAlive(pid: number): boolean {
 }
 // @AI:NAV[END:liveness]
 
+// @AI:NAV[SEC:panel-concurrency] Wave 0d-f panel concurrency cap
+/**
+ * Wave 0d-f — resolve the panel concurrency cap.
+ *
+ * Defaults to 5 concurrent in-flight `fleet_spawn` operations. Operators
+ * can override via EVOKORE_PANEL_MAX_CONCURRENCY, clamped to [1, 50].
+ * Non-numeric / out-of-range values fall back to the default rather
+ * than silently disabling the cap.
+ */
+export function resolvePanelMaxConcurrency(): number {
+  const raw = parseInt(process.env.EVOKORE_PANEL_MAX_CONCURRENCY || "", 10);
+  if (!Number.isFinite(raw)) return 5;
+  if (raw < 1) return 1;
+  if (raw > 50) return 50;
+  return raw;
+}
+// @AI:NAV[END:panel-concurrency]
+
 // @AI:NAV[SEC:class] FleetManager class
 /**
  * FleetManager tracks spawned child processes (agents/workers) and
@@ -88,6 +106,18 @@ export class FleetManager {
   private agents: Map<string, FleetEntry> = new Map();
   private nextId = 1;
   private started = false;
+
+  // Wave 0d-f — concurrency cap state.
+  // `inFlight` counts agents whose spawn slot has been acquired but not
+  // yet released. `pendingSpawnQueue` holds resolvers for spawn requests
+  // currently blocked on the semaphore — drained FIFO by
+  // `releaseSpawnSlot()`. `slotHolders` tracks which agentIds have an
+  // outstanding slot so we can guarantee exactly-once release on
+  // fleet_release / stop().
+  private maxConcurrency: number = resolvePanelMaxConcurrency();
+  private inFlight: number = 0;
+  private pendingSpawnQueue: Array<() => void> = [];
+  private slotHolders: Set<string> = new Set();
 
   /** Reserved for future lifecycle work (e.g. sweeper, reaper). */
   start(): void {
@@ -103,6 +133,90 @@ export class FleetManager {
     }
     this.agents.clear();
     this.started = false;
+    // Wave 0d-f — drain any spawn requests that were still queued so
+    // their callers do not deadlock waiting on a slot.
+    const drained = this.pendingSpawnQueue.splice(0);
+    for (const resolve of drained) {
+      try {
+        resolve();
+      } catch {
+        /* ignore */
+      }
+    }
+    this.inFlight = 0;
+    this.slotHolders.clear();
+  }
+
+  /**
+   * Wave 0d-f — diagnostic snapshot of the concurrency state. Exposed
+   * for tests + future ops surfaces. Does not mutate.
+   */
+  getConcurrencyState(): {
+    max: number;
+    inFlight: number;
+    queued: number;
+  } {
+    return {
+      max: this.maxConcurrency,
+      inFlight: this.inFlight,
+      queued: this.pendingSpawnQueue.length
+    };
+  }
+
+  /**
+   * Wave 0d-f — test-only override for the concurrency cap. Production
+   * code reads `EVOKORE_PANEL_MAX_CONCURRENCY` at construction time and
+   * does not mutate the cap at runtime. Tests use this to drive
+   * deterministic semaphore behavior without touching env vars.
+   */
+  setMaxConcurrencyForTests(cap: number): void {
+    if (typeof cap !== "number" || !Number.isFinite(cap) || cap < 1) return;
+    this.maxConcurrency = Math.min(50, Math.floor(cap));
+    // Drain any waiters that the new (possibly larger) cap allows.
+    while (
+      this.inFlight < this.maxConcurrency &&
+      this.pendingSpawnQueue.length > 0
+    ) {
+      const resolve = this.pendingSpawnQueue.shift()!;
+      this.inFlight++;
+      resolve();
+    }
+  }
+
+  /**
+   * Wave 0d-f — acquire a spawn slot. Resolves immediately when
+   * `inFlight < maxConcurrency`, otherwise queues a resolver that will
+   * fire FIFO once a slot is freed by `releaseSpawnSlot()`.
+   */
+  private acquireSpawnSlot(): Promise<void> {
+    if (this.inFlight < this.maxConcurrency) {
+      this.inFlight++;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      this.pendingSpawnQueue.push(() => {
+        // inFlight is incremented here (not by the caller) so the
+        // semaphore stays accurate even if the awaiter races with stop().
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * Wave 0d-f — release a spawn slot. Called once per `fleet_release`
+   * (or once per spawn-failure path). Drains the next waiter FIFO when
+   * the cap allows.
+   */
+  private releaseSpawnSlot(): void {
+    if (this.inFlight > 0) this.inFlight--;
+    if (
+      this.inFlight < this.maxConcurrency &&
+      this.pendingSpawnQueue.length > 0
+    ) {
+      const resolve = this.pendingSpawnQueue.shift()!;
+      this.inFlight++;
+      resolve();
+    }
   }
 
   /** Test / introspection helper: snapshot of the internal map. */
@@ -254,7 +368,7 @@ export class FleetManager {
     args: Record<string, unknown>
   ): Promise<ToolResult> {
     try {
-      if (toolName === "fleet_spawn") return this.handleSpawn(args);
+      if (toolName === "fleet_spawn") return await this.handleSpawn(args);
       if (toolName === "fleet_claim") return this.handleClaim(args);
       if (toolName === "fleet_release") return this.handleRelease(args);
       if (toolName === "fleet_status") return this.handleStatus(args);
@@ -264,7 +378,7 @@ export class FleetManager {
     }
   }
 
-  private handleSpawn(args: Record<string, unknown>): ToolResult {
+  private async handleSpawn(args: Record<string, unknown>): Promise<ToolResult> {
     const command = args?.command;
     if (typeof command !== "string" || command.length === 0) {
       return errorResult("Missing required argument: command");
@@ -279,7 +393,24 @@ export class FleetManager {
         ? resourceRaw
         : undefined;
 
-    const { pid, pgid } = this.spawnChild(command, childArgs);
+    // Wave 0d-f — acquire the spawn slot before spinning up a child.
+    // This bounds the in-flight panel to `EVOKORE_PANEL_MAX_CONCURRENCY`
+    // (default 5) and queues additional spawns FIFO.
+    await this.acquireSpawnSlot();
+
+    let pid: number;
+    let pgid: number | undefined;
+    try {
+      const result = this.spawnChild(command, childArgs);
+      pid = result.pid;
+      pgid = result.pgid;
+    } catch (err) {
+      // Spawn failed before the child existed — release the slot
+      // immediately so we do not leak a token.
+      this.releaseSpawnSlot();
+      throw err;
+    }
+
     const agentId = this.nextAgentId();
     const entry: FleetEntry = {
       pid,
@@ -289,6 +420,9 @@ export class FleetManager {
       spawnedAt: Date.now(),
     };
     this.agents.set(agentId, entry);
+    // Track the slot holder so fleet_release / stop() can release
+    // exactly once per spawn even across error paths.
+    this.slotHolders.add(agentId);
 
     return jsonResult({
       agentId,
@@ -332,6 +466,13 @@ export class FleetManager {
     entry.status = "released";
     const releasedResource = entry.resource;
     entry.resource = undefined;
+    // Wave 0d-f — release the spawn slot exactly once. Tracking via
+    // `slotHolders` guards against double-release on repeated
+    // fleet_release calls for the same agentId.
+    if (this.slotHolders.has(agentId)) {
+      this.slotHolders.delete(agentId);
+      this.releaseSpawnSlot();
+    }
     return jsonResult({
       agentId,
       status: "released",

@@ -40,6 +40,14 @@ const PANEL_SKILL_REL = path.join(
 
 // Source skills whose nextSteps[] expansions follow transitive edges.
 // Anything outside this allowlist stops at direct edges only.
+//
+// Wave 0d-f extension (2026-04-27): the ADAPT chain
+// `to-prd -> to-issues -> tdd -> pr-manager` and the bug-triage flow
+// `triage-bug -> ...` are now allowlisted source skills so their
+// nextSteps[] expansions traverse the multi-hop chain instead of
+// stopping at the first direct edge. Cycle-rejection-on-insert keeps
+// these new sources from poisoning the graph if a future SKILL.md
+// introduces a back-edge.
 const TRANSITIVE_CLOSE_EXPAND = new Set([
   "release-readiness",
   "repo-ingestor",
@@ -47,11 +55,24 @@ const TRANSITIVE_CLOSE_EXPAND = new Set([
   "orch-review",
   "orch-plan",
   "tool-governance",
-  "orch-refactor"
+  "orch-refactor",
+  // Wave 0d-f additions:
+  "to-issues",
+  "tdd",
+  "pr-manager",
+  "triage-bug"
 ]);
 
 // Cap the BFS expansion depth even within the allowlist.
 const MAX_DEPTH = 5;
+
+// Wave 0d-f token-cost heuristic. Approximates token cost of a SKILL.md
+// body using a 4-chars-per-token heuristic, capped at TOKEN_COST_MAX so
+// single pathological skills cannot dominate the soft budget. Consumers
+// (src/index.ts) use this to skip auto-activations that would blow the
+// active discovery profile's token budget.
+const TOKEN_COST_CHARS_PER_TOKEN = 4;
+const TOKEN_COST_MAX = 50000;
 
 // Skip scanning these directory names anywhere under SKILLS/.
 const SKIP_DIRS = new Set([
@@ -275,6 +296,41 @@ function scanInvocations(content) {
 }
 
 /**
+ * Wave 0d-f — DFS reachability check used for cycle-rejection-on-insert.
+ * Returns true if `to` is reachable from `from` following the current
+ * directed adjacency. Edges that would close a cycle (i.e. inserting
+ * `from -> to` when `to` already reaches `from`) are recorded under
+ * `_rejected_cycles` rather than emitted into the graph.
+ */
+function canReach(from, to, adj) {
+  if (from === to) return true;
+  const visited = new Set();
+  const stack = [from];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (visited.has(node)) continue;
+    visited.add(node);
+    const neighbors = adj.get(node) || [];
+    for (const n of neighbors) {
+      if (n === to) return true;
+      if (!visited.has(n)) stack.push(n);
+    }
+  }
+  return false;
+}
+
+/**
+ * Wave 0d-f — token-cost estimate for a SKILL.md body. Uses a simple
+ * chars/4 heuristic and caps at TOKEN_COST_MAX. Returns 0 for empty or
+ * non-string content.
+ */
+function estimateTokenCost(content) {
+  if (typeof content !== "string" || content.length === 0) return 0;
+  const raw = Math.ceil(content.length / TOKEN_COST_CHARS_PER_TOKEN);
+  return Math.min(raw, TOKEN_COST_MAX);
+}
+
+/**
  * DFS cycle detector across the direct edge set.
  * Returns an array of cycles (each a `from -> ... -> from` path).
  */
@@ -344,6 +400,10 @@ function buildGraph(rootDir, options) {
   const skillFiles = findSkillFiles(rootDir);
   const knownSkills = new Map(); // skillName -> file
   const fileToSkill = new Map();
+  // Wave 0d-f: source-skill token-cost lookup, used to stamp every
+  // emitted edge with `tokenCostEstimate` so the runtime can apply soft
+  // budget gating without re-reading SKILL.md bodies.
+  const sourceTokenCost = new Map();
   for (const file of skillFiles) {
     let content;
     try {
@@ -354,6 +414,9 @@ function buildGraph(rootDir, options) {
     const name = getSkillName(file, content).toLowerCase();
     if (!knownSkills.has(name)) knownSkills.set(name, file);
     fileToSkill.set(file, { name, content });
+    if (!sourceTokenCost.has(name)) {
+      sourceTokenCost.set(name, estimateTokenCost(content));
+    }
   }
 
   // Parse the panel-of-experts injection section as a structural anchor.
@@ -374,6 +437,13 @@ function buildGraph(rootDir, options) {
   const directAdj = new Map();
   const warnings = [];
   const seenEdgeKey = new Set();
+  // Wave 0d-f: cycle-rejection-on-insert log. When inserting `from -> to`
+  // would close a cycle (i.e. `to` already reaches `from` in the
+  // adjacency built so far), the edge is dropped here instead of
+  // making it into `directEdges`. The dropped record is surfaced
+  // under `_rejected_cycles` so operators can see why an expected edge
+  // is missing.
+  const rejectedCycles = [];
 
   for (const [file, info] of fileToSkill.entries()) {
     const sourceName = info.name;
@@ -386,13 +456,27 @@ function buildGraph(rootDir, options) {
       if (!knownSkills.has(target)) continue;
       const key = `${sourceName}->${target}`;
       if (seenEdgeKey.has(key)) continue;
+      // Wave 0d-f: cycle-rejection-on-insert. If the target already
+      // reaches the source via existing direct edges, accepting this
+      // new edge would close a cycle. Record the rejection and skip.
+      if (canReach(target, sourceName, directAdj)) {
+        rejectedCycles.push({
+          from: sourceName,
+          to: target,
+          file: path.relative(REPO_ROOT, file).replace(/\\/g, "/"),
+          line,
+          reason: "would_close_cycle"
+        });
+        continue;
+      }
       seenEdgeKey.add(key);
       directEdges.push({
         from: sourceName,
         to: target,
         file: path.relative(REPO_ROOT, file).replace(/\\/g, "/"),
         line,
-        kind: "direct"
+        kind: "direct",
+        tokenCostEstimate: sourceTokenCost.get(sourceName) ?? 0
       });
       directAdj.get(sourceName).push(target);
     }
@@ -426,7 +510,8 @@ function buildGraph(rootDir, options) {
           .relative(REPO_ROOT, knownSkills.get(source) || "")
           .replace(/\\/g, "/"),
         line: 0,
-        kind: "transitive"
+        kind: "transitive",
+        tokenCostEstimate: sourceTokenCost.get(source) ?? 0
       });
     }
   }
@@ -445,7 +530,10 @@ function buildGraph(rootDir, options) {
     warnings,
     mandatoryInjectionPoints,
     transitiveCloseExpand: Array.from(TRANSITIVE_CLOSE_EXPAND),
-    maxDepth: MAX_DEPTH
+    maxDepth: MAX_DEPTH,
+    // Wave 0d-f: edges dropped because they would close a cycle on
+    // insert. Empty array on a healthy graph.
+    _rejected_cycles: rejectedCycles
   };
 
   return graph;
@@ -470,7 +558,8 @@ function main() {
       warnings: ["SKILLS/ directory not found"],
       mandatoryInjectionPoints: [],
       transitiveCloseExpand: Array.from(TRANSITIVE_CLOSE_EXPAND),
-      maxDepth: MAX_DEPTH
+      maxDepth: MAX_DEPTH,
+      _rejected_cycles: []
     };
     fs.writeFileSync(outPath, JSON.stringify(empty, null, 2) + "\n");
     process.exit(opts.validate ? 1 : 0);
@@ -504,6 +593,11 @@ module.exports = {
   scanInvocations,
   detectCycles,
   transitiveDescendants,
+  canReach,
+  estimateTokenCost,
   TRANSITIVE_CLOSE_EXPAND,
-  MAX_DEPTH
+  MAX_DEPTH,
+  TOKEN_COST_CHARS_PER_TOKEN,
+  TOKEN_COST_MAX,
+  INVOCATION_RE
 };

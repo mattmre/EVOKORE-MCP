@@ -43,9 +43,12 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
       expect(graph.edges.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('--validate exits non-zero when cycles are present', () => {
-      // Plant a cycle in a tmpdir of synthetic SKILL.md files and run the
-      // buildGraph entrypoint directly against it.
+    it('rejects cycle-closing edges on insert and surfaces them under _rejected_cycles', () => {
+      // Wave 0d-f changed the graph builder: edges that would close a
+      // cycle are now rejected on insert (before they reach the
+      // adjacency), so DFS no longer detects a planted alpha<->beta
+      // cycle. Instead, exactly one of the two edges is recorded under
+      // `_rejected_cycles`, preventing the cycle from forming.
       const mod = require(SCRIPT);
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-skill-graph-'));
       try {
@@ -83,14 +86,23 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
         );
 
         const graph = mod.buildGraph(tmp, {});
-        expect(graph.cycles.length).toBeGreaterThan(0);
-        // The detected cycle must include both planted skills.
-        const cycleSkills = new Set<string>();
-        for (const c of graph.cycles) {
-          for (const node of c.path) cycleSkills.add(node);
-        }
-        expect(cycleSkills.has('alpha')).toBe(true);
-        expect(cycleSkills.has('beta')).toBe(true);
+        // Cycle-rejection-on-insert means the DFS-detected cycles
+        // array stays empty; the cycle never forms in the adjacency.
+        expect(graph.cycles.length).toBe(0);
+        // Exactly one edge of the planted alpha<->beta pair is dropped.
+        expect(Array.isArray(graph._rejected_cycles)).toBe(true);
+        expect(graph._rejected_cycles.length).toBe(1);
+        const dropped = graph._rejected_cycles[0];
+        expect(dropped.reason).toBe('would_close_cycle');
+        const involved = new Set([dropped.from, dropped.to]);
+        expect(involved.has('alpha')).toBe(true);
+        expect(involved.has('beta')).toBe(true);
+        // The dropped edge must not appear among the emitted edges.
+        const leaked = graph.edges.find(
+          (e: any) =>
+            e.from === dropped.from && e.to === dropped.to && e.kind === 'direct'
+        );
+        expect(leaked).toBeUndefined();
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
