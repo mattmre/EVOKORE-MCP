@@ -107,6 +107,20 @@ export interface SkillCompositionEdge {
   file: string;
   line: number;
   kind: "direct" | "transitive";
+  /**
+   * Wave 0d-f — chars/4 token-cost estimate of the *source* SKILL.md
+   * body, capped at 50000. The runtime uses this to apply soft budget
+   * gating before auto-activating downstream tools.
+   */
+  tokenCostEstimate?: number;
+}
+
+export interface SkillCompositionRejectedCycle {
+  from: string;
+  to: string;
+  file: string;
+  line: number;
+  reason: string;
 }
 
 export interface SkillCompositionGraph {
@@ -118,11 +132,20 @@ export interface SkillCompositionGraph {
   mandatoryInjectionPoints?: string[];
   transitiveCloseExpand?: string[];
   maxDepth?: number;
+  /**
+   * Wave 0d-f — edges dropped during graph build because accepting them
+   * would close a cycle. Empty on a healthy graph.
+   */
+  _rejected_cycles?: SkillCompositionRejectedCycle[];
 }
 
 export interface SkillNextStep {
   skill: string;
   reason: string;
+  /** Wave 0d-f — token-cost estimate carried through from the edge. */
+  tokenCostEstimate?: number;
+  /** Wave 0d-f — operator-facing diagnostic, e.g. "deferred_truth_score" or "deferred_budget". */
+  hint?: string;
 }
 // @AI:NAV[END:interface-skillgraph]
 
@@ -420,7 +443,11 @@ export class SkillManager {
         edge.kind === "direct"
           ? `Referenced from ${edge.file}:L${edge.line}`
           : `Transitive from ${edge.from} (depth>=2, allowlisted)`;
-      out.push({ skill: edge.to, reason });
+      const step: SkillNextStep = { skill: edge.to, reason };
+      if (typeof edge.tokenCostEstimate === "number") {
+        step.tokenCostEstimate = edge.tokenCostEstimate;
+      }
+      out.push(step);
     }
     return out;
   }
