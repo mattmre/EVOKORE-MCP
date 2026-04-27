@@ -152,6 +152,24 @@ describe('tools/list cursor pagination', () => {
       expect(page.tools).toHaveLength(1);
       expect(page.nextCursor).toBeTruthy();
     });
+
+    it('fractional pageSize in (0, 1) falls back to 1 (no infinite-loop nextCursor)', () => {
+      const tools = makeTools(5);
+      const page = paginateTools(tools, 0.5, undefined, 0);
+      // A floor of 0.5 would naively be 0, which would emit an empty
+      // page with a nextCursor at offset 0 — i.e. an infinite loop.
+      expect(page.tools).toHaveLength(1);
+      expect(page.nextCursor).toBeTruthy();
+      const decoded = decodeCursor(page.nextCursor as string);
+      expect(decoded?.offset).toBe(1);
+    });
+
+    it('NaN pageSize falls back to 1', () => {
+      const tools = makeTools(5);
+      const page = paginateTools(tools, NaN, undefined, 0);
+      expect(page.tools).toHaveLength(1);
+      expect(page.nextCursor).toBeTruthy();
+    });
   });
 
   describe('EvokoreMCPServer end-to-end', () => {

@@ -100,7 +100,12 @@ export function paginateTools(
   currentEpoch: number,
 ): PaginateResult {
   const total = tools.length;
-  const safePageSize = Number.isFinite(pageSize) && pageSize > 0
+  // Require pageSize >= 1 (not just > 0) so fractional inputs in the open
+  // interval (0, 1) — e.g. 0.5 — don't floor to 0. A zero page size would
+  // return an empty slice with a nextCursor that points to the same
+  // offset, causing well-behaved clients that follow the cursor to spin
+  // in an infinite loop. Falling back to 1 guarantees forward progress.
+  const safePageSize = Number.isFinite(pageSize) && pageSize >= 1
     ? Math.floor(pageSize)
     : 1;
 
