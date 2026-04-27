@@ -614,7 +614,15 @@ export class EvokoreMCPServer {
       // Activate the catalog entry whose tool name matches the
       // referenced skill name. Skills that do not surface as a tool
       // (most of them) silently no-op, which is the desired behavior.
-      const entry = this.toolCatalog.getEntry(skillName);
+      // The skill graph uses kebab-case identifiers (matches the
+      // SKILL.md naming convention), but several native tools use
+      // snake_case (e.g. `docs_architect`). Try the kebab form first,
+      // then a snake_case-normalized fallback so the auto-activation
+      // resolves both worlds.
+      let entry = this.toolCatalog.getEntry(skillName);
+      if (!entry && skillName.includes("-")) {
+        entry = this.toolCatalog.getEntry(skillName.replace(/-/g, "_"));
+      }
       if (!entry) continue;
       if (entry.alwaysVisible) continue;
       if (activatedTools.has(entry.name)) continue;

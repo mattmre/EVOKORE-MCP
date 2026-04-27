@@ -344,11 +344,12 @@ export class SkillManager {
    * Returns null when the file is missing — callers should treat that
    * as an empty graph and emit a single stderr warning per process.
    */
-  loadSkillGraph(): SkillCompositionGraph | null {
+  async loadSkillGraph(): Promise<SkillCompositionGraph | null> {
     const graphPath = this.getSkillGraphPath();
     let stat: fsSync.Stats;
     try {
-      stat = fsSync.statSync(graphPath);
+      // Async stat — cheap, but keeps the event loop free under load.
+      stat = await fs.stat(graphPath);
     } catch {
       if (!this.skillGraphMissingWarned) {
         this.skillGraphMissingWarned = true;
@@ -369,7 +370,7 @@ export class SkillManager {
     }
 
     try {
-      const raw = fsSync.readFileSync(graphPath, "utf-8");
+      const raw = await fs.readFile(graphPath, "utf-8");
       const parsed = JSON.parse(raw) as SkillCompositionGraph;
       this.skillGraphCache = parsed;
       this.skillGraphCacheMtimeMs = stat.mtimeMs;
@@ -403,8 +404,8 @@ export class SkillManager {
    * when the source is in the allowlist (already enforced at graph
    * generation time).
    */
-  computeNextSteps(sourceSkill: string): SkillNextStep[] {
-    const graph = this.loadSkillGraph();
+  async computeNextSteps(sourceSkill: string): Promise<SkillNextStep[]> {
+    const graph = await this.loadSkillGraph();
     if (!graph || !Array.isArray(graph.edges)) return [];
 
     const normalized = sourceSkill.toLowerCase();
@@ -1638,7 +1639,7 @@ export class SkillManager {
             try {
                 if (!this.fuseIndex) await this.loadSkills();
                 const blocks = this.extractCodeBlocks(skillName);
-                const nextSteps = this.computeNextSteps(skillName);
+                const nextSteps = await this.computeNextSteps(skillName);
                 if (blocks.length === 0) {
                     return {
                         content: [{
@@ -1698,7 +1699,7 @@ export class SkillManager {
                 parts.push("--- stderr ---\n" + result.stderr);
             }
 
-            const nextSteps = this.computeNextSteps(skillName);
+            const nextSteps = await this.computeNextSteps(skillName);
             return {
                 content: [{ type: "text", text: parts.join("\n") }],
                 nextSteps,

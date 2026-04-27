@@ -230,7 +230,9 @@ function parseMandatoryInjectionPoints(sectionText) {
       const raw = m[1].trim();
       // Strip parenthetical qualifiers like "orch-review (risk-triggered)".
       const bareName = raw.replace(/\s*\(.*\)\s*$/, "").trim();
-      if (bareName && /^[a-z0-9][a-z0-9-]*$/i.test(bareName)) {
+      // Allow underscores so snake_case native tool names
+      // (e.g. `docs_architect`) are not silently dropped.
+      if (bareName && /^[a-z0-9][a-z0-9_-]*$/i.test(bareName)) {
         found.add(bareName);
       }
     }
@@ -244,10 +246,11 @@ function parseMandatoryInjectionPoints(sectionText) {
  *   "run the docs-architect skill"
  *   "use `orch-review` skill"
  *   "call **panel-foo** workflow"
- * Captures only kebab-case identifiers.
+ *   "run docs_architect skill"   (snake_case native tools)
+ * Captures both kebab-case and snake_case identifiers.
  */
 const INVOCATION_RE =
-  /(?:invoke|run|use|call)\s+(?:the\s+)?[`*]?([a-z0-9][a-z0-9-]{2,})[`*]?(?:\s+(?:skill|panel|workflow))/gi;
+  /(?:invoke|run|use|call)\s+(?:the\s+)?[`*]?([a-z0-9][a-z0-9_-]{2,})[`*]?(?:\s+(?:skill|panel|workflow))/gi;
 
 /**
  * Scan a skill body for invocation references. Returns one entry per

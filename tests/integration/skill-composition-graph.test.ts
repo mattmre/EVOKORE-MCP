@@ -141,7 +141,7 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
       delete process.env.EVOKORE_SKILL_GRAPH_PATH;
     });
 
-    it('returns nextSteps[] when the graph has matching edges', () => {
+    it('returns nextSteps[] when the graph has matching edges', async () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-graph-'));
       const graphPath = path.join(tmpDir, 'skill-graph.json');
       const fakeGraph = {
@@ -166,7 +166,7 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
 
       try {
         const sm = createSkillManager(graphPath);
-        const steps = sm.computeNextSteps('pr-manager');
+        const steps = await sm.computeNextSteps('pr-manager');
         expect(steps).toHaveLength(1);
         expect(steps[0].skill).toBe('security-review');
         expect(steps[0].reason).toMatch(/pr-manager\/SKILL\.md:L43/);
@@ -175,12 +175,12 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
       }
     });
 
-    it('returns nextSteps: [] when the graph file is absent (no crash)', () => {
+    it('returns nextSteps: [] when the graph file is absent (no crash)', async () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-graph-'));
       const missingPath = path.join(tmpDir, 'does-not-exist.json');
       try {
         const sm = createSkillManager(missingPath);
-        const steps = sm.computeNextSteps('any-skill');
+        const steps = await sm.computeNextSteps('any-skill');
         expect(steps).toEqual([]);
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -212,7 +212,7 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
 
       try {
         const sm = createSkillManager(graphPath);
-        let steps = sm.computeNextSteps('src-a');
+        let steps = await sm.computeNextSteps('src-a');
         expect(steps.map((s: any) => s.skill)).toEqual(['tgt-1']);
 
         // Wait so mtime changes are observable on FS that round to seconds.
@@ -234,14 +234,14 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
         const future = new Date(Date.now() + 1000);
         fs.utimesSync(graphPath, future, future);
 
-        steps = sm.computeNextSteps('src-a');
+        steps = await sm.computeNextSteps('src-a');
         expect(steps.map((s: any) => s.skill)).toEqual(['tgt-2']);
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
     });
 
-    it('_resetSkillGraphCache forces a fresh disk read', () => {
+    it('_resetSkillGraphCache forces a fresh disk read', async () => {
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'evokore-graph-'));
       const graphPath = path.join(tmpDir, 'skill-graph.json');
       fs.writeFileSync(
@@ -258,10 +258,10 @@ describe('Sprint 2.x: Skill composition graph + nextSteps[]', () => {
       );
       try {
         const sm = createSkillManager(graphPath);
-        sm.computeNextSteps('whatever');
+        await sm.computeNextSteps('whatever');
         sm._resetSkillGraphCache();
         // Should not throw on a second computeNextSteps call.
-        expect(sm.computeNextSteps('whatever')).toEqual([]);
+        expect(await sm.computeNextSteps('whatever')).toEqual([]);
       } finally {
         fs.rmSync(tmpDir, { recursive: true, force: true });
       }
