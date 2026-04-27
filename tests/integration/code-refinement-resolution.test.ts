@@ -70,6 +70,7 @@ const ALLOWLIST = [
   // the public record of the resolution and are expected to mention
   // `code-refinement` in that explanatory context.
   'docs/handoffs/2026-04-26-overnight.md',
+  'docs/handoffs/2026-04-26-overnight-completion.md',
   'docs/plans/tool-discovery-tiering-2026-04-26.md',
   'next-session.md',
 

@@ -1,17 +1,19 @@
 # Next Session Priorities
 
-Last Updated (UTC): 2026-04-26
+Last Updated (UTC): 2026-04-27
 
-## ⚠️ ACTIVE PRIORITY SET — Tool Discovery Tiering Sprint (P0)
+## ✅ COMPLETE — Tool Discovery Tiering Sprint (all phases shipped)
 
 **Plan:** [docs/plans/tool-discovery-tiering-2026-04-26.md](docs/plans/tool-discovery-tiering-2026-04-26.md)
 
-**Status (post-overnight, post-merge):** Phase 0 + Sprint 1.1 + plan
-docs **landed on `main`**. The next session resumes with **Sprint 2
-and Sprint 3** as the operator-rearranged top of the deferred queue
-(see "Deferred queue — REARRANGED" below). All other tracks (security
-A/B, reliability, BUG-28, vector gate, npm publish, hosted VPS) remain
-paused until the rearranged tiering work ships.
+**Status (2026-04-27, post-merge):** Phase 0 + Sprint 1.1 + Sprints 1.2 / 1.3 /
+1.4 / 1.5 / 2.0 / 2.x / 3.0 / 3.x have all landed on `main` across PRs #288 /
+#289 / #290 / #292 / #293 / #294 / #295 / #296 / #297 / #298 / #299. All
+gemini-code-assist review feedback was addressed before merge. See
+[`docs/handoffs/2026-04-26-overnight-completion.md`](docs/handoffs/2026-04-26-overnight-completion.md)
+for the per-PR evidence record. The next session resumes with the original
+priority queue (Security A, Security B, Reliability, BUG-28, vector gate,
+npm publish v3.1.0, hosted VPS) below.
 
 **Why it jumped the queue:** every connecting MCP client pays a 12K–31K
 token tax on the initial `tools/list`. Panel-of-experts review (Q1/Q2/Q3
@@ -305,45 +307,12 @@ instrumentation -> operator-gated npm publication
 
 ## How To Start Next Session
 
-### Option Z — Resume the Tool Discovery Tiering sprint (P0, blocks all others)
+### Tool Discovery Tiering — DONE
 
-The overnight run shipped Phase 0 + Sprint 1.1 + plan docs (PRs #288 /
-#289 / #290, all merged). Per the operator priority shift on
-2026-04-26, the next session picks up **Sprint 2 first, then Sprint
-3**, NOT Sprints 1.2 / 1.3 / 1.4.
-
-**Sprint 2 — Skill composition graph + `nextSteps[]` (start here):**
-
-> "Load `docs/plans/tool-discovery-tiering-2026-04-26.md` §10 and
-> `docs/handoffs/2026-04-26-overnight.md`. Phase 0 + Sprint 1.1 +
-> docs all landed on `main` (PRs #288 / #289 / #290). Pick up
-> Sprint 2 — auto-derived skill composition graph + `nextSteps[]`.
-> First slice: resolve the verified `code-refinement` blocker —
-> either build it as an executable skill under
-> `SKILLS/ORCHESTRATION FRAMEWORK/.../code-refinement/SKILL.md`
-> with proper trigger-explicit description and progressive
-> disclosure, OR remove the dangling reference from `pr-manager`.
-> Decide based on what `pr-manager → security-review →
-> code-refinement` is supposed to actually do, not on which option
-> is faster. Then build `scripts/derive-skill-composition.js`
-> using a markdown-heading section locator (NOT line numbers) for
-> the panel-of-experts SKILL.md injection table."
-
-**Sprint 3 — Schema-deferred `tools/list` + `describe_tool` (do
-research first):**
-
-> "Load `docs/plans/tool-discovery-tiering-2026-04-26.md` §10
-> Sprint 3. Before any implementation, produce a client-compatibility
-> matrix covering Claude Desktop, Cursor, Cline, Continue, and any
-> other custom MCP clients in repo docs. For each client, document:
-> does it tolerate `inputSchema` being absent on `tools/list`? Does
-> it call a separate tool to fetch the schema before invocation, and
-> if so under what method name? What's the user-visible failure mode
-> when a tool is called without a cached schema? Land that matrix as
-> a `docs/research/tools-list-deferred-schema-compat-2026-04-XX.md`
-> doc PR. Only after the matrix is on main do we start the
-> implementation slice (`describe_tool` companion + flag-gated
-> deferred `tools/list`)."
+All phases of the tiering sprint shipped on 2026-04-26 / 2026-04-27 across
+PRs #288–#299. The original priority queue (Security A, Security B,
+Reliability, BUG-28, vector gate, npm publish, hosted VPS) above is now
+the active queue. Pick up at item 1 unless the operator says otherwise.
 
 ### Option A — Security A
 
