@@ -37,8 +37,13 @@ test('version/config consistency validation', () => {
   assert.doesNotMatch(readme, /^# EVOKORE-MCP v/i);
   assert.doesNotMatch(readme, /^## .*v\d+\.\d+\.\d+.*Highlights$/m);
 
-  assert.match(envExample, /EVOKORE_TOOL_DISCOVERY_MODE=dynamic/);
-  assert.match(envExample, /Tool discovery mode.*legacy.*dynamic/);
-  assert.doesNotMatch(envExample, /EVOKORE_DISCOVERY_MODE/);
+  // v3.1+ flipped the default to dynamic. The env var only appears as the
+  // commented-out legacy safety-pin opt-out; the comment block must still
+  // reference both modes so operators can find the escape hatch.
+  assert.match(envExample, /EVOKORE_TOOL_DISCOVERY_MODE=legacy/);
+  assert.match(envExample, /Tool discovery mode\. Default: dynamic/);
+  assert.match(envExample, /set to "dynamic"/);
+  assert.match(envExample, /pre-v3\.1 behavior/);
+  assert.doesNotMatch(envExample, /^EVOKORE_DISCOVERY_MODE=/m);
   assert.doesNotMatch(envExample, /"full" = all tools visible, "gated" = discovery-based/);
 });
