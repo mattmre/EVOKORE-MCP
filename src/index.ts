@@ -696,9 +696,20 @@ export class EvokoreMCPServer {
         ? this.toolCatalog.getProjectedTools(this.getActivatedTools(extra))
         : this.toolCatalog.getAllTools();
 
-      // Operator opt-out: bypass pagination entirely. Useful for clients
-      // that cannot page (legacy MCP probes) or for diagnostic snapshots.
-      if (process.env.EVOKORE_TOOL_LIST_PAGINATION === "off") {
+      const cursor = typeof request.params?.cursor === "string"
+        ? request.params.cursor
+        : undefined;
+
+      // Pagination is opt-in to preserve backward compatibility:
+      //   - If the client sent a cursor it is signalling that it supports
+      //     pagination, so honor it.
+      //   - Otherwise pagination only kicks in when the operator forces it
+      //     on via EVOKORE_TOOL_LIST_PAGINATION=on (useful for capped
+      //     clients like Cursor IDE that silently truncate at 40 tools).
+      // Legacy clients that don't pass a cursor get the full unpaged list,
+      // matching pre-v3.1 behavior.
+      const paginationOptIn = process.env.EVOKORE_TOOL_LIST_PAGINATION === "on";
+      if (cursor === undefined && !paginationOptIn) {
         return { tools: allTools };
       }
 
@@ -708,10 +719,6 @@ export class EvokoreMCPServer {
       const pageSize = Number.isFinite(rawPageSize) && rawPageSize > 0
         ? Math.min(Math.max(Math.floor(rawPageSize), 1), 1000)
         : 35;
-
-      const cursor = typeof request.params?.cursor === "string"
-        ? request.params.cursor
-        : undefined;
 
       const page = paginateTools(allTools, pageSize, cursor, this.toolListEpoch);
       const response: { tools: typeof page.tools; nextCursor?: string } = {

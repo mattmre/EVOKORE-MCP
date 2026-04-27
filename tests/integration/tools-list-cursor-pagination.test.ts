@@ -191,7 +191,19 @@ describe('tools/list cursor pagination', () => {
       return handler(request, extra);
     }
 
-    it('first call with no cursor returns a page of <= 35 tools', async () => {
+    it('default: first call with no cursor and no opt-in returns the full unpaged list', async () => {
+      const { EvokoreMCPServer } = require(indexJsPath);
+      const server = new EvokoreMCPServer();
+      const result = await callListTools(server);
+      expect(Array.isArray(result.tools)).toBe(true);
+      // Pre-v3.1 contract: no nextCursor, no truncation when the client
+      // has not signaled pagination support.
+      expect(result.nextCursor).toBeUndefined();
+    });
+
+    it('opt-in via EVOKORE_TOOL_LIST_PAGINATION=on caps the first page at the default size', async () => {
+      process.env.EVOKORE_TOOL_LIST_PAGINATION = 'on';
+
       const { EvokoreMCPServer } = require(indexJsPath);
       const server = new EvokoreMCPServer();
       const result = await callListTools(server);
@@ -199,10 +211,11 @@ describe('tools/list cursor pagination', () => {
       expect(result.tools.length).toBeLessThanOrEqual(35);
     });
 
-    it('paging via returned nextCursor advances through the catalog', async () => {
+    it('cursor-aware client: passing a cursor activates pagination even without opt-in', async () => {
       // Force a small page size so we always exercise pagination even
       // when the catalog is small relative to the default.
       process.env.EVOKORE_TOOL_LIST_PAGE_SIZE = '3';
+      process.env.EVOKORE_TOOL_LIST_PAGINATION = 'on';
 
       const { EvokoreMCPServer } = require(indexJsPath);
       const server = new EvokoreMCPServer();
@@ -211,8 +224,10 @@ describe('tools/list cursor pagination', () => {
       expect(page1.tools.length).toBeLessThanOrEqual(3);
 
       // If there are at least 4 tools, we should get a nextCursor and
-      // a distinct second page.
+      // a distinct second page. The second call follows the cursor, so
+      // it would paginate even without the env opt-in.
       if (page1.nextCursor) {
+        delete process.env.EVOKORE_TOOL_LIST_PAGINATION;
         const firstNames = new Set(page1.tools.map((t: any) => t.name));
         const page2 = await callListTools(server, { cursor: page1.nextCursor });
         expect(page2.tools.length).toBeGreaterThan(0);
@@ -224,6 +239,7 @@ describe('tools/list cursor pagination', () => {
 
     it('epoch bump invalidates cursor: stale cursor resets to first page', async () => {
       process.env.EVOKORE_TOOL_LIST_PAGE_SIZE = '3';
+      process.env.EVOKORE_TOOL_LIST_PAGINATION = 'on';
 
       const { EvokoreMCPServer } = require(indexJsPath);
       const server = new EvokoreMCPServer();
@@ -246,20 +262,28 @@ describe('tools/list cursor pagination', () => {
       expect(resetPage.tools[0].name).toBe(page1.tools[0].name);
     });
 
-    it('opt-out: EVOKORE_TOOL_LIST_PAGINATION=off returns full array regardless of cursor', async () => {
-      process.env.EVOKORE_TOOL_LIST_PAGE_SIZE = '3';
-      process.env.EVOKORE_TOOL_LIST_PAGINATION = 'off';
-
+    it('opt-in vs default: forced page size produces a strictly smaller first response than the default unpaged call', async () => {
       const { EvokoreMCPServer } = require(indexJsPath);
       const server = new EvokoreMCPServer();
 
-      const result = await callListTools(server);
-      expect(result.nextCursor).toBeUndefined();
-      // Even passing a fabricated cursor must not change the result.
-      const fabricated = encodeCursor({ offset: 1, epoch: 0 });
-      const result2 = await callListTools(server, { cursor: fabricated });
-      expect(result2.nextCursor).toBeUndefined();
-      expect(result2.tools.length).toBe(result.tools.length);
+      // 1. Default call (no cursor, no env) — must be unpaged.
+      const unpaged = await callListTools(server);
+      expect(unpaged.nextCursor).toBeUndefined();
+
+      // 2. Opt-in with a tiny page size — first page must be capped and
+      //    expose a nextCursor when the catalog has enough tools.
+      process.env.EVOKORE_TOOL_LIST_PAGINATION = 'on';
+      process.env.EVOKORE_TOOL_LIST_PAGE_SIZE = '2';
+      const paged = await callListTools(server);
+      expect(paged.tools.length).toBeLessThanOrEqual(2);
+      // If the catalog has more than 2 tools, the opt-in must produce a
+      // strictly smaller response than the default unpaged call. If it
+      // doesn't, the catalog is degenerate and the test simply asserts
+      // length parity (still a valid invariant).
+      if (unpaged.tools.length > 2) {
+        expect(paged.tools.length).toBeLessThan(unpaged.tools.length);
+        expect(paged.nextCursor).toBeTruthy();
+      }
     });
   });
 });

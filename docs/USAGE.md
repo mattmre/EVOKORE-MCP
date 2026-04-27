@@ -117,19 +117,24 @@ For the current stdio runtime, EVOKORE uses a default session key when the trans
 
 ### 2.1.1 `tools/list` cursor pagination
 
-EVOKORE paginates `tools/list` responses using the standard MCP opaque-cursor contract. This keeps the first response under the Cursor IDE 40-tool cap while still letting paging-aware clients walk the full catalog.
+EVOKORE supports MCP opaque-cursor pagination for `tools/list`, but it is **off by default** to preserve pre-v3.1 single-call behavior for clients that don't follow `nextCursor`.
+
+Pagination activates when *either*:
+
+1. **The client sends a `cursor` param** — signaling cursor support. The handler returns a page and a `nextCursor` for the rest of the catalog.
+2. **The operator opts in via `EVOKORE_TOOL_LIST_PAGINATION=on`** — the first response is also paged, useful for capped clients (e.g., Cursor IDE silently truncates at 40 tools) that don't yet send a cursor on the initial probe.
+
+If neither condition is met, the handler returns the full tool array with no `nextCursor` (legacy contract).
 
 - **Default page size:** `35` (chosen for headroom under the Cursor IDE 40-tool cap).
 - **Configure page size:** `EVOKORE_TOOL_LIST_PAGE_SIZE=<n>` — clamped to `[1, 1000]`.
-- **Disable pagination entirely:** `EVOKORE_TOOL_LIST_PAGINATION=off` — the handler returns the full tool array with no `nextCursor`.
-- **Cursor invalidation:** every `tools/list_changed` notification bumps an internal epoch. Cursors issued before the bump decode to a *graceful first-page reset* rather than an error, so older non-paging clients continue to work.
+- **Force pagination on:** `EVOKORE_TOOL_LIST_PAGINATION=on` — useful when you want capped clients to immediately see a paged response without waiting for them to send a cursor.
+- **Cursor invalidation:** every `tools/list_changed` notification bumps an internal epoch. Cursors issued before the bump decode to a *graceful first-page reset* rather than an error.
 
 ```bash
-EVOKORE_TOOL_LIST_PAGE_SIZE=50 node dist/index.js
-EVOKORE_TOOL_LIST_PAGINATION=off node dist/index.js
+# Force pagination on with a custom page size:
+EVOKORE_TOOL_LIST_PAGINATION=on EVOKORE_TOOL_LIST_PAGE_SIZE=50 node dist/index.js
 ```
-
-Clients that do not page (single `tools/list` call, ignoring `nextCursor`) will see only the first page. If your catalog is large and you cannot page, set `EVOKORE_TOOL_LIST_PAGINATION=off`.
 
 ### 2.2 Benchmarking tool discovery
 
