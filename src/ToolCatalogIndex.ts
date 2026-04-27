@@ -30,10 +30,18 @@ export class ToolCatalogIndex {
       profile && Array.isArray(profile.alwaysVisible)
         ? new Set(profile.alwaysVisible)
         : null;
+    const allVisible =
+      profile && profile.alwaysVisible === "all";
     const isAlwaysVisible = (tool: Tool, source: ToolCatalogSource): boolean => {
       // Profile-driven visibility: explicit list of tool names.
       if (visibilitySet) {
         return visibilitySet.has(tool.name);
+      }
+      // "all" sentinel: every native AND every proxy tool ships in the
+      // initial tools/list. Used by the `legacy-full` preset to restore
+      // the pre-v3.1 unrestricted surface for operators who want it.
+      if (allVisible) {
+        return true;
       }
       // Default ("all-native" or no profile supplied): preserve legacy
       // behavior — every native tool is always visible, proxied tools
