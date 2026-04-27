@@ -1,0 +1,91 @@
+# User-level AGENTS.md (DRAFT)
+
+> Drop-in target: `~/.codex/AGENTS.md`
+> Currently 0 bytes. ~378 Codex sessions in the last 30 days re-discovered the same Windows quirks. This file ends that.
+> Source: `D:/github/EVOKORE-MCP/docs/research/workflow-audit-2026-04-24.md` (Theme B + Theme D).
+> Keep under 150 lines.
+
+---
+
+## 1. Environment
+
+- Windows 11 Pro. Default shell for tool calls is PowerShell wrapped by Codex CLI.
+- `apply_patch` is the primary edit tool. It has a known **35% failure rate** in this environment (audit Theme B). Treat every patch as fallible.
+- Workspace mode (post-Week-1): `workspace-write`. Do **not** assume `danger-full-access`. If a write outside the workspace is genuinely required, ask first; do not retry blindly.
+- Repos under `D:/github/`. Trusted projects are listed in `~/.codex/config.toml` under `[projects.*]`.
+
+## 2. Windows guardrails
+
+- **Paths:** prefer forward slashes. Codex normalizes them; PowerShell tolerates them.
+- **Quoting:** PowerShell single-quotes are literal; double-quotes interpolate. When piping JSON, `ConvertTo-Json -Depth 10` and pipe through a file, not `Write-Host`.
+- **Encoding:** PowerShell defaults to UTF-16 for `>` redirection. Use `Out-File -Encoding utf8 -NoNewline` or `Set-Content -Encoding utf8`. Never trust `>` for source files.
+- **Emoji / Unicode in console:** the Windows console downgrades many glyphs. ASCII-fallback in any script that prints to stdout (see EVOKORE-MCP commit "Replace incompatible emojis with standard ASCII fallback for Windows PowerShell").
+- **`cmd.exe` syntax is forbidden** unless the user explicitly asks for a `.bat`. Use POSIX-style commands or PowerShell cmdlets.
+- **Long paths:** Windows MAX_PATH still bites. `\\?\D:\...` prefixes appear in `config.toml` for a reason — do not strip them.
+- **Elevated mode is OFF** (post-Week-1). If a command needs admin, surface that explicitly; do not silently UAC-prompt.
+
+## 3. Recurring failure modes -> one-line workarounds
+
+| Symptom | Workaround |
+|---|---|
+| `apply_patch verification failed` / `Failed to find expected lines` | Re-read the file (fresh, full or relevant range) before retrying the patch. The file likely changed since the previous read. |
+| `apply_patch` succeeds but produces wrong content | The patch context window was too narrow. Widen context to >=3 lines on each side; consider a full-file rewrite if >40% changes. |
+| `EBUSY` / file locked on Windows | Another agent or editor (VS Code, vitest watch) holds the handle. Pause, do not loop-retry. |
+| PowerShell command "works in terminal, fails here" | Profile-loaded aliases are absent in non-interactive shells. Use full cmdlet names. |
+| `node` not found from a fresh shell | PATH inheritance differs by parent process. Use absolute path or `where.exe node` once and cache it. |
+| Git operations hang | Likely a credential prompt on a non-TTY. Prefer `gh` CLI which uses cached auth. |
+| `npx <pkg>@latest` slow on first call | Pin a version (see `trigger.dev@4.3.3` in `config.toml`). Don't `@latest` in scripts. |
+| User cancels a long parallel fanout | Audit shows 36% interrupt rate. Default to **serial** for >3 steps; ask before fanning out. |
+| `Unknown skill: X` from EVOKORE-MCP | Search first (`search_skills`), then `get_skill_help`, then escalate. Do not paste a persona prompt as a substitute without flagging it. |
+
+## 4. apply_patch discipline
+
+1. **Read** the target range immediately before patching, in this same response.
+2. Patch with **>=3 lines** of unchanged context above and below the change.
+3. If the patch fails, **re-read** before retry. Do not retry the same patch twice.
+4. If two retries fail, switch to a full-file rewrite via the write tool. Do not enter a retry loop — the audit found this is where sessions die.
+5. After patching, **read back** the changed region to verify.
+
+## 5. Sandbox boundary (post-Week-1 `workspace-write`)
+
+You may freely:
+- Read anywhere on the machine.
+- Write inside the current workspace root (the trusted project from `[projects.*]`).
+- Run network calls (Codex `workspace-write` permits this).
+
+You may **not**, without asking:
+- Write to `~/.claude/`, `~/.codex/`, `C:/Users/mattm/` outside a trusted project.
+- Modify global git config, scheduled tasks, services, registry.
+- Install global npm / pip / cargo packages.
+- Touch other repos than the one you're invoked in.
+
+If a legitimate cross-repo edit is needed, surface the path and ask. Do not assume the previous `danger-full-access` posture.
+
+## 6. EVOKORE-MCP usage notes
+
+- Server at `D:/GITHUB/EVOKORE-MCP/dist/index.js`. ~37 tools, not the 11 the README claims (drift bug, tracked).
+- Discovery is reliable; **`execute_skill` is flaky for `panel-*` skills**. If it fails, log it (don't silently fall back to manual personas — that masks the bug).
+- 3 of 5 child servers are in error state (elevenlabs, stitch, supabase). Check `proxy_server_status` before relying on them.
+- 187 skills indexed on the Codex side vs 9 on the Claude side (audit Theme D). Many are duplicates / port candidates. Prefer Claude-side skills for parity work.
+
+## 7. Commit / PR conventions
+
+Same as the user's Claude-side rule:
+```
+<type>: <imperative summary>
+
+<paragraph>
+- bullet
+- bullet
+
+Co-Authored-By: <model> <noreply@anthropic.com>
+```
+Types: `feat | fix | docs | chore | refactor | test | perf | ci | build`. No emoji footer.
+
+## 8. When in doubt
+
+- Cite paths.
+- Counts beat anecdotes.
+- Sample, don't enumerate.
+- Re-read before patching.
+- Ask before fanning out.

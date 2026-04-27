@@ -1,0 +1,69 @@
+# Diff: ~/.claude/settings.json (DRAFT, do not auto-apply)
+
+Source-of-truth read on 2026-04-24 from `C:/Users/mattm/.claude/settings.json`.
+
+## Rationale (one line each)
+
+- **`skipDangerousModePermissionPrompt: true` -> removed.** Audit Theme F + under-weighted risk #4: combined with `bypassPermissions`, there is no boundary at all. A single prompt-injected document can rewrite the filesystem.
+- **`defaultMode: bypassPermissions` -> kept for now**, but the prompt skip is removed so dangerous patterns at least surface. Downgrading the default mode is a separate, larger decision (see `05-application-instructions.md`).
+- **Allowlist trimmed of one-shot, project-specific entries.** The two giant `git commit -m "$(cat <<EOF ... EOF)"` strings and the matching `gh pr create --title "..."` strings are pinned to specific RSMF Phase 2 / Phase 5 commit bodies. They will never re-match a future commit (the body changes every time). They were captured one-shot and forgotten — exactly the dead weight Theme D flags.
+- **`Bash(.venv/Scripts/python -m pytest tests/unit/ -v --tb=short)` -> kept as `Bash(.venv/Scripts/python:*)` already covers it.** Removed the redundant entry.
+- **`Bash(git -C D:/github/RSMFConverter status)` and the matching `git log --oneline -5` -> removed.** Single-repo pinned forms; the broader `Bash(git log:*)` (in `settings.local.json`) handles this category.
+- **Kept:** all generic `git`, `pip`, `python`, `poetry`, `gh pr create:*`-style globs that match a real recurring need.
+
+## Diff
+
+```diff
+--- C:/Users/mattm/.claude/settings.json    (current)
++++ C:/Users/mattm/.claude/settings.json    (proposed)
+@@ -8,7 +8,7 @@
+   "permissions": {
+     "allow": [
+       "WebSearch",
+       "Bash(poetry install:*)",
+       "Bash(py -m poetry install:*)",
+       "Bash(python -m poetry install:*)",
+       "Bash(py:*)",
+       "Bash(pip --version:*)",
+       "Bash(pip install:*)",
+       "Bash(dir:*)",
+       "Bash(python -m pytest:*)",
+-      "Bash(.venv/Scripts/python -m pytest tests/unit/ -v --tb=short)",
+       "Bash(.venv/Scripts/python:*)",
+       "Bash(pip show:*)",
+       "Bash(python -m mypy:*)",
+-      "Bash(git -C D:/github/RSMFConverter status)",
+-      "Bash(git -C D:/github/RSMFConverter log --oneline -5)",
+       "Bash(git init:*)",
+       "Bash(git remote add:*)",
+       "Bash(git fetch:*)",
+       "Bash(git checkout:*)",
+       "Bash(git add:*)",
+-      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: Implement Phase 2 Data Models for RSMF 2.0\n\n... [pinned RSMF Phase 2 commit body, ~50 lines, will never re-match] ...\nEOF\n\\)\")",
+       "Bash(git push:*)",
+-      "Bash(gh pr create --title \"feat: Phase 2 - RSMF 2.0 Data Models\" --body \"$\\(cat <<''EOF''\n... [pinned PR body, ~70 lines, will never re-match] ...\nEOF\n\\)\")",
+       "Bash(git merge:*)",
+       "Bash(git commit:*)",
+       "Bash(findstr:*)",
+-      "Bash(gh pr create --title \"Phase 5: Validation Engine\" --body \"$\\(cat <<''EOF''\n... [pinned PR body, ~60 lines, will never re-match] ...\nEOF\n\\)\")"
++      "Bash(gh pr create:*)"
+     ],
+     "defaultMode": "bypassPermissions"
+   },
+@@ -56,7 +50,6 @@
+   "effortLevel": "high",
+   "showClearContextOnPlanAccept": true,
+   "autoUpdatesChannel": "latest",
+-  "skipDangerousModePermissionPrompt": true,
+   "voiceEnabled": false,
+   "mcpServers": {
+     "evokore-mcp": {
+```
+
+## Notes for the user
+
+1. The pinned-body entries (RSMF Phase 2 commit, RSMF Phase 2 PR, RSMF Phase 5 PR) are replaced by the generic `Bash(gh pr create:*)` glob, which already matches the same call shape with any future title/body. If you want stricter scoping, replace with `Bash(gh pr create --title:*)`.
+2. `Bash(findstr:*)` is preserved because removing it without a Theme-B-class plan to migrate off `cmd.exe` syntax in scripts would block in-flight work. Flag it for review next iteration.
+3. `Bash(dir:*)` similarly preserved for the same reason. Both should die when the Windows-shell guardrail in CLAUDE.md actually changes behavior.
+4. **Not changing** `defaultMode: bypassPermissions` here. That's a bigger decision than this draft scope. The prompt-skip removal alone restores at least one challenge per dangerous pattern.
+5. If the trim breaks something on day 1, the rollback is to re-add the specific pattern, not to revert the whole file.

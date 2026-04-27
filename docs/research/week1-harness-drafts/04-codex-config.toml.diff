@@ -1,0 +1,53 @@
+# Diff: ~/.codex/config.toml (DRAFT, do not auto-apply)
+
+Source-of-truth read on 2026-04-24 from `C:/Users/mattm/.codex/config.toml`.
+
+## Rationale
+
+- **`sandbox_mode = "danger-full-access"` -> `"workspace-write"`.** Audit Week-1 #3 + Theme F. Today there is no boundary at all; combined with `bypassPermissions` on the Claude side, a poisoned skill can pivot to filesystem rewrite.
+- **`[windows] sandbox = "elevated"` -> `"limited"` (or section removed).** "Elevated" is admin-equivalent on Windows. Nothing in the audited 30 days of Codex sessions actually required elevated rights for legitimate work. If something breaks, you'll see it in the first hour.
+- **`approval_policy = "on-request"` -> kept.** This stays the right tradeoff with `workspace-write`; the model asks before crossing the boundary.
+- **No changes to `[projects.*]` trust list.** Those are deliberate per-repo opt-ins and reflect the user's actual repo set.
+- **No changes to `[mcp_servers.*]`.** EVOKORE-MCP, trigger, playwright stay wired as-is. The 3-of-5-children-erroring problem is in EVOKORE-MCP itself, not Codex config.
+
+## Diff
+
+```diff
+--- C:/Users/mattm/.codex/config.toml    (current)
++++ C:/Users/mattm/.codex/config.toml    (proposed)
+@@ -1,9 +1,9 @@
+ model = "gpt-5.4"
+ model_reasoning_effort = "high"
+ personality = "pragmatic"
+ approval_policy = "on-request"
+-sandbox_mode = "danger-full-access"
++sandbox_mode = "workspace-write"
+ service_tier = "fast"
+
+ [mcp_servers]
+
+@@ -22,8 +22,9 @@
+ [notice]
+ hide_rate_limit_model_nudge = true
+
+-[windows]
+-sandbox = "elevated"
++# [windows]
++# sandbox = "elevated"   # disabled 2026-04-24 per audit Week-1 #3.
++#                          Re-enable only with a documented use case.
+
+ [projects.'\\?\D:\GITHUB\EVOKORE-MCP']
+ trust_level = "trusted"
+```
+
+## Notes for the user
+
+1. `workspace-write` allows reads anywhere, writes only inside the trusted workspace, plus network. That covers ~95% of observed Codex tool use in the 30-day window.
+2. The Windows `[windows] sandbox = "elevated"` block is **commented out**, not deleted. If you need to reverse the call within an hour, uncomment.
+3. **Expected first-day breakage candidates:**
+   - Any script that writes to `C:/ProgramData/...` or `HKLM:\` — will now require explicit approval.
+   - `npm install -g`, `pip install --user` outside a project venv — same.
+   - Service control (`Start-Service`, `Stop-Service`) — same.
+   These should be rare and approval-on-request should make them obvious instead of silent.
+4. **Rollback (one line):** restore `sandbox_mode = "danger-full-access"` and uncomment the `[windows]` block. Keep this diff alongside the change so the rollback is mechanical.
+5. Verification: after applying, run `codex --help` (or whatever the local-equivalent inspect command is) and try a write to `C:/Windows/Temp/test.txt`. It should require approval. If it succeeds silently, the change did not take effect.
