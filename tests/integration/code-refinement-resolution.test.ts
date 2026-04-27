@@ -37,7 +37,13 @@ const mockProxyManager = {
 const REPO_ROOT = ROOT;
 
 const SCAN_DIRS = ['SKILLS', 'docs', 'src', 'scripts', 'tests'];
-const PATTERN = /code[-_ ]refinement/i;
+// Also walk a curated set of root-level files so prose drift in CLAUDE.md
+// or next-session.md is caught without indiscriminately walking the entire
+// repo root.
+const SCAN_ROOT_FILES = ['CLAUDE.md', 'README.md', 'next-session.md'];
+// Match all separator variants — including the no-separator
+// `coderefinement` form mentioned in the audit description.
+const PATTERN = /code[-_ ]?refinement/i;
 
 // File suffixes we walk into. Keep this conservative — we want to catch
 // real prose drift, not chase every binary.
@@ -73,6 +79,9 @@ const ALLOWLIST = [
 
   // This guard test.
   'tests/integration/code-refinement-resolution.test.ts',
+
+  // CLAUDE.md picks up a learning entry pointing at the decision doc.
+  'CLAUDE.md',
 ];
 
 function toRel(p: string): string {
@@ -124,7 +133,9 @@ describe('Sprint 2.0 code-refinement resolution', () => {
       // findSkillByName has a fuzzy fallback; an exact-name lookup
       // should not return a skill whose canonical name is bare
       // `code-refinement`.
-      expect(bareHit.name).not.toBe('code-refinement');
+      // Case-insensitive — findSkillByName fuzzy lookup may return
+      // any-casing variants and we want to catch all of them.
+      expect(bareHit.name.toLowerCase()).not.toBe('code-refinement');
     }
   }, 30_000);
 
@@ -132,6 +143,14 @@ describe('Sprint 2.0 code-refinement resolution', () => {
     const files: string[] = [];
     for (const sub of SCAN_DIRS) {
       walkText(path.join(REPO_ROOT, sub), files);
+    }
+    // Curated root-level files — surface drift in top-level docs without
+    // walking the entire repo root.
+    for (const rootFile of SCAN_ROOT_FILES) {
+      const full = path.join(REPO_ROOT, rootFile);
+      if (fs.existsSync(full) && fs.statSync(full).isFile()) {
+        files.push(full);
+      }
     }
 
     const offenders: Array<{ file: string; line: number; text: string }> = [];
