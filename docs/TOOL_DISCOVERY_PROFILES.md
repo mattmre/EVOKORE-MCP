@@ -290,3 +290,18 @@ deferred mode is currently safe. Watch for the compat-probe stderr
 warning — if it ever fires, the client is not safe and the operator
 should set `EVOKORE_TOOL_SCHEMA_MODE=full` until the upstream client
 ships proper support.
+
+## Skill composition graph (`nextSteps[]`)
+
+`scripts/derive-skill-composition.js` statically scans every
+`SKILLS/**/SKILL.md` body for invocation phrases (`invoke X skill`,
+`run X panel`, etc.) and parses the `## Injection Points` table out of
+`SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/SKILL.md` to emit a
+`skill-graph.json` build artifact. `execute_skill` lazy-loads that
+graph and returns a `nextSteps: [{ skill, reason }]` field; `index.ts`
+auto-activates any matching tool entries and emits exactly one
+`tools/list_changed`. Cycles are detected (DFS) and transitive edges
+are restricted to a 7-skill allowlist (`release-readiness`,
+`repo-ingestor`, `docs-architect`, `orch-review`, `orch-plan`,
+`tool-governance`, `orch-refactor`) capped at depth 5. Run
+`npm run skill-graph` to regenerate.

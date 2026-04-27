@@ -13,3 +13,6 @@ src/**/*.js
 src/**/*.js.map
 src/**/*.d.ts
 src/**/*.d.ts.map
+
+# Build artifact: skill composition graph
+skill-graph.json

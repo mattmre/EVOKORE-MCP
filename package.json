@@ -28,6 +28,7 @@
     "docs:check": "vitest run test-docs-canonical-links.js test-ops-docs-validation.js",
     "repo:audit": "node scripts/repo-state-audit.js",
     "memory:sync": "node scripts/sync-memory.js",
+    "skill-graph": "node scripts/derive-skill-composition.js",
     "build": "npx tsc",
     "benchmark:tool-discovery": "node scripts/benchmark-tool-discovery.js",
     "voice": "node dist/VoiceSidecar.js",
