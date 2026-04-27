@@ -7,9 +7,16 @@ const RULES_PATH = path.resolve(__dirname, '..', '..', 'damage-control-rules.yam
 
 interface DangerousCommandRule {
   id: string;
-  pattern: string;
+  // Legacy regex-against-joined-string rules carry a `pattern:`. Wave 0g
+  // argv-aware rules (DC-33+) carry an `argv_match:` shape instead and do
+  // NOT have a `pattern:`; the regex test sweeps below skip them.
+  pattern?: string;
+  argv_match?: unknown;
+  inert?: boolean;
+  pattern_alias_of?: string;
   reason: string;
-  ask: boolean;
+  ask?: boolean;
+  severity?: string;
 }
 
 interface DamageControlRules {
@@ -25,8 +32,19 @@ let rules: DamageControlRules;
 const rawYaml = fs.readFileSync(RULES_PATH, 'utf8');
 rules = YAML.parse(rawYaml) as DamageControlRules;
 
+// Helper: only iterate legacy regex rules. argv-aware rules are exercised
+// by the dedicated git-guardrails fixture in damage-control-guardrails.test.ts.
+function legacyRegexRules(): DangerousCommandRule[] {
+  return rules.dangerous_commands.filter(
+    (r) => typeof r.pattern === 'string' && !r.inert && !r.pattern_alias_of
+  );
+}
+
 // Helper: test a regex pattern against a string (mirrors damage-control.js behavior)
-function testPattern(pattern: string, input: string): boolean {
+function testPattern(pattern: string | undefined, input: string): boolean {
+  if (typeof pattern !== 'string') {
+    throw new Error('testPattern called with non-string pattern (argv-aware rule?)');
+  }
   const re = new RegExp(pattern, 'i');
   return re.test(input);
 }
@@ -43,44 +61,44 @@ describe('Damage Control Regex Coverage', () => {
     });
 
     it('all patterns compile without errors', () => {
-      for (const rule of rules.dangerous_commands) {
-        expect(() => new RegExp(rule.pattern, 'i')).not.toThrow();
+      for (const rule of legacyRegexRules()) {
+        expect(() => new RegExp(rule.pattern as string, 'i')).not.toThrow();
       }
     });
 
     it('no pattern matches the empty string', () => {
-      for (const rule of rules.dangerous_commands) {
-        const re = new RegExp(rule.pattern, 'i');
+      for (const rule of legacyRegexRules()) {
+        const re = new RegExp(rule.pattern as string, 'i');
         expect(re.test('')).toBe(false);
       }
     });
 
     it('no pattern trivially matches a single colon character', () => {
       // Regression: CLAUDE.md documents a bug where fork bomb regex matched ":"
-      for (const rule of rules.dangerous_commands) {
-        const re = new RegExp(rule.pattern, 'i');
+      for (const rule of legacyRegexRules()) {
+        const re = new RegExp(rule.pattern as string, 'i');
         expect(re.test(':')).toBe(false);
       }
     });
 
     it('no pattern trivially matches a single space', () => {
-      for (const rule of rules.dangerous_commands) {
-        const re = new RegExp(rule.pattern, 'i');
+      for (const rule of legacyRegexRules()) {
+        const re = new RegExp(rule.pattern as string, 'i');
         expect(re.test(' ')).toBe(false);
       }
     });
 
     it('no pattern trivially matches a single letter "a"', () => {
-      for (const rule of rules.dangerous_commands) {
-        const re = new RegExp(rule.pattern, 'i');
+      for (const rule of legacyRegexRules()) {
+        const re = new RegExp(rule.pattern as string, 'i');
         expect(re.test('a')).toBe(false);
       }
     });
 
     it('no pattern trivially matches common benign words', () => {
       const benign = ['hello', 'world', 'test', 'echo "hello"', 'ls -la', 'cd ..', 'node index.js', 'npm test'];
-      for (const rule of rules.dangerous_commands) {
-        const re = new RegExp(rule.pattern, 'i');
+      for (const rule of legacyRegexRules()) {
+        const re = new RegExp(rule.pattern as string, 'i');
         for (const word of benign) {
           // These should not be blocked by any rule
           if (re.test(word)) {
@@ -90,12 +108,22 @@ describe('Damage Control Regex Coverage', () => {
       }
     });
 
-    it('every rule has an id, pattern, reason, and ask field', () => {
+    it('every rule has an id and reason; legacy rules also carry pattern + ask', () => {
       for (const rule of rules.dangerous_commands) {
         expect(rule.id).toBeDefined();
-        expect(rule.pattern).toBeDefined();
         expect(rule.reason).toBeDefined();
-        expect(typeof rule.ask).toBe('boolean');
+        // Legacy regex rules must still carry pattern + ask. argv-aware rules
+        // (DC-33+) declare argv_match + severity instead.
+        if (typeof rule.pattern === 'string' && !rule.inert && !rule.pattern_alias_of) {
+          expect(rule.pattern).toBeDefined();
+          expect(typeof rule.ask).toBe('boolean');
+        } else if (rule.argv_match) {
+          expect(rule.argv_match).toBeDefined();
+          expect(typeof rule.severity).toBe('string');
+        } else if (rule.inert || rule.pattern_alias_of) {
+          // Documentation-only entry (DC-40) — no matcher logic runs.
+          expect(rule.id).toBeDefined();
+        }
       }
     });
 
@@ -189,10 +217,10 @@ describe('Damage Control Regex Coverage', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // 4. DC-03: git push --force
+  // 4. DC-03: git push --force (tightened in W0g — also catches -f short flag)
   // ---------------------------------------------------------------------------
-  describe('DC-03: git push --force', () => {
-    const pattern = rules.dangerous_commands.find(r => r.id === 'DC-03')!.pattern;
+  describe('DC-03: git push --force (W0g-tightened)', () => {
+    const pattern = rules.dangerous_commands.find(r => r.id === 'DC-03')!.pattern as string;
 
     it('blocks git push --force', () => {
       expect(testPattern(pattern, 'git push --force')).toBe(true);
@@ -200,6 +228,18 @@ describe('Damage Control Regex Coverage', () => {
 
     it('blocks git push origin main --force', () => {
       expect(testPattern(pattern, 'git push origin main --force')).toBe(true);
+    });
+
+    it('blocks git push -f (W0g short-flag tightening)', () => {
+      expect(testPattern(pattern, 'git push -f')).toBe(true);
+    });
+
+    it('blocks git push origin main -f (W0g short-flag tightening)', () => {
+      expect(testPattern(pattern, 'git push origin main -f')).toBe(true);
+    });
+
+    it('blocks git push -uf origin feature (compound short flag with f)', () => {
+      expect(testPattern(pattern, 'git push -uf origin feature')).toBe(true);
     });
 
     it('blocks git push --force-with-lease', () => {
@@ -1265,9 +1305,9 @@ describe('Damage Control Regex Coverage', () => {
       expect(rule.ask).toBe(true);
     });
 
-    it('rules cover all IDs from DC-01 through DC-32', () => {
+    it('rules cover all IDs from DC-01 through DC-43 (Wave 0g expansion)', () => {
       const ids = rules.dangerous_commands.map(r => r.id);
-      for (let i = 1; i <= 32; i++) {
+      for (let i = 1; i <= 43; i++) {
         const id = `DC-${String(i).padStart(2, '0')}`;
         expect(ids).toContain(id);
       }
@@ -1275,12 +1315,12 @@ describe('Damage Control Regex Coverage', () => {
 
     it('case insensitivity: patterns match uppercase and lowercase', () => {
       // The damage-control.js uses 'i' flag. Verify key patterns work case-insensitively.
-      const dc06 = rules.dangerous_commands.find(r => r.id === 'DC-06')!.pattern;
+      const dc06 = rules.dangerous_commands.find(r => r.id === 'DC-06')!.pattern as string;
       expect(testPattern(dc06, 'DROP TABLE users')).toBe(true);
       expect(testPattern(dc06, 'drop table users')).toBe(true);
       expect(testPattern(dc06, 'Drop Table Users')).toBe(true);
 
-      const dc07 = rules.dangerous_commands.find(r => r.id === 'DC-07')!.pattern;
+      const dc07 = rules.dangerous_commands.find(r => r.id === 'DC-07')!.pattern as string;
       expect(testPattern(dc07, 'TRUNCATE TABLE logs')).toBe(true);
       expect(testPattern(dc07, 'truncate table logs')).toBe(true);
     });
@@ -1288,9 +1328,9 @@ describe('Damage Control Regex Coverage', () => {
     it('multi-rule coverage: a single command can trigger multiple rules', () => {
       // "sudo rm -rf /" should be caught by DC-01, DC-02, and DC-21
       const cmd = 'sudo rm -rf /';
-      const matchingRules = rules.dangerous_commands.filter(r => {
+      const matchingRules = legacyRegexRules().filter(r => {
         try {
-          return new RegExp(r.pattern, 'i').test(cmd);
+          return new RegExp(r.pattern as string, 'i').test(cmd);
         } catch { return false; }
       });
       const matchingIds = matchingRules.map(r => r.id);
@@ -1300,43 +1340,43 @@ describe('Damage Control Regex Coverage', () => {
     });
 
     it('chained attacks: "echo x; rm -rf /" triggers DC-19', () => {
-      const dc19 = rules.dangerous_commands.find(r => r.id === 'DC-19')!.pattern;
+      const dc19 = rules.dangerous_commands.find(r => r.id === 'DC-19')!.pattern as string;
       expect(testPattern(dc19, 'echo x; rm -rf /')).toBe(true);
     });
 
     it('no rule matches "git status" (a safe command)', () => {
-      for (const rule of rules.dangerous_commands) {
-        expect(testPattern(rule.pattern, 'git status')).toBe(false);
+      for (const rule of legacyRegexRules()) {
+        expect(testPattern(rule.pattern as string, 'git status')).toBe(false);
       }
     });
 
     it('no rule matches "npm install" (a safe command)', () => {
-      for (const rule of rules.dangerous_commands) {
-        expect(testPattern(rule.pattern, 'npm install')).toBe(false);
+      for (const rule of legacyRegexRules()) {
+        expect(testPattern(rule.pattern as string, 'npm install')).toBe(false);
       }
     });
 
     it('no rule matches "node index.js" (a safe command)', () => {
-      for (const rule of rules.dangerous_commands) {
-        expect(testPattern(rule.pattern, 'node index.js')).toBe(false);
+      for (const rule of legacyRegexRules()) {
+        expect(testPattern(rule.pattern as string, 'node index.js')).toBe(false);
       }
     });
 
     it('no rule matches "npx vitest run" (a safe command)', () => {
-      for (const rule of rules.dangerous_commands) {
-        expect(testPattern(rule.pattern, 'npx vitest run')).toBe(false);
+      for (const rule of legacyRegexRules()) {
+        expect(testPattern(rule.pattern as string, 'npx vitest run')).toBe(false);
       }
     });
 
     it('no rule matches "git commit -m fix: update docs" (a safe command)', () => {
-      for (const rule of rules.dangerous_commands) {
-        expect(testPattern(rule.pattern, 'git commit -m "fix: update docs"')).toBe(false);
+      for (const rule of legacyRegexRules()) {
+        expect(testPattern(rule.pattern as string, 'git commit -m "fix: update docs"')).toBe(false);
       }
     });
 
     it('no rule matches "tsc --noEmit" (a safe command)', () => {
-      for (const rule of rules.dangerous_commands) {
-        expect(testPattern(rule.pattern, 'tsc --noEmit')).toBe(false);
+      for (const rule of legacyRegexRules()) {
+        expect(testPattern(rule.pattern as string, 'tsc --noEmit')).toBe(false);
       }
     });
   });
