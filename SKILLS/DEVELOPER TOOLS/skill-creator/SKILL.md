@@ -210,3 +210,69 @@ After testing the skill, users may request improvements. Often this happens righ
 2. Notice struggles or inefficiencies
 3. Identify how SKILL.md or bundled resources should be updated
 4. Implement changes and test again
+
+## EVOKORE Authoring Contract
+
+Skills authored for EVOKORE-MCP must satisfy a stricter shape than the upstream
+Anthropic skill-creator template, because `resolve_workflow` performs semantic
+ranking over `description` and the static composition graph parses literal
+phrases out of SKILL.md bodies. The `quick_validate.py` script enforces these
+rules as failures — they are NOT downgradable warnings.
+
+- **Trigger-explicit `description`.** The frontmatter `description` field must
+  start with `Use when ...` (case-insensitive) or contain the substring
+  `when to use`. Pure noun-phrase descriptions ("Browser automation tool")
+  are rejected because they degrade `resolve_workflow` ranking.
+- **Verb + minimum length.** The description must be at least 60 characters
+  AND contain at least one verb (heuristic: a word ending in `-ing` or one
+  of the verb allowlist in `quick_validate.py`).
+- **5-second-decide H2.** The skill body must contain an H2 heading
+  `## When to use this skill` within the first 30 lines after the closing
+  frontmatter `---`. A reader should be able to decide in 5 seconds whether
+  the skill applies to their task — this section is the answer.
+- **Kebab-case naming.** The `name` field is hyphen-case
+  (`[a-z0-9-]+`, no leading/trailing/consecutive hyphens). Skill directory
+  name must match.
+- **Composition phrasing.** When this skill should chain into another skill,
+  use the literal phrase format `invoke X skill` somewhere in SKILL.md.
+  `scripts/derive-skill-composition.js` parses that phrase into the static
+  skill graph, which powers `nextSteps[]` in `execute_skill` responses.
+- **Optional `upstream:` frontmatter.** Skills ported from external sources
+  (Anthropic Cookbook, mattpocock, third-party authors) MAY include an
+  `upstream:` field in frontmatter recording the canonical source URL or
+  repository. This is a forward-compatible field; do not depend on tooling
+  that consumes it yet.
+
+### Baseline allowlist (deletion-only ratchet)
+
+Skills that predate this lint are listed in
+`baseline-allowlist.txt` (one POSIX-style path per line). Listed paths fail
+the lint as warnings and exit 0; unlisted paths that fail still exit 1. The
+allowlist is enforced as deletion-only by the vitest suite — entries can be
+removed when fixed but not added.
+
+To run the lint against a single skill with the allowlist applied:
+
+```bash
+python "SKILLS/DEVELOPER TOOLS/skill-creator/scripts/quick_validate.py" \\
+    "SKILLS/path/to/skill" \\
+    --against-allowlist "SKILLS/DEVELOPER TOOLS/skill-creator/baseline-allowlist.txt"
+```
+
+## Adapter Skills
+
+Skills that wrap or port an external resource (a CLI, an API, a third-party
+prompt pack) follow the EVOKORE "adapter skill" shape. The adapter scaffold
+lives at `SKILLS/DEVELOPER TOOLS/skill-creator/templates/adapter-template.md`
+and codifies:
+
+- The `upstream:` frontmatter field for provenance.
+- The `## When to use this skill` 5-second-decide section.
+- The `## Composition` section with `invoke X skill` linkage.
+- An "Adapter contract" section documenting which upstream behaviors are
+  surfaced verbatim, which are remapped, and which are intentionally dropped.
+
+NOTE: The adapter template file may be added by a separate, parallel PR
+(W0a). If the template path does not exist yet in your tree, the reference
+above is forward-looking — the lint and authoring contract above are the
+authoritative gates for adapter skills regardless.
