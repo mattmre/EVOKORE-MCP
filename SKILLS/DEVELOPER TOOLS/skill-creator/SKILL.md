@@ -210,3 +210,35 @@ After testing the skill, users may request improvements. Often this happens righ
 2. Notice struggles or inefficiencies
 3. Identify how SKILL.md or bundled resources should be updated
 4. Implement changes and test again
+
+## Adapter Skills
+
+EVOKORE-MCP vendors selected third-party skill packs as read-only git submodules under `SKILLS/upstream/<vendor>/`. When porting one of those upstream skills into an EVOKORE consumable form, write an **adapter SKILL.md** in the appropriate EVOKORE category directory (e.g., `SKILLS/DEVELOPER TOOLS/<skill-name>/SKILL.md`) instead of editing the submodule. Submodules are immutable from this repo's perspective.
+
+### Adapter Frontmatter Fields
+
+In addition to the standard `name` and `description`, adapter SKILL.md files include three provenance fields:
+
+- `upstream:` — short slug `<owner>/<repo>` of the vendored upstream (e.g., `mattpocock/skills`).
+- `upstream-sha:` — pinned commit SHA of the vendored submodule. Must match the SHA recorded in `.gitmodules` and the relevant `SKILLS/upstream/UPSTREAM-*.md` file.
+- `upstream-path:` — relative path INSIDE the submodule pointing at the upstream skill body this adapter is derived from (e.g., `zoom-out/SKILL.md`).
+
+When the submodule is bumped (see `SKILLS/upstream/UPSTREAM-*.md` for the upgrade procedure), every adapter whose `upstream-sha:` references the old SHA becomes stale and should be re-validated against the new upstream body.
+
+### Adapter Body Structure
+
+Every adapter SKILL.md must include three sections (in addition to whatever procedural body the skill needs):
+
+1. `## When to use this skill` — 5-second-decide trigger summary. Lead with the trigger, not implementation details.
+2. `## Adapted From Upstream` — link or `nav_read_anchor` pointer at the upstream file, plus a one-line license credit (e.g., "License: MIT, Copyright (c) 2026 Matt Pocock; see repo-root `NOTICE`").
+3. `## EVOKORE-Specific Adaptations` — concrete delta vs upstream (collapsed user-loops, panel-of-experts substitutions, continuity-manifest wiring, native-tool replacements, etc.).
+
+### Scaffolding Template
+
+Use the canonical adapter template at:
+
+```text
+SKILLS/DEVELOPER TOOLS/skill-creator/templates/adapter-template.md
+```
+
+Copy it into the target category directory, rename to `SKILL.md`, and fill in the frontmatter and body placeholders. Do NOT modify files inside `SKILLS/upstream/<vendor>/` — adapter bodies live exclusively in EVOKORE category directories.
