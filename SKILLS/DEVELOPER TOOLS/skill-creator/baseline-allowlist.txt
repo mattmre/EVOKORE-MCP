@@ -1,0 +1,265 @@
+# baseline-allowlist.txt
+#
+# These skills were grandfathered in when the trigger-explicit lint
+# (Wave 0b) shipped. New skills are NOT allowed to fail.
+#
+# Deletion-only ratchet: paths can be REMOVED when fixed but not ADDED.
+# The vitest suite enforces that the line count never grows.
+#
+# Regenerate via: node scripts/generate-skill-creator-baseline.js
+SKILLS/ANTHROPIC COOKBOOK/.claude/skills/cookbook-audit
+SKILLS/ANTHROPIC COOKBOOK/skills/custom_skills/analyzing-financial-statements
+SKILLS/ANTHROPIC COOKBOOK/skills/custom_skills/applying-brand-guidelines
+SKILLS/ANTHROPIC COOKBOOK/skills/custom_skills/creating-financial-models
+SKILLS/AUTOMATION AND PRODUCTIVITY/brand-guidelines
+SKILLS/AUTOMATION AND PRODUCTIVITY/file-organizer
+SKILLS/AUTOMATION AND PRODUCTIVITY/image-enhancer
+SKILLS/AUTOMATION AND PRODUCTIVITY/invoice-organizer
+SKILLS/AUTOMATION AND PRODUCTIVITY/slack-gif-creator
+SKILLS/AUTOMATION AND PRODUCTIVITY/tailored-resume-generator
+SKILLS/AUTOMATION AND PRODUCTIVITY/theme-factory
+SKILLS/DEVELOPER TOOLS/artifacts-builder
+SKILLS/DEVELOPER TOOLS/changelog-generator
+SKILLS/DEVELOPER TOOLS/debugger-driven-analysis
+SKILLS/DEVELOPER TOOLS/developer-growth-analysis
+SKILLS/DEVELOPER TOOLS/document-skills/docx
+SKILLS/DEVELOPER TOOLS/document-skills/pdf
+SKILLS/DEVELOPER TOOLS/document-skills/pptx
+SKILLS/DEVELOPER TOOLS/document-skills/xlsx
+SKILLS/DEVELOPER TOOLS/frontend-design
+SKILLS/DEVELOPER TOOLS/ghidra-core-recon
+SKILLS/DEVELOPER TOOLS/ghidra-function-analysis
+SKILLS/DEVELOPER TOOLS/ghidra-rename-and-retype
+SKILLS/DEVELOPER TOOLS/malware-triage-workflow
+SKILLS/DEVELOPER TOOLS/mcp-builder
+SKILLS/DEVELOPER TOOLS/refly
+SKILLS/DEVELOPER TOOLS/reverse-engineering-company-system
+SKILLS/DEVELOPER TOOLS/reverse-engineering-improvement-loop
+SKILLS/DEVELOPER TOOLS/reverse-engineering-workbench
+SKILLS/DEVELOPER TOOLS/semantic-recovery-campaign
+SKILLS/DEVELOPER TOOLS/skill-creator
+SKILLS/DEVELOPER TOOLS/unknown-binary-onboarding
+SKILLS/DEVELOPER TOOLS/webapp-testing
+SKILLS/EVOKORE EXTENSIONS/agentic-jujutsu
+SKILLS/EVOKORE EXTENSIONS/browser
+SKILLS/EVOKORE EXTENSIONS/github-release-management
+SKILLS/EVOKORE EXTENSIONS/hooks-automation
+SKILLS/EVOKORE EXTENSIONS/sparc-methodology
+SKILLS/EVOKORE EXTENSIONS/v3-mcp-optimization
+SKILLS/EVOKORE EXTENSIONS/verification-quality
+SKILLS/GENERAL CODING WORKFLOWS/arch-aep-runner
+SKILLS/GENERAL CODING WORKFLOWS/docs-architect
+SKILLS/GENERAL CODING WORKFLOWS/implementation-session
+SKILLS/GENERAL CODING WORKFLOWS/phase-spec-optimizer
+SKILLS/GENERAL CODING WORKFLOWS/planning-with-files
+SKILLS/GENERAL CODING WORKFLOWS/pr-manager
+SKILLS/GENERAL CODING WORKFLOWS/repo-ingestor
+SKILLS/GENERAL CODING WORKFLOWS/security-review
+SKILLS/GENERAL CODING WORKFLOWS/session-wrap
+SKILLS/HIVE FRAMEWORK/hive
+SKILLS/HIVE FRAMEWORK/hive-concepts
+SKILLS/HIVE FRAMEWORK/hive-create
+SKILLS/HIVE FRAMEWORK/hive-credentials
+SKILLS/HIVE FRAMEWORK/hive-debugger
+SKILLS/HIVE FRAMEWORK/hive-patterns
+SKILLS/HIVE FRAMEWORK/hive-test
+SKILLS/HIVE FRAMEWORK/triage-issue
+SKILLS/ORCHESTRATION FRAMEWORK
+SKILLS/ORCHESTRATION FRAMEWORK/aep-framework
+SKILLS/ORCHESTRATION FRAMEWORK/agent-archetypes
+SKILLS/ORCHESTRATION FRAMEWORK/coding-reference
+SKILLS/ORCHESTRATION FRAMEWORK/commands
+SKILLS/ORCHESTRATION FRAMEWORK/commands/agent-spawn
+SKILLS/ORCHESTRATION FRAMEWORK/commands/context-budget
+SKILLS/ORCHESTRATION FRAMEWORK/commands/fleet-status
+SKILLS/ORCHESTRATION FRAMEWORK/commands/handoff
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-build-fix
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-docs
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-e2e
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-handoff
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-panel
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-plan
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-refactor
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-research
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-review
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-status
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-tasks
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-tdd
+SKILLS/ORCHESTRATION FRAMEWORK/commands/orch-verify
+SKILLS/ORCHESTRATION FRAMEWORK/commands/pattern-learn
+SKILLS/ORCHESTRATION FRAMEWORK/commands/quality-gate
+SKILLS/ORCHESTRATION FRAMEWORK/commands/scope-lock
+SKILLS/ORCHESTRATION FRAMEWORK/commands/session-checkpoint
+SKILLS/ORCHESTRATION FRAMEWORK/commands/sparc-pipeline
+SKILLS/ORCHESTRATION FRAMEWORK/commands/sparc-spec
+SKILLS/ORCHESTRATION FRAMEWORK/commands/tdd
+SKILLS/ORCHESTRATION FRAMEWORK/commands/verify-quality
+SKILLS/ORCHESTRATION FRAMEWORK/commands/workflow-run
+SKILLS/ORCHESTRATION FRAMEWORK/cross-project-process-miner
+SKILLS/ORCHESTRATION FRAMEWORK/handoff-protocol
+SKILLS/ORCHESTRATION FRAMEWORK/improvement-cycles
+SKILLS/ORCHESTRATION FRAMEWORK/narrative-quality-scorer
+SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts
+SKILLS/ORCHESTRATION FRAMEWORK/policy-pack-v1
+SKILLS/ORCHESTRATION FRAMEWORK/schemas
+SKILLS/ORCHESTRATION FRAMEWORK/session-retrospective-miner
+SKILLS/ORCHESTRATION FRAMEWORK/tool-governance
+SKILLS/ORCHESTRATION FRAMEWORK/workflow-templates
+SKILLS/RESEARCH AND CONTENT/competitive-ads-extractor
+SKILLS/RESEARCH AND CONTENT/content-research-writer
+SKILLS/RESEARCH AND CONTENT/lead-research-assistant
+SKILLS/RESEARCH AND CONTENT/meeting-insights-analyzer
+SKILLS/RESEARCH AND CONTENT/twitter-algorithm-optimizer
+SKILLS/Stitch Skills/design-md
+SKILLS/Stitch Skills/enhance-prompt
+SKILLS/Stitch Skills/react-components
+SKILLS/Stitch Skills/remotion
+SKILLS/Stitch Skills/shadcn-ui
+SKILLS/Stitch Skills/stitch-design
+SKILLS/Stitch Skills/stitch-loop
+SKILLS/WSHOBSON PLUGINS/accessibility-compliance/screen-reader-testing
+SKILLS/WSHOBSON PLUGINS/accessibility-compliance/wcag-audit-patterns
+SKILLS/WSHOBSON PLUGINS/agent-teams/multi-reviewer-patterns
+SKILLS/WSHOBSON PLUGINS/agent-teams/parallel-debugging
+SKILLS/WSHOBSON PLUGINS/agent-teams/parallel-feature-development
+SKILLS/WSHOBSON PLUGINS/agent-teams/task-coordination-strategies
+SKILLS/WSHOBSON PLUGINS/agent-teams/team-communication-protocols
+SKILLS/WSHOBSON PLUGINS/agent-teams/team-composition-patterns
+SKILLS/WSHOBSON PLUGINS/api-scaffolding/fastapi-templates
+SKILLS/WSHOBSON PLUGINS/backend-development/api-design-principles
+SKILLS/WSHOBSON PLUGINS/backend-development/architecture-patterns
+SKILLS/WSHOBSON PLUGINS/backend-development/cqrs-implementation
+SKILLS/WSHOBSON PLUGINS/backend-development/event-store-design
+SKILLS/WSHOBSON PLUGINS/backend-development/microservices-patterns
+SKILLS/WSHOBSON PLUGINS/backend-development/projection-patterns
+SKILLS/WSHOBSON PLUGINS/backend-development/saga-orchestration
+SKILLS/WSHOBSON PLUGINS/backend-development/temporal-python-testing
+SKILLS/WSHOBSON PLUGINS/backend-development/workflow-orchestration-patterns
+SKILLS/WSHOBSON PLUGINS/blockchain-web3/defi-protocol-templates
+SKILLS/WSHOBSON PLUGINS/blockchain-web3/nft-standards
+SKILLS/WSHOBSON PLUGINS/blockchain-web3/solidity-security
+SKILLS/WSHOBSON PLUGINS/blockchain-web3/web3-testing
+SKILLS/WSHOBSON PLUGINS/business-analytics/data-storytelling
+SKILLS/WSHOBSON PLUGINS/business-analytics/kpi-dashboard-design
+SKILLS/WSHOBSON PLUGINS/cicd-automation/deployment-pipeline-design
+SKILLS/WSHOBSON PLUGINS/cicd-automation/github-actions-templates
+SKILLS/WSHOBSON PLUGINS/cicd-automation/gitlab-ci-patterns
+SKILLS/WSHOBSON PLUGINS/cicd-automation/secrets-management
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/cost-optimization
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/hybrid-cloud-networking
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/istio-traffic-management
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/linkerd-patterns
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/mtls-configuration
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/multi-cloud-architecture
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/service-mesh-observability
+SKILLS/WSHOBSON PLUGINS/cloud-infrastructure/terraform-module-library
+SKILLS/WSHOBSON PLUGINS/conductor/context-driven-development
+SKILLS/WSHOBSON PLUGINS/conductor/track-management
+SKILLS/WSHOBSON PLUGINS/conductor/workflow-patterns
+SKILLS/WSHOBSON PLUGINS/data-engineering/airflow-dag-patterns
+SKILLS/WSHOBSON PLUGINS/data-engineering/data-quality-frameworks
+SKILLS/WSHOBSON PLUGINS/data-engineering/dbt-transformation-patterns
+SKILLS/WSHOBSON PLUGINS/data-engineering/spark-optimization
+SKILLS/WSHOBSON PLUGINS/database-design/postgresql
+SKILLS/WSHOBSON PLUGINS/developer-essentials/auth-implementation-patterns
+SKILLS/WSHOBSON PLUGINS/developer-essentials/bazel-build-optimization
+SKILLS/WSHOBSON PLUGINS/developer-essentials/code-review-excellence
+SKILLS/WSHOBSON PLUGINS/developer-essentials/debugging-strategies
+SKILLS/WSHOBSON PLUGINS/developer-essentials/e2e-testing-patterns
+SKILLS/WSHOBSON PLUGINS/developer-essentials/error-handling-patterns
+SKILLS/WSHOBSON PLUGINS/developer-essentials/git-advanced-workflows
+SKILLS/WSHOBSON PLUGINS/developer-essentials/monorepo-management
+SKILLS/WSHOBSON PLUGINS/developer-essentials/nx-workspace-patterns
+SKILLS/WSHOBSON PLUGINS/developer-essentials/sql-optimization-patterns
+SKILLS/WSHOBSON PLUGINS/developer-essentials/turborepo-caching
+SKILLS/WSHOBSON PLUGINS/documentation-generation/architecture-decision-records
+SKILLS/WSHOBSON PLUGINS/documentation-generation/changelog-automation
+SKILLS/WSHOBSON PLUGINS/documentation-generation/openapi-spec-generation
+SKILLS/WSHOBSON PLUGINS/dotnet-contribution/dotnet-backend-patterns
+SKILLS/WSHOBSON PLUGINS/framework-migration/angular-migration
+SKILLS/WSHOBSON PLUGINS/framework-migration/database-migration
+SKILLS/WSHOBSON PLUGINS/framework-migration/dependency-upgrade
+SKILLS/WSHOBSON PLUGINS/framework-migration/react-modernization
+SKILLS/WSHOBSON PLUGINS/frontend-mobile-development/nextjs-app-router-patterns
+SKILLS/WSHOBSON PLUGINS/frontend-mobile-development/react-native-architecture
+SKILLS/WSHOBSON PLUGINS/frontend-mobile-development/react-state-management
+SKILLS/WSHOBSON PLUGINS/frontend-mobile-development/tailwind-design-system
+SKILLS/WSHOBSON PLUGINS/game-development/godot-gdscript-patterns
+SKILLS/WSHOBSON PLUGINS/game-development/unity-ecs-patterns
+SKILLS/WSHOBSON PLUGINS/hr-legal-compliance/employment-contract-templates
+SKILLS/WSHOBSON PLUGINS/hr-legal-compliance/gdpr-data-handling
+SKILLS/WSHOBSON PLUGINS/incident-response/incident-runbook-templates
+SKILLS/WSHOBSON PLUGINS/incident-response/on-call-handoff-patterns
+SKILLS/WSHOBSON PLUGINS/incident-response/postmortem-writing
+SKILLS/WSHOBSON PLUGINS/javascript-typescript/javascript-testing-patterns
+SKILLS/WSHOBSON PLUGINS/javascript-typescript/modern-javascript-patterns
+SKILLS/WSHOBSON PLUGINS/javascript-typescript/nodejs-backend-patterns
+SKILLS/WSHOBSON PLUGINS/javascript-typescript/typescript-advanced-types
+SKILLS/WSHOBSON PLUGINS/kubernetes-operations/gitops-workflow
+SKILLS/WSHOBSON PLUGINS/kubernetes-operations/helm-chart-scaffolding
+SKILLS/WSHOBSON PLUGINS/kubernetes-operations/k8s-manifest-generator
+SKILLS/WSHOBSON PLUGINS/kubernetes-operations/k8s-security-policies
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/embedding-strategies
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/hybrid-search-implementation
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/langchain-architecture
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/llm-evaluation
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/prompt-engineering-patterns
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/rag-implementation
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/similarity-search-patterns
+SKILLS/WSHOBSON PLUGINS/llm-application-dev/vector-index-tuning
+SKILLS/WSHOBSON PLUGINS/machine-learning-ops/ml-pipeline-workflow
+SKILLS/WSHOBSON PLUGINS/observability-monitoring/distributed-tracing
+SKILLS/WSHOBSON PLUGINS/observability-monitoring/grafana-dashboards
+SKILLS/WSHOBSON PLUGINS/observability-monitoring/prometheus-configuration
+SKILLS/WSHOBSON PLUGINS/observability-monitoring/slo-implementation
+SKILLS/WSHOBSON PLUGINS/payment-processing/billing-automation
+SKILLS/WSHOBSON PLUGINS/payment-processing/paypal-integration
+SKILLS/WSHOBSON PLUGINS/payment-processing/pci-compliance
+SKILLS/WSHOBSON PLUGINS/payment-processing/stripe-integration
+SKILLS/WSHOBSON PLUGINS/python-development/async-python-patterns
+SKILLS/WSHOBSON PLUGINS/python-development/python-anti-patterns
+SKILLS/WSHOBSON PLUGINS/python-development/python-background-jobs
+SKILLS/WSHOBSON PLUGINS/python-development/python-code-style
+SKILLS/WSHOBSON PLUGINS/python-development/python-configuration
+SKILLS/WSHOBSON PLUGINS/python-development/python-design-patterns
+SKILLS/WSHOBSON PLUGINS/python-development/python-error-handling
+SKILLS/WSHOBSON PLUGINS/python-development/python-observability
+SKILLS/WSHOBSON PLUGINS/python-development/python-packaging
+SKILLS/WSHOBSON PLUGINS/python-development/python-performance-optimization
+SKILLS/WSHOBSON PLUGINS/python-development/python-project-structure
+SKILLS/WSHOBSON PLUGINS/python-development/python-resilience
+SKILLS/WSHOBSON PLUGINS/python-development/python-resource-management
+SKILLS/WSHOBSON PLUGINS/python-development/python-testing-patterns
+SKILLS/WSHOBSON PLUGINS/python-development/python-type-safety
+SKILLS/WSHOBSON PLUGINS/python-development/uv-package-manager
+SKILLS/WSHOBSON PLUGINS/quantitative-trading/backtesting-frameworks
+SKILLS/WSHOBSON PLUGINS/quantitative-trading/risk-metrics-calculation
+SKILLS/WSHOBSON PLUGINS/reverse-engineering/anti-reversing-techniques
+SKILLS/WSHOBSON PLUGINS/reverse-engineering/binary-analysis-patterns
+SKILLS/WSHOBSON PLUGINS/reverse-engineering/memory-forensics
+SKILLS/WSHOBSON PLUGINS/reverse-engineering/protocol-reverse-engineering
+SKILLS/WSHOBSON PLUGINS/security-scanning/attack-tree-construction
+SKILLS/WSHOBSON PLUGINS/security-scanning/sast-configuration
+SKILLS/WSHOBSON PLUGINS/security-scanning/security-requirement-extraction
+SKILLS/WSHOBSON PLUGINS/security-scanning/stride-analysis-patterns
+SKILLS/WSHOBSON PLUGINS/security-scanning/threat-mitigation-mapping
+SKILLS/WSHOBSON PLUGINS/shell-scripting/bash-defensive-patterns
+SKILLS/WSHOBSON PLUGINS/shell-scripting/bats-testing-patterns
+SKILLS/WSHOBSON PLUGINS/shell-scripting/shellcheck-configuration
+SKILLS/WSHOBSON PLUGINS/startup-business-analyst/competitive-landscape
+SKILLS/WSHOBSON PLUGINS/startup-business-analyst/market-sizing-analysis
+SKILLS/WSHOBSON PLUGINS/startup-business-analyst/startup-financial-modeling
+SKILLS/WSHOBSON PLUGINS/startup-business-analyst/startup-metrics-framework
+SKILLS/WSHOBSON PLUGINS/startup-business-analyst/team-composition-analysis
+SKILLS/WSHOBSON PLUGINS/systems-programming/go-concurrency-patterns
+SKILLS/WSHOBSON PLUGINS/systems-programming/memory-safety-patterns
+SKILLS/WSHOBSON PLUGINS/systems-programming/rust-async-patterns
+SKILLS/WSHOBSON PLUGINS/ui-design/accessibility-compliance
+SKILLS/WSHOBSON PLUGINS/ui-design/design-system-patterns
+SKILLS/WSHOBSON PLUGINS/ui-design/interaction-design
+SKILLS/WSHOBSON PLUGINS/ui-design/mobile-android-design
+SKILLS/WSHOBSON PLUGINS/ui-design/mobile-ios-design
+SKILLS/WSHOBSON PLUGINS/ui-design/react-native-design
+SKILLS/WSHOBSON PLUGINS/ui-design/responsive-design
+SKILLS/WSHOBSON PLUGINS/ui-design/visual-design-foundations
+SKILLS/WSHOBSON PLUGINS/ui-design/web-component-design

@@ -30,7 +30,12 @@ const DEFAULT_CONFIG_FILE = path.resolve(__dirname, "../mcp.config.json");
 const DEFAULT_SKILL_GRAPH_FILE = path.resolve(__dirname, "../skill-graph.json");
 const SKIP_DIRS = new Set([
   "node_modules", ".git", "__pycache__", "__tests__",
-  ".claude", "themes", "assets", "scripts"
+  ".claude", "themes", "assets", "scripts",
+  // Vendored upstream submodules. Adapter SKILL.md files live in EVOKORE
+  // category dirs and reference the submodule via `upstream:` /
+  // `upstream-sha:` / `upstream-path:` frontmatter; the raw submodule
+  // contents themselves are NOT indexed.
+  "upstream"
 ]);
 
 const MAX_DEPTH = 5;
@@ -260,10 +265,16 @@ export class SkillManager {
         })
       );
 
-      // Parallelize walkDirectory calls for all valid categories
+      // Parallelize walkDirectory calls for all valid categories.
+      // Top-level categories matching SKIP_DIRS (e.g., `upstream`, which holds
+      // read-only vendored submodules) are excluded so their raw contents
+      // never enter the index — adapter SKILL.md files for vendored upstreams
+      // live in EVOKORE category dirs and are indexed normally.
       await Promise.all(
         categoryStats
-          .filter(({ stat }) => stat && !stat.isSymbolicLink() && stat.isDirectory())
+          .filter(({ stat, category }) =>
+            stat && !stat.isSymbolicLink() && stat.isDirectory() && !SKIP_DIRS.has(category)
+          )
           .map(({ categoryPath, category }) =>
             this.walkDirectory(categoryPath, category, "", 0, newCache)
           )

@@ -62,7 +62,12 @@ const SKIP_DIRS = new Set([
   ".claude",
   "themes",
   "assets",
-  "scripts"
+  "scripts",
+  // Vendored upstream submodules (e.g., SKILLS/upstream/mattpocock-skills/).
+  // The composition graph only edges between EVOKORE-curated SKILL.md bodies;
+  // raw upstream skills are surfaced exclusively via adapter SKILL.md files
+  // that live in EVOKORE category dirs.
+  "upstream"
 ]);
 
 // Common English words that follow `invoke|run|use|call ... skill`
