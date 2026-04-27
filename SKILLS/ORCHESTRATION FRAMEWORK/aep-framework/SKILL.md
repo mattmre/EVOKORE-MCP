@@ -22,6 +22,8 @@ Lock the scope before any work begins. Define the PR range, time window, and inp
 - Document dependencies and risks in `phase-planning.md`
 - Establish acceptance criteria using `templates.md`
 
+Phase 1 includes context-and-decisions discipline — see [phase-1-context-and-decisions.md](phase-1-context-and-decisions.md).
+
 ### 2. Execute (Implement)
 Carry out remediation in severity-tiered order (Critical > High > Medium > Low). Each tier must be fully verified before advancing to the next.
 
@@ -45,6 +47,7 @@ Every merged fix requires auditable verification evidence. No tier closes withou
 | `workflow.md` | Full AEP process definition with roles, triggers, and guardrails | All |
 | `templates.md` | Conventions for finding IDs, branches, trackers, and rubrics | Align |
 | `phase-planning.md` | Long-running planning record template for a cycle | Align |
+| `phase-1-context-and-decisions.md` | CONTEXT.md per bounded context + `docs/adr/` crystallization with two-pass freeze rule | Align |
 | `test-matrix.md` | Test selection strategy with agent-specific guidance | Execute / Prove |
 | `verification-log.md` | Evidence tracking for build/test results per PR | Prove |
 | `evaluation-harness.md` | Golden tasks, golden cases, metrics, and evaluation playbook | Prove |
