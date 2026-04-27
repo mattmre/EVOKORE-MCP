@@ -3,7 +3,7 @@ import http from "http";
 import https from "https";
 import { TelemetryManager } from "./TelemetryManager";
 import { WebhookManager } from "./WebhookManager";
-import { isPrivateAddress } from "./httpUtils";
+import { assertResolvesPublic, isPrivateAddress } from "./httpUtils";
 
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 500;
@@ -271,7 +271,29 @@ export class TelemetryExporter {
     throw new Error(lastError || "Unknown delivery error");
   }
 
-  private deliver(payload: TelemetryExportPayload): Promise<DeliveryResult> {
+  private async deliver(payload: TelemetryExportPayload): Promise<DeliveryResult> {
+    const allowPrivate = process.env.EVOKORE_HTTP_ALLOW_PRIVATE === "true";
+
+    // SEC-04: re-validate hostname at delivery time. The startup `isValidUrl`
+    // check only inspects the literal name; this resolves DNS and rejects if
+    // the hostname now points at a private/loopback address (rebinding defense).
+    if (!allowPrivate) {
+      try {
+        const url = new URL(this.exportUrl!);
+        if (isPrivateAddress(url.hostname)) {
+          return {
+            success: false,
+            error:
+              "Telemetry export URL hostname is private (SSRF protection): " +
+              url.hostname,
+          };
+        }
+        await assertResolvesPublic(url.hostname);
+      } catch (err: any) {
+        return { success: false, error: err?.message || String(err) };
+      }
+    }
+
     return new Promise((resolve) => {
       let settled = false;
       const settle = (result: DeliveryResult) => {

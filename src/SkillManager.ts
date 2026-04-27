@@ -975,7 +975,7 @@ export class SkillManager {
 
   extractCodeBlocks(skillName: string): Array<{language: string; code: string; index: number}> {
     const skill = this.findSkillByName(skillName);
-    if (!skill) throw new Error("Skill not found: " + skillName);
+    if (!skill) throw new Error(this.buildSkillNotFoundMessage(skillName));
 
     const blocks: Array<{language: string; code: string; index: number}> = [];
     const lines = skill.content.split(/\r?\n/);
@@ -1987,9 +1987,84 @@ export class SkillManager {
     return null;
   }
 
+  /**
+   * Given a skill name that did not resolve, return up to `limit` closest
+   * matches from the cache by Levenshtein distance. Addresses audit #282
+   * item #10: ~256 errors/month where the user invoked a skill that does
+   * not exist (pr-manager, session-wrap). Suggesting the closest real
+   * name converts "Skill not found" from a dead end into a recoverable
+   * typo.
+   */
+  suggestSimilarSkillNames(name: string, limit: number = 3): string[] {
+    const query = (name || "").toLowerCase();
+    if (!query) return [];
+    // Generous threshold: up to 1 edit per 4 characters, minimum 2.
+    const maxDistance = Math.max(2, Math.floor(query.length / 4));
+    const scored: Array<{ name: string; distance: number }> = [];
+    for (const skill of this.skillsCache.values()) {
+      const candidate = skill.name.toLowerCase();
+      const d = SkillManager.levenshteinDistance(query, candidate);
+      if (d <= maxDistance) {
+        scored.push({ name: skill.name, distance: d });
+      }
+    }
+    scored.sort((left, right) => left.distance - right.distance);
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const { name: n } of scored) {
+      if (seen.has(n)) continue;
+      seen.add(n);
+      out.push(n);
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /**
+   * Build a "Skill not found: X" error message, appending "Did you mean Y?"
+   * when there is a close match. Used by the three throw sites in this
+   * module so the UX is uniform.
+   */
+  buildSkillNotFoundMessage(skillName: string): string {
+    const base = "Skill not found: " + skillName;
+    const suggestions = this.suggestSimilarSkillNames(skillName, 3);
+    if (suggestions.length === 0) return base;
+    if (suggestions.length === 1) {
+      return `${base}. Did you mean "${suggestions[0]}"?`;
+    }
+    const quoted = suggestions.map(s => `"${s}"`).join(", ");
+    return `${base}. Did you mean one of: ${quoted}?`;
+  }
+
+  /**
+   * Classic iterative two-row Levenshtein. Kept static + private so it
+   * cannot be used as a public API surface we'd later need to stabilize.
+   */
+  private static levenshteinDistance(a: string, b: string): number {
+    if (a === b) return 0;
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const prev = new Array<number>(b.length + 1);
+    const curr = new Array<number>(b.length + 1);
+    for (let j = 0; j <= b.length; j++) prev[j] = j;
+    for (let i = 1; i <= a.length; i++) {
+      curr[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+        curr[j] = Math.min(
+          curr[j - 1] + 1,
+          prev[j] + 1,
+          prev[j - 1] + cost
+        );
+      }
+      for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
+    }
+    return curr[b.length];
+  }
+
   validateDependencies(skillName: string): { valid: boolean; errors: string[] } {
     const skill = this.findSkillByName(skillName);
-    if (!skill) return { valid: false, errors: ["Skill not found: " + skillName] };
+    if (!skill) return { valid: false, errors: [this.buildSkillNotFoundMessage(skillName)] };
 
     const errors: string[] = [];
 
@@ -2084,7 +2159,7 @@ export class SkillManager {
 
       const skill = Array.from(this.skillsCache.values()).find(s => s.name.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase() === skillName || s.name.toLowerCase() === skillName);
 
-      if (!skill) throw new McpError(ErrorCode.InvalidParams, "Skill not found: " + skillName);
+      if (!skill) throw new McpError(ErrorCode.InvalidParams, this.buildSkillNotFoundMessage(skillName));
 
       return {
         contents: [{

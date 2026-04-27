@@ -1,5 +1,8 @@
 import http from "http";
 import https from "https";
+import dns from "dns";
+import net from "net";
+import { promisify } from "util";
 import { URL } from "url";
 
 export interface HttpGetOptions {
@@ -19,33 +22,147 @@ const DEFAULT_MAX_SIZE = MAX_FETCH_SIZE;
 const DEFAULT_MAX_REDIRECTS = MAX_REDIRECT_DEPTH;
 const DEFAULT_TIMEOUT_MS = FETCH_TIMEOUT_MS;
 
+const dnsLookupAll = promisify(dns.lookup) as (
+  hostname: string,
+  options: { all: true }
+) => Promise<Array<{ address: string; family: number }>>;
+
 /**
- * Check whether a hostname resolves to a private, loopback, or link-local
- * address that should not be reachable from server-side HTTP requests.
+ * Strip enclosing brackets from an IPv6 literal (e.g. `[::1]` -> `::1`).
+ */
+function stripIPv6Brackets(host: string): string {
+  if (host.startsWith("[") && host.endsWith("]")) {
+    return host.slice(1, -1);
+  }
+  return host;
+}
+
+/**
+ * Check whether a literal IPv4 address is in a private, loopback, or
+ * link-local range. Returns false for non-IPv4 strings.
+ */
+function isPrivateIPv4(addr: string): boolean {
+  const m = addr.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  if ([a, b, Number(m[3]), Number(m[4])].some((n) => n > 255)) return false;
+  if (a === 0) return true; // 0.0.0.0/8
+  if (a === 10) return true; // 10/8
+  if (a === 127) return true; // 127/8 loopback
+  if (a === 169 && b === 254) return true; // 169.254/16 link-local
+  if (a === 172 && b >= 16 && b <= 31) return true; // 172.16/12
+  if (a === 192 && b === 168) return true; // 192.168/16
+  if (a === 100 && b >= 64 && b <= 127) return true; // 100.64/10 CGNAT
+  return false;
+}
+
+/**
+ * Check whether a literal IPv6 address is loopback, link-local, unique-local,
+ * or an IPv4-mapped private address. Returns false for non-IPv6 strings.
+ */
+function isPrivateIPv6(addr: string): boolean {
+  const lower = addr.toLowerCase();
+  // Loopback
+  if (lower === "::1") return true;
+  // Unspecified
+  if (lower === "::" || lower === "::0") return true;
+  // Link-local fe80::/10
+  if (/^fe[89ab][0-9a-f]?:/i.test(lower)) return true;
+  // Unique-local fc00::/7 (fc00::/8 + fd00::/8)
+  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;
+  // IPv4-mapped (::ffff:a.b.c.d) — extract embedded IPv4 and recurse.
+  const mapped = lower.match(/^::ffff:([0-9.]+)$/);
+  if (mapped) {
+    return isPrivateIPv4(mapped[1]);
+  }
+  // IPv4-compatible (deprecated, ::a.b.c.d)
+  const compat = lower.match(/^::([0-9.]+)$/);
+  if (compat) {
+    return isPrivateIPv4(compat[1]);
+  }
+  return false;
+}
+
+/**
+ * Check whether a hostname (literal IP or DNS name) is one of the always-blocked
+ * names — `localhost`, the IPv4/IPv6 unspecified address, or a literal address
+ * in a private, loopback, link-local, or unique-local range.
+ *
+ * Note: this is a *literal* check. It does NOT perform DNS resolution. For
+ * full SSRF protection that defeats DNS rebinding, use `assertResolvesPublic()`
+ * before issuing the request.
  *
  * This blocks SSRF attacks that attempt to reach cloud instance metadata
  * endpoints (e.g. 169.254.169.254), internal services on RFC 1918 ranges,
- * or localhost/loopback addresses.
- *
- * The check mirrors the logic in WebhookManager.isValidWebhookConfig().
+ * or localhost/loopback addresses by literal hostname.
  */
 export function isPrivateAddress(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  return (
-    h === "localhost" ||
-    /^127\./.test(h) ||
-    /^10\./.test(h) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
-    /^192\.168\./.test(h) ||
-    /^169\.254\./.test(h) ||
-    h === "0.0.0.0" ||
-    h === "::1" ||
-    h === "[::1]" ||
-    /^::ffff:/i.test(h) ||
-    /^\[::ffff:/i.test(h) ||
-    /^fc00:/i.test(h) ||
-    /^fe80:/i.test(h)
-  );
+  const h = stripIPv6Brackets(hostname.toLowerCase());
+  if (h === "localhost" || h === "ip6-localhost" || h === "ip6-loopback") return true;
+  if (h === "0.0.0.0") return true;
+  // .local (mDNS) is a router-local TLD; reject by literal name.
+  if (h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".localhost")) return true;
+  if (net.isIPv4(h)) return isPrivateIPv4(h);
+  if (net.isIPv6(h)) return isPrivateIPv6(h);
+  return false;
+}
+
+/**
+ * Resolve a hostname via DNS and assert that no resolved address is private.
+ *
+ * Returns the list of resolved addresses on success. Throws an Error on
+ * resolution failure, on any private result, or if the hostname itself is a
+ * literal private address. Used to defeat DNS-rebinding SSRF where a hostname
+ * resolves to a public IP at validation time but a private one at request time.
+ *
+ * If `hostname` is already a literal IP, this short-circuits and just
+ * validates the literal.
+ */
+export async function assertResolvesPublic(
+  hostname: string,
+): Promise<Array<{ address: string; family: number }>> {
+  const stripped = stripIPv6Brackets(hostname);
+  // Literal IP — no DNS work needed; reuse the literal check.
+  if (net.isIP(stripped)) {
+    if (isPrivateAddress(stripped)) {
+      throw new Error(
+        "Requests to private/loopback addresses are blocked (SSRF protection): " +
+          hostname,
+      );
+    }
+    return [{ address: stripped, family: net.isIPv4(stripped) ? 4 : 6 }];
+  }
+  if (isPrivateAddress(stripped)) {
+    throw new Error(
+      "Requests to private/loopback addresses are blocked (SSRF protection): " +
+        hostname,
+    );
+  }
+  let addrs: Array<{ address: string; family: number }>;
+  try {
+    addrs = await dnsLookupAll(stripped, { all: true });
+  } catch (err: any) {
+    throw new Error(
+      "DNS lookup failed for " + hostname + ": " + (err?.message || String(err)),
+    );
+  }
+  if (!addrs || addrs.length === 0) {
+    throw new Error("DNS lookup returned no addresses for " + hostname);
+  }
+  for (const { address } of addrs) {
+    const isPriv = net.isIPv4(address) ? isPrivateIPv4(address) : isPrivateIPv6(address);
+    if (isPriv) {
+      throw new Error(
+        "Hostname " +
+          hostname +
+          " resolves to private address " +
+          address +
+          " (SSRF protection / DNS rebinding defense)",
+      );
+    }
+  }
+  return addrs;
 }
 
 /**
@@ -67,32 +184,42 @@ export async function httpGet(url: string, options: HttpGetOptions = {}): Promis
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const allowPrivate = process.env.EVOKORE_HTTP_ALLOW_PRIVATE === "true";
 
-  function doGet(targetUrl: string, redirectDepth: number): Promise<string> {
+  async function doGet(targetUrl: string, redirectDepth: number): Promise<string> {
     if (redirectDepth > maxRedirects) {
-      return Promise.reject(new Error("Too many redirects (max " + maxRedirects + ")"));
+      throw new Error("Too many redirects (max " + maxRedirects + ")");
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(targetUrl);
+    } catch {
+      throw new Error("Invalid URL: " + targetUrl);
+    }
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new Error(
+        "Only HTTP/HTTPS URLs are supported, got: " + parsedUrl.protocol,
+      );
+    }
+
+    // SSRF protection: literal-name check + DNS resolution check.
+    // The DNS step defeats rebinding by re-validating every resolved IP and
+    // pinning the request to the first public address we resolved.
+    if (!allowPrivate) {
+      // Literal check first — fast path that doesn't hit DNS.
+      if (isPrivateAddress(parsedUrl.hostname)) {
+        throw new Error(
+          "Requests to private/loopback addresses are blocked (SSRF protection): " +
+            parsedUrl.hostname,
+        );
+      }
+      // DNS-rebinding defense: resolve and re-check every address.
+      // Throws on any private result.
+      await assertResolvesPublic(parsedUrl.hostname);
     }
 
     return new Promise<string>((resolve, reject) => {
-      let parsedUrl: URL;
-      try {
-        parsedUrl = new URL(targetUrl);
-      } catch {
-        reject(new Error("Invalid URL: " + targetUrl));
-        return;
-      }
-
-      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-        reject(new Error("Only HTTP/HTTPS URLs are supported, got: " + parsedUrl.protocol));
-        return;
-      }
-
-      // SSRF protection: block private/loopback/link-local addresses
-      if (!allowPrivate && isPrivateAddress(parsedUrl.hostname)) {
-        reject(new Error("Requests to private/loopback addresses are blocked (SSRF protection): " + parsedUrl.hostname));
-        return;
-      }
-
-      const mod = targetUrl.startsWith("https") ? https : http;
+      const mod = parsedUrl.protocol === "https:" ? https : http;
       const req = mod.get(targetUrl, { headers: { "User-Agent": userAgent } }, (res) => {
         // Follow redirects
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
