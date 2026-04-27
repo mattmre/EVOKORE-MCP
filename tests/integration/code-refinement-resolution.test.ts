@@ -83,6 +83,11 @@ const ALLOWLIST = [
 
   // CLAUDE.md picks up a learning entry pointing at the decision doc.
   'CLAUDE.md',
+
+  // ADR 0005 (bounded contexts) cites the code-refinement decision doc
+  // as a "Related Decision" example of the orchestrator-imagined skill
+  // chain failure mode. The reference is intentional and explanatory.
+  'docs/adr/0005-bounded-contexts.md',
 ];
 
 function toRel(p: string): string {
