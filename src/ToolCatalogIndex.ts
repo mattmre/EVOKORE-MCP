@@ -33,6 +33,14 @@ export class ToolCatalogIndex {
     const allVisible =
       profile && profile.alwaysVisible === "all";
     const isAlwaysVisible = (tool: Tool, source: ToolCatalogSource): boolean => {
+      // Sprint 3.x — describe_tool is the bootstrap path for
+      // schema-deferred tools/list responses. Operators must always be
+      // able to call it to fetch full schemas, so it is force-visible
+      // across every profile/discovery mode regardless of allowlist
+      // shape.
+      if (tool.name === "describe_tool") {
+        return true;
+      }
       // Profile-driven visibility: explicit list of tool names.
       if (visibilitySet) {
         return visibilitySet.has(tool.name);
