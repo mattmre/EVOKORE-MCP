@@ -134,6 +134,7 @@ After solo reviews, the panel converges:
 | [Onboarding & Knowledge Transfer](panels/onboarding-knowledge-transfer.md) | Developer onboarding, tribal knowledge, setup UX | Quarterly review, post-architecture change, open-source prep |
 | [DevOps & Deployment](panels/devops-deployment.md) | CI/CD, deployment strategies, feature flags, release management | Pipeline architecture, release process, feature flag governance |
 | [Product Requirements](panels/product-requirements.md) | PRD quality, user stories, acceptance criteria | Feature spec review, epic scoping, product-engineering alignment |
+| [Design-an-Interface](panels/design-an-interface.md) | Parallel constraint-differentiated interface design ("Design It Twice") | A deepening candidate from `improve-codebase-architecture` has 3+ viable interface shapes; widening a widely-imported module |
 
 ### Content & Domain Panels
 
@@ -245,6 +246,7 @@ Full injection point audit covering ~194 skills. **170 are panel-enrichable**, 7
 | `orch-plan` (3+ phases) | Architecture | Pre approval | Complex plans need sequencing/feasibility validation before commit |
 | `tool-governance` (allowlist) | Security | Pre change | New tool approvals must be red-teamed before allowlisting |
 | `orch-refactor` (extract/rename) | Code Refinement | Post refactor | Validates coupling/naming didn't regress |
+| `design-an-interface` | Design-an-Interface | Pre interface commit | When `improve-codebase-architecture` surfaces a deepening candidate with 3+ viable interface shapes, run `design-an-interface` panel to produce parallel constraint-differentiated designs and persist a comparative at `docs/interface-designs/<slug>-comparative.md`. |
 
 #### High-Value Optional Injection Points
 
@@ -302,6 +304,16 @@ Full injection point audit covering ~194 skills. **170 are panel-enrichable**, 7
 
 24 skills are too mechanical, lightweight, or preference-driven for panel overhead:
 `orch-status`, `orch-tasks`, `hive` (router), `hive-concepts`, `enhance-prompt`, `remotion`, `stitch-loop`, `brand-guidelines`, `theme-factory`, `file-organizer`, `image-enhancer`, `invoice-organizer`, `slack-gif-creator`, `competitive-ads-extractor`, `twitter-algorithm-optimizer`, `refly`, and the panel-of-experts skills themselves.
+
+## Adapted From Upstream
+
+The `design-an-interface` archetype (panel file: [panels/design-an-interface.md](panels/design-an-interface.md)) is adapted from `mattpocock/skills @ 90ea8eec03d4ae8f43427aaf6fe4722653561a42 / design-an-interface/SKILL.md`, MIT licence (c) 2026 Matt Pocock. EVOKORE adaptations:
+
+- Collapsed from sibling skill into panel archetype, so output flows through the panel-of-experts CONVENE -> SOLO -> CHALLENGE -> CONVERGE -> FEASIBILITY -> DELIVER cycle.
+- Requirements-gathering replaced with prior-PRD/ADR read (`docs/prd/<slug>.md` and `docs/adr/<slug>*.md`) before falling back to ad-hoc operator elicitation.
+- Convergence artifact required at `docs/interface-designs/<slug>-comparative.md` — no ephemeral output.
+
+Upstream attribution and licence text live in the repo-root `NOTICE` and at `SKILLS/upstream/mattpocock-skills/LICENSE`. The vendored upstream tree is read-only and not indexed by SkillManager.
 
 ## Anti-Patterns
 
