@@ -3,7 +3,6 @@ const fs = require("fs");
 const path = require("path");
 const { ToolCatalogIndex } = require("../dist/ToolCatalogIndex.js");
 const {
-  resolveActiveProfile,
   loadDiscoveryConfig,
   MANDATORY_INJECTION_SKILLS,
 } = require("../dist/ProfileResolver.js");
