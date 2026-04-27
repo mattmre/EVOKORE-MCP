@@ -122,7 +122,7 @@ export interface FetchSkillResult {
 // @AI:NAV[END:interface-fetchskillresult]
 
 // @AI:NAV[SEC:interface-skillsearchmatch] interface SkillSearchMatch
-interface SkillSearchMatch {
+export interface SkillSearchMatch {
   skill: SkillMetadata;
   score: number;
   reasons: string[];
@@ -668,17 +668,79 @@ export class SkillManager {
     return Array.from(reasons).slice(0, 3);
   }
 
-  private searchSkills(query: string, limit: number): SkillSearchMatch[] {
+  /**
+   * Search skills using a deterministic precedence:
+   *   1. alias-exact match (query token equals an entry in skill.aliases, case-insensitive)
+   *   2. name-prefix match (query is a prefix of skill.name, case-insensitive)
+   *   3. fuzzy match (existing Fuse-based ranking with score adjustments)
+   *
+   * Tiers 1 and 2 are sorted by pathDepth ascending then name alphabetical so
+   * the top-level skill always wins over a deeply nested duplicate. A skill
+   * that lands in an earlier tier is removed from later tiers, so each skill
+   * appears at most once. Output is capped at `limit`.
+   *
+   * Public for testing; existing tool handlers continue to call it the same way.
+   */
+  searchSkills(query: string, limit: number): SkillSearchMatch[] {
     if (!this.fuseIndex) {
       return [];
     }
 
     const normalizedQuery = query.trim().toLowerCase();
     const tokens = this.tokenizeSearchQuery(query);
+    const used = new Set<string>();
+    const skillKey = (skill: SkillMetadata) => `${skill.category}/${skill.name}`.toLowerCase();
+
+    // ---------- Tier 1: alias-exact ----------
+    const aliasExact: SkillSearchMatch[] = [];
+    if (normalizedQuery) {
+      const aliasMatches: SkillMetadata[] = [];
+      for (const skill of this.skillsCache.values()) {
+        if (skill.aliases.some((alias) => alias.trim().toLowerCase() === normalizedQuery)) {
+          aliasMatches.push(skill);
+        }
+      }
+      aliasMatches.sort((a, b) => a.pathDepth - b.pathDepth || a.name.localeCompare(b.name));
+      for (const skill of aliasMatches) {
+        const key = skillKey(skill);
+        if (used.has(key)) continue;
+        used.add(key);
+        const reasons = [`alias exact: ${normalizedQuery}`, ...this.resolveSearchReasons(skill, tokens)].slice(0, 3);
+        aliasExact.push({ skill, score: 0, reasons });
+      }
+    }
+
+    // ---------- Tier 2: name-prefix ----------
+    const namePrefix: SkillSearchMatch[] = [];
+    if (normalizedQuery) {
+      const prefixMatches: SkillMetadata[] = [];
+      for (const skill of this.skillsCache.values()) {
+        const key = skillKey(skill);
+        if (used.has(key)) continue;
+        if (skill.name.toLowerCase().startsWith(normalizedQuery)) {
+          prefixMatches.push(skill);
+        }
+      }
+      prefixMatches.sort((a, b) => a.pathDepth - b.pathDepth || a.name.localeCompare(b.name));
+      for (const skill of prefixMatches) {
+        const key = skillKey(skill);
+        if (used.has(key)) continue;
+        used.add(key);
+        const reasons = [`name prefix: ${skill.name}`, ...this.resolveSearchReasons(skill, tokens)].slice(0, 3);
+        // Tier 2 score is fixed at 1.0 to keep the score metadata strictly
+        // greater than every tier-1 score (always 0) and strictly less than
+        // every tier-3 score (always >= 2.0 + adjusted Fuse score), so
+        // downstream rerankers can trust the score field as a tier ordinal.
+        namePrefix.push({ skill, score: 1.0, reasons });
+      }
+    }
+
+    // ---------- Tier 3: fuzzy (Fuse) ----------
     const candidateMap = new Map<string, SkillSearchMatch>();
 
     const upsertCandidate = (skill: SkillMetadata, baseScore: number) => {
-      const key = `${skill.category}/${skill.name}`.toLowerCase();
+      const key = skillKey(skill);
+      if (used.has(key)) return;
       const existing = candidateMap.get(key);
       const reasons = this.resolveSearchReasons(skill, tokens);
 
@@ -725,21 +787,35 @@ export class SkillManager {
       const searchableText = match.skill.searchableText.toLowerCase();
       const matchedTokens = tokens.filter((token) => searchableText.includes(token));
       const overlapRatio = tokens.length > 0 ? matchedTokens.length / tokens.length : 0;
-      const exactAliasMatch = match.skill.aliases.some((alias) => alias.toLowerCase() === query.trim().toLowerCase());
       const rootSkillBoost = match.skill.pathDepth === 0 ? 0.08 : 0;
       const referencePenalty = match.skill.subcategory.toLowerCase().includes("reference") ? 0.12 : 0;
       const overlapBoost = overlapRatio * 0.22;
-      const aliasBoost = exactAliasMatch ? 0.18 : 0;
+      // Note: `aliasBoost` was removed. Tier 1 (alias-exact) already
+      // captures alias matches and their skill keys are added to `used`
+      // before this tier runs, so any candidate that reaches this point
+      // is guaranteed not to be an exact-alias hit. Keeping the dead
+      // boost was a no-op that confused readers about precedence.
 
+      const reasons = match.reasons.length > 0
+        ? [`fuzzy match`, ...match.reasons].slice(0, 3)
+        : [`fuzzy match`];
+
+      // Tier 3 score is offset by 2.0 so the metadata is strictly greater
+      // than tier 2 (always 1.0) and tier 1 (always 0). The Fuse-derived
+      // adjustments still control the *intra*-tier ranking via the
+      // sort-by-score below, but downstream rerankers can rely on the
+      // score field as a tier ordinal too.
       return {
-        ...match,
-        score: match.score - overlapBoost - aliasBoost - rootSkillBoost + referencePenalty
+        skill: match.skill,
+        score: 2.0 + match.score - overlapBoost - rootSkillBoost + referencePenalty,
+        reasons,
       };
     });
 
-    return scoredMatches
-      .sort((left, right) => left.score - right.score)
-      .slice(0, limit);
+    const fuzzy = scoredMatches.sort((left, right) => left.score - right.score);
+
+    // ---------- Combine tiers and cap ----------
+    return [...aliasExact, ...namePrefix, ...fuzzy].slice(0, limit);
   }
 
   extractCodeBlocks(skillName: string): Array<{language: string; code: string; index: number}> {

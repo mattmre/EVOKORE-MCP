@@ -1,0 +1,141 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Default profile search snapshot > locks top-5 results for canonical queries 1`] = `
+{
+  "docs": [
+    {
+      "category": "GENERAL CODING WORKFLOWS",
+      "name": "docs-architect",
+      "subcategory": "",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "orch-docs",
+      "subcategory": "commands",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "panel-documentation-quality",
+      "subcategory": "panel-of-experts/panels",
+    },
+    {
+      "category": "AWESOME CLAUDE CODE RESOURCES",
+      "name": "documentation-update-command-update-implementation-documentation",
+      "subcategory": "SLASH COMMANDS/update-docs",
+    },
+    {
+      "category": "DEVELOPER TOOLS",
+      "name": "docx-library-tutorial",
+      "subcategory": "document-skills/docx",
+    },
+  ],
+  "orchestration": [
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "orchestration-commands",
+      "subcategory": "",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "orchestration-schemas",
+      "subcategory": "",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "agent-archetypes",
+      "subcategory": "",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "handoff-protocol",
+      "subcategory": "",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "policy-pack-v1",
+      "subcategory": "",
+    },
+  ],
+  "pr review": [
+    {
+      "category": "AWESOME CLAUDE CODE RESOURCES",
+      "name": "pr-review",
+      "subcategory": "SLASH COMMANDS/pr-review",
+    },
+    {
+      "category": "GENERAL CODING WORKFLOWS",
+      "name": "security-review",
+      "subcategory": "",
+    },
+    {
+      "category": "AWESOME CLAUDE CODE RESOURCES",
+      "name": "design-review",
+      "subcategory": "WORKFLOW GUIDES/Design-Review-Workflow",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "orch-review",
+      "subcategory": "commands",
+    },
+    {
+      "category": "WSHOBSON PLUGINS",
+      "name": "code-review-excellence",
+      "subcategory": "developer-essentials",
+    },
+  ],
+  "refactor": [
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "orch-refactor",
+      "subcategory": "commands",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "orch-tdd",
+      "subcategory": "commands",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "tdd",
+      "subcategory": "commands",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "panel-code-refinement",
+      "subcategory": "panel-of-experts/panels",
+    },
+    {
+      "category": "WSHOBSON PLUGINS",
+      "name": "architecture-patterns",
+      "subcategory": "backend-development",
+    },
+  ],
+  "voice": [
+    {
+      "category": "AUTOMATION AND PRODUCTIVITY",
+      "name": "invoice-organizer",
+      "subcategory": "",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "panel-seo-content-marketing",
+      "subcategory": "panel-of-experts/panels",
+    },
+    {
+      "category": "ORCHESTRATION FRAMEWORK",
+      "name": "cross-project-process-miner",
+      "subcategory": "",
+    },
+    {
+      "category": "WSHOBSON PLUGINS",
+      "name": "microservices-patterns",
+      "subcategory": "backend-development",
+    },
+    {
+      "category": "WSHOBSON PLUGINS",
+      "name": "service-mesh-observability",
+      "subcategory": "cloud-infrastructure",
+    },
+  ],
+}
+`;
