@@ -31,16 +31,46 @@ import path from "path";
  * behind discovery / activation.
  *
  * `alwaysVisible` accepts:
- *   - `"all-native"` (default) — every native tool is always visible,
- *     proxied tools are dynamic. This matches the pre-tiering legacy
- *     behavior bit-for-bit.
+ *   - `"all-native"` — every native tool is always visible, proxied
+ *     tools are dynamic. This matches the pre-Sprint-1.4 default.
+ *   - `"all"` — every native AND every proxy tool is always visible.
+ *     Restores the pre-v3.1 surface used by the `legacy-full` preset.
  *   - `string[]` — explicit list of tool names that are always visible.
  *     Anything else (native or proxy) starts hidden until activated.
  */
 export interface DiscoveryProfile {
-  alwaysVisible: "all-native" | string[];
+  alwaysVisible: "all-native" | "all" | string[];
   description?: string;
+  /**
+   * Sprint 1.4 — list of skill IDs that must remain reachable via the
+   * skill-execution surface (`resolve_workflow` / `execute_skill`)
+   * regardless of the profile's tool allowlist. These are the 7
+   * mandatory injection-point downstream skills documented in
+   * `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/SKILL.md`. The
+   * runtime does not currently filter skill access by profile, so this
+   * field is informational; tests assert that every default profile
+   * lists all 7 ids and that the skill-resolution tools needed to run
+   * them are present in `alwaysVisible` (or are themselves natives in
+   * an `all-native` / `all` profile).
+   */
+  mandatoryInjectionSkills?: string[];
 }
+
+/**
+ * The 7 mandatory injection-point downstream skills referenced from
+ * `SKILLS/ORCHESTRATION FRAMEWORK/panel-of-experts/SKILL.md` under
+ * "## Mandatory Injection Points (Always Run)". Exported so the tests
+ * and the benchmark can verify each shipped profile includes them.
+ */
+export const MANDATORY_INJECTION_SKILLS: readonly string[] = Object.freeze([
+  "release-readiness",
+  "repo-ingestor",
+  "docs-architect",
+  "orch-review",
+  "orch-plan",
+  "tool-governance",
+  "orch-refactor",
+]);
 
 export interface DiscoveryConfig {
   activeProfile?: string;

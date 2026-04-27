@@ -177,9 +177,17 @@ node scripts/benchmark-tool-discovery.js --live-timings
 
 - `toolCounts`
 - `payloadBytes`
-- `estimatedTokens`
+- `tokens` (Sprint 1.4: real `js-tiktoken` `cl100k_base` counts; replaces the prior `estimatedTokens` char/4 estimate)
+- `tokenizer` — descriptor with `kind` (`tiktoken` or `approximate`) and `encoding` (`cl100k_base` or fallback string)
 - `benchmarkScenario`
 - `topMatches`
+
+Sprint 1.4 also adds two new modes:
+
+- `--profile <name>` — measure a single named profile from `mcp.config.json`
+- `--all` — measure every profile (built-in default + everything in config)
+
+In profile mode the output shape is `{ tokenizer, syntheticCatalog, mandatoryInjectionSkills, profiles[] }` — see [`docs/TOOL_DISCOVERY_PROFILES.md`](TOOL_DISCOVERY_PROFILES.md) for measured budgets.
 
 When `--live-timings` is enabled, it also includes:
 

@@ -1,5 +1,150 @@
 {
   "skillRegistries": [],
+  "discovery": {
+    "profiles": {
+      "coding": {
+        "description": "Code-focused workflows: file ops, git, testing, native skill tools, and the 7 mandatory injection-point downstream skills.",
+        "mandatoryInjectionSkills": [
+          "release-readiness",
+          "repo-ingestor",
+          "docs-architect",
+          "orch-review",
+          "orch-plan",
+          "tool-governance",
+          "orch-refactor"
+        ],
+        "alwaysVisible": [
+          "discover_tools",
+          "resolve_workflow",
+          "search_skills",
+          "get_skill_help",
+          "docs_architect",
+          "skill_creator",
+          "execute_skill",
+          "refresh_skills",
+          "fetch_skill",
+          "list_registry",
+          "proxy_server_status",
+          "nav_get_map",
+          "nav_read_anchor",
+          "session_context_health",
+          "session_analyze_replay",
+          "session_work_ratio",
+          "claim_acquire",
+          "claim_release",
+          "claim_list",
+          "memory_store",
+          "memory_search",
+          "memory_list",
+          "fs_read_file",
+          "fs_read_multiple_files",
+          "fs_write_file",
+          "fs_edit_file",
+          "fs_create_directory",
+          "fs_list_directory",
+          "fs_directory_tree",
+          "fs_move_file",
+          "fs_search_files",
+          "fs_get_file_info",
+          "fs_list_allowed_directories",
+          "github_create_or_update_file",
+          "github_search_repositories",
+          "github_create_pull_request",
+          "github_get_pull_request",
+          "github_list_pull_requests",
+          "github_create_issue",
+          "github_get_issue",
+          "github_list_issues",
+          "github_get_file_contents",
+          "github_push_files",
+          "github_create_branch"
+        ]
+      },
+      "research": {
+        "description": "Read/search-heavy workflows: memory, docs, navigation, registry, and lightweight read-only file ops.",
+        "mandatoryInjectionSkills": [
+          "release-readiness",
+          "repo-ingestor",
+          "docs-architect",
+          "orch-review",
+          "orch-plan",
+          "tool-governance",
+          "orch-refactor"
+        ],
+        "alwaysVisible": [
+          "discover_tools",
+          "resolve_workflow",
+          "search_skills",
+          "get_skill_help",
+          "docs_architect",
+          "fetch_skill",
+          "list_registry",
+          "execute_skill",
+          "refresh_skills",
+          "nav_get_map",
+          "nav_read_anchor",
+          "memory_store",
+          "memory_search",
+          "memory_list",
+          "session_context_health",
+          "session_analyze_replay",
+          "session_work_ratio",
+          "fs_read_file",
+          "fs_read_multiple_files",
+          "fs_search_files",
+          "fs_list_directory",
+          "fs_directory_tree",
+          "fs_get_file_info",
+          "github_search_repositories",
+          "github_get_file_contents",
+          "github_search_code",
+          "github_search_issues"
+        ]
+      },
+      "voice": {
+        "description": "Voice sidecar workflows: ElevenLabs MCP tools plus a minimal control surface (discovery + skill resolution).",
+        "mandatoryInjectionSkills": [
+          "release-readiness",
+          "repo-ingestor",
+          "docs-architect",
+          "orch-review",
+          "orch-plan",
+          "tool-governance",
+          "orch-refactor"
+        ],
+        "alwaysVisible": [
+          "discover_tools",
+          "resolve_workflow",
+          "search_skills",
+          "get_skill_help",
+          "proxy_server_status",
+          "elevenlabs_text_to_speech",
+          "elevenlabs_speech_to_text",
+          "elevenlabs_text_to_voice",
+          "elevenlabs_voice_clone",
+          "elevenlabs_get_voice",
+          "elevenlabs_search_voices",
+          "elevenlabs_search_voice_library",
+          "elevenlabs_isolate_audio",
+          "elevenlabs_play_audio",
+          "elevenlabs_make_outbound_call",
+          "elevenlabs_create_agent",
+          "elevenlabs_get_agent",
+          "elevenlabs_list_agents",
+          "elevenlabs_get_conversation",
+          "elevenlabs_list_conversations"
+        ]
+      },
+      "legacy-full": {
+        "description": "Pre-v3.1 deprecation shim: every native AND every proxy tool ships in the initial tools/list. High token cost; prefer named profiles where possible.",
+        "alwaysVisible": "all"
+      },
+      "legacy-dynamic": {
+        "description": "v3.0 dynamic-mode default: every native tool is always visible; proxy tools are dynamically activated via discover_tools. No tier filtering beyond native/proxy.",
+        "alwaysVisible": "all-native"
+      }
+    }
+  },
   "servers": {
     "github": {
       "command": "npx",
