@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "evokore": {
+      "command": "node",
+      "args": ["dist/index.js"]
+    }
+  }
+}
