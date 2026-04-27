@@ -29,6 +29,7 @@
     "repo:audit": "node scripts/repo-state-audit.js",
     "memory:sync": "node scripts/sync-memory.js",
     "skill-graph": "node scripts/derive-skill-composition.js",
+    "validate:issues": "node scripts/validate-issue-metadata.js",
     "build": "npx tsc",
     "benchmark:tool-discovery": "node scripts/benchmark-tool-discovery.js",
     "voice": "node dist/VoiceSidecar.js",

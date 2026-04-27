@@ -24,9 +24,9 @@ exports[`Default profile search snapshot > locks top-5 results for canonical que
       "subcategory": "SLASH COMMANDS/update-docs",
     },
     {
-      "category": "DEVELOPER TOOLS",
-      "name": "docx-library-tutorial",
-      "subcategory": "document-skills/docx",
+      "category": "PLANNING",
+      "name": "to-issues",
+      "subcategory": "",
     },
   ],
   "orchestration": [
